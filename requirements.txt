@@ -1,0 +1,12 @@
+# Data path: plain HTTP. No browser is used to fetch anything.
+httpx>=0.27
+fastmcp>=2.0
+
+# Login only. Needed exclusively for the Google OAuth sign-in path
+# (instahyre_login_browser); email/password login and all data fetching work
+# without it.
+playwright>=1.40
+
+# Shared scoring engine, consumed from the sibling checkout at
+# ../jobcore/src when not installed. Pure stdlib, no dependencies.
+# jobcore

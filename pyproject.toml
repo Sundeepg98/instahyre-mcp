@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "instahyre-mcp"
+version = "1.0.0"
+description = "MCP server for Instahyre job search -- plain HTTP, no browser in the data path."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Sundeep" }]
+dependencies = ["httpx>=0.27", "fastmcp>=2.0"]
+
+[project.optional-dependencies]
+# Only needed for the Google OAuth sign-in path.
+browser = ["playwright>=1.40"]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+instahyre-mcp = "instahyre_server.server:main"
+
+[tool.setuptools.packages.find]
+include = ["instahyre_server*"]
+
+# pytest configuration lives in pytest.ini (it needs pythonpath=.), deliberately
+# not duplicated here -- two sources of truth for test config is how a suite
+# quietly stops running the way you think it does.

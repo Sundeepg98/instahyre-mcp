@@ -1,0 +1,51 @@
+{
+ "resource_uri": "/api/v1/employer_public_jobs/438126",
+ "opportunity_url": "/job-438126-fullstack-engineer-at-thena-bangalore/",
+ "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+ "hiring_company_name": "Thena",
+ "candidate_title": "Fullstack Engineer",
+ "is_internship": false,
+ "id": 438126,
+ "title": "Fullstack Engineer",
+ "is_active": true,
+ "locations": [
+  "Bangalore"
+ ],
+ "keywords": [
+  "Python",
+  "Temporal",
+  "JavaScript",
+  "NestJS",
+  "React.js",
+  "APIs",
+  "Architecture",
+  "SQL",
+  "Data Structures",
+  "Algorithms",
+  "TypeScript"
+ ],
+ "accept_outstation": true,
+ "gender": 0,
+ "job_category": "Software Engineering",
+ "description": "<html><body><p>We're looking for a Full Stack Engineer to join a small, high-ownership engineering team building systems that process large volumes of enterprise data using reliable workflows and AI/LLM capabilities. You'll work across backend, frontend, data processing and cloud infrastructure, with significant ownership from design to production.</p><p><br /></p><p><strong>Responsibilities: </strong></p><ul><li>Build APIs and backend services using TypeScript/NestJS.</li><li>Develop durable, long-running workflows using Temporal.</li><li>Build interfaces using React + Vite.</li><li>Work with Python for data processing and AI workflows.</li><li>Process large datasets using Polars, DuckDB and Parquet.</li><li>Work with PostgreSQL, Redis and Azure.</li><li>Build reliable tests and troubleshoot complex production issues.</li><li>Contribute to architecture and engineering decisions in a fast-moving environment.</li></ul><p><br /></p><p><strong>Requirements: </strong></p><ul><li>2+ years of professional software engineering experience with production-shipped work.</li><li>Strong TypeScript and good working knowledge of Python.</li><li>Experience with backend/API development.</li><li>Good SQL and understanding of real-world data.</li><li>Strong debugging and problem-solving skills.</li><li>Comfortable working independently in an ambiguous, startup-like environment.</li><li>Good communication and documentation skills.</li><li>Tech Stack: TypeScript, NestJS, Temporal Python, React Vite, Polars DuckDB, Parquet, PostgreSQL, Redis, Azure, Docker, Terraform, LangGraph.</li></ul><p><br /></p><p><strong>Good to Have: </strong></p><ul><li>Temporal / Airflow / Step Functions.</li><li>React / Vite.</li><li>Polars / DuckDB / Arrow / Parquet.</li><li>LLM/AI applications.</li><li>Docker / Terraform / CI/CD.</li><li>Azure / LangGraph</li></ul></body></html>",
+ "workex_min": 2,
+ "workex_max": 5,
+ "job_functions": [],
+ "internship": null,
+ "recruiter_name": "Neha Gupta",
+ "recruiter_designation": "TA Executive",
+ "recruiter_company_name": "Recro",
+ "recruiter_profile_url": "https://media.instahyre.com/images/profile/base/recruiter/33333/aaaaaaaaaa/fakephoto.webp",
+ "agency_function_names": [
+  "Backend Development",
+  "Frontend Development",
+  "Full-Stack Development"
+ ],
+ "job_function_dict": {
+  "Software Engineering": [
+   "Backend Development",
+   "Frontend Development",
+   "Full-Stack Development"
+  ]
+ }
+}

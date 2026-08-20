@@ -1,0 +1,1234 @@
+{
+ "objects": [
+  {
+   "resource_uri": "/api/v1/job_search/432558",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/20108",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/20108/bb7b528ea9/0.webp",
+    "id": 20108,
+    "company_name": "Ridgeline Analytics",
+    "company_tagline": "Accelerate digital transformation",
+    "company_founded": 2015,
+    "employee_count": 1000,
+    "instahyre_note": "Ridgeline Analytics is a specialized technology practice for high end consulting geared towards Banking & Finance, Telecom, and Healthcare using technologies such as AI, ML, bid data analytics, etc. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-432558-java-engineer-at-wissen-technology-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Java Engineer",
+   "id": 432558,
+   "title": "Java Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Data Structures",
+    "Java",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438126",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/42193",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+    "id": 42193,
+    "company_name": "Thena",
+    "company_tagline": "We help to manage customers in slack",
+    "company_founded": 2022,
+    "employee_count": 1,
+    "instahyre_note": "Thena is a customer engagement platform for Slack that organizes customer channels with request identification, connects to internal tools, allows customer escalations, notifies teams, and analyzes their behavior. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438126-fullstack-engineer-at-thena-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Fullstack Engineer",
+   "id": 438126,
+   "title": "Fullstack Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Temporal",
+    "JavaScript",
+    "NestJS",
+    "React.js",
+    "APIs",
+    "Architecture",
+    "SQL",
+    "Data Structures",
+    "Algorithms",
+    "TypeScript"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/426970",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/51279",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/51279/52cff269d4/rupicard_logo.webp",
+    "id": 51279,
+    "company_name": "GoodScore",
+    "company_tagline": "Helping Indians build a good credit score",
+    "company_founded": 2023,
+    "employee_count": 50,
+    "instahyre_note": "The GoodScore app is a credit management app tailored for Indian users, offering score tracking, expert guidance, dispute resolution, and integrated loan/bill payment solutions to 5 million+ users. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-426970-backend-developer-at-goodscore-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Backend Developer",
+   "id": 426970,
+   "title": "Backend Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Golang",
+    "Java",
+    "Node.js",
+    "Python",
+    "Flask"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/434296",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/27493",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/27493/0d3bbf7532/93274002_223539352323826_7514704080795598848_.webp",
+    "id": 27493,
+    "company_name": "Kutumb",
+    "company_tagline": "Original Indian online community app",
+    "company_founded": 2020,
+    "employee_count": 50,
+    "instahyre_note": "Kutumb is an Indian community app. Wherein for every registered community it acts as a full-fledged social network platform, where members can browse content, explore, connect, and communicate with each other. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-434296-sde-ii-backend-at-kutumb-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "SDE II - Backend",
+   "id": 434296,
+   "title": "SDE II - Backend",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Golang",
+    "Node.js"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/422225",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/36883",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/36883/da46583f6e/1519895762137.webp",
+    "id": 36883,
+    "company_name": "Toast",
+    "company_tagline": "Be there",
+    "company_founded": 2011,
+    "employee_count": 1000,
+    "instahyre_note": "Toast is a cloud-based restaurant software company that combines restaurant point of sale, guest-facing technology, and customer support to help restaurants improve operations and elevate guest experiences. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-422225-senior-software-engineer-at-toast-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Software Engineer",
+   "id": 422225,
+   "title": "Senior Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439584",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439584-lead-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Engineer",
+   "id": 439584,
+   "title": "Lead Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Node.js",
+    "Python",
+    "Data Structures",
+    "Algorithms",
+    "Golang"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439675",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439675-lead-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Engineer",
+   "id": 439675,
+   "title": "Lead Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Data Structures",
+    "Algorithms",
+    "Golang",
+    "Node.js",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438981",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/20108",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/20108/bb7b528ea9/0.webp",
+    "id": 20108,
+    "company_name": "Ridgeline Analytics",
+    "company_tagline": "Accelerate digital transformation",
+    "company_founded": 2015,
+    "employee_count": 1000,
+    "instahyre_note": "Ridgeline Analytics is a specialized technology practice for high end consulting geared towards Banking & Finance, Telecom, and Healthcare using technologies such as AI, ML, bid data analytics, etc. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438981-senior-software-engineer-java-at-wissen-technology-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Software Engineer - Java",
+   "id": 438981,
+   "title": "Senior Software Engineer - Java",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Java",
+    "Hibernate",
+    "Spring"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438148",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/42193",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+    "id": 42193,
+    "company_name": "Thena",
+    "company_tagline": "We help to manage customers in slack",
+    "company_founded": 2022,
+    "employee_count": 1,
+    "instahyre_note": "Thena is a customer engagement platform for Slack that organizes customer channels with request identification, connects to internal tools, allows customer escalations, notifies teams, and analyzes their behavior. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438148-engineering-team-lead-at-thena-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Engineering Team Lead",
+   "id": 438148,
+   "title": "Engineering Team Lead",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Algorithms",
+    "Architecture",
+    "Data Structures",
+    "JavaScript",
+    "LangChain",
+    "NestJS",
+    "React.js",
+    "Temporal",
+    "TypeScript"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439280",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/41372",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/41372/fa937436ca/arcana.webp",
+    "id": 41372,
+    "company_name": "Arcana",
+    "company_tagline": "Portfolio intelligence for top hedge funds & asset managers",
+    "company_founded": 2022,
+    "employee_count": 200,
+    "instahyre_note": "Arcana is a tech company enabling institutional investors to understand portfolio risks and stock performance through proprietary datasets, rigorous analysis tooling, and best-in-class data integrity. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439280-senior-backend-developer-at-arcana-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Backend Developer",
+   "id": 439280,
+   "title": "Senior Backend Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Data Structures",
+    "Algorithms",
+    "Python",
+    "Java",
+    "C++",
+    "Golang",
+    "Node.js"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/395839",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/49316",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/49316/2e8ee7f6f2/nurixai_logo.webp",
+    "id": 49316,
+    "company_name": "Nurix",
+    "company_tagline": "Premier GenAI services company building bespoke solutions for enterprises",
+    "company_founded": 2024,
+    "employee_count": 10,
+    "instahyre_note": "Nurix is an IT services company offering AI agents and virtual assistants to automate workflows with data-driven insights into customer engagement through personalized interactions and efficient query resolution. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-395839-backend-engineer-versatile-at-nurix-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Backend Engineer - Versatile",
+   "id": 395839,
+   "title": "Backend Engineer - Versatile",
+   "locations": "Bangalore",
+   "keywords": [
+    "Golang",
+    "Java",
+    "Node.js",
+    "Python"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436780",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/53550",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/53550/551b7a37c3/ciroos_logo.webp",
+    "id": 53550,
+    "company_name": "Ciroos",
+    "company_tagline": "An AI SRE teammate",
+    "company_founded": 2025,
+    "employee_count": 10,
+    "instahyre_note": "Ciroos is a tech company building an AI-powered SRE teammate that automates incident investigation, accelerates root-cause analysis, and enhances reliability across complex multi-domain environments. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436780-software-development-engineer-at-ciroos-bangalore-gurgaon/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Development Engineer",
+   "id": 436780,
+   "title": "Software Development Engineer",
+   "locations": "Bangalore,Gurgaon",
+   "keywords": [
+    "Golang",
+    "Java",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/428444",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/1837",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/1837/e227c3139f/Indihood_logo_with_name_-_Large.webp",
+    "id": 1837,
+    "company_name": "Indihood",
+    "company_tagline": "In community we trust",
+    "company_founded": 2016,
+    "employee_count": 10,
+    "instahyre_note": "Currently in stealth mode, Indihood is building a high-tech platform for crowdsourcing information. Founder has run Google India's product team. Founding engineers are also from top companies like Google. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-428444-application-developer-at-indihood-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Application Developer",
+   "id": 428444,
+   "title": "Application Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "database",
+    "databases",
+    "Java",
+    "JavaScript"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438059",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/5003",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/5003/dcac758458/nineleaps.webp",
+    "id": 5003,
+    "company_name": "Nineleaps",
+    "company_tagline": "We build high performance solutions",
+    "company_founded": 2014,
+    "employee_count": 200,
+    "instahyre_note": "Nineleaps are enablers of Digital Transformation across industries, helping partner companies become future ready. They have developed highly scalable & performance driven applications in Web, Mobile, and Analytics"
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438059-full-stack-engineer-at-nineleaps-2-bangalore-hyderabad/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Full - Stack Engineer",
+   "id": 438059,
+   "title": "Full - Stack Engineer",
+   "locations": "Bangalore,Hyderabad",
+   "keywords": [
+    "Python",
+    "React",
+    "React.js"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/434603",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/41372",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/41372/fa937436ca/arcana.webp",
+    "id": 41372,
+    "company_name": "Arcana",
+    "company_tagline": "Portfolio intelligence for top hedge funds & asset managers",
+    "company_founded": 2022,
+    "employee_count": 200,
+    "instahyre_note": "Arcana is a tech company enabling institutional investors to understand portfolio risks and stock performance through proprietary datasets, rigorous analysis tooling, and best-in-class data integrity. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-434603-lead-backend-engineer-at-arcana-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Backend Engineer",
+   "id": 434603,
+   "title": "Lead Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Distributed Systems",
+    "Golang",
+    "Java",
+    "Microservices",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/437033",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/41372",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/41372/fa937436ca/arcana.webp",
+    "id": 41372,
+    "company_name": "Arcana",
+    "company_tagline": "Portfolio intelligence for top hedge funds & asset managers",
+    "company_founded": 2022,
+    "employee_count": 200,
+    "instahyre_note": "Arcana is a tech company enabling institutional investors to understand portfolio risks and stock performance through proprietary datasets, rigorous analysis tooling, and best-in-class data integrity. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-437033-sr-backend-engineer-at-arcana-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Backend Engineer",
+   "id": 437033,
+   "title": "Sr. Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "APIs",
+    "Algorithms",
+    "Data Structures",
+    "Golang",
+    "Java",
+    "Microservices",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/431497",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/13366",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/13366/8f320643a7/0_-_2019-08-09T153322.553.webp",
+    "id": 13366,
+    "company_name": "MyBillBook (FloBiz)",
+    "company_tagline": "Accelerating Growth of Indian SMB's through Digitisation",
+    "company_founded": 2019,
+    "employee_count": 200,
+    "instahyre_note": "FloBiz is a neo business platform that offers mobile solutions to digitize MSMEs. Its product MyBillbook is a mobile app that allows users to create invoices, manage their outstanding, and monitor their stock. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-431497-software-development-engineer-ii-backend-at-mybillbook-flobiz-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Development Engineer II (Backend)",
+   "id": 431497,
+   "title": "Software Development Engineer II (Backend)",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Django",
+    "FastAPI",
+    "PostgreSQL"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438417",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/40320",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/40320/18beeac3e3/KO_9ZF8M_400x400.webp",
+    "id": 40320,
+    "company_name": "Axi",
+    "company_tagline": "We help to achieve trading ambitions",
+    "company_founded": 2007,
+    "employee_count": 50,
+    "instahyre_note": "Axi is a global online FX and CFD trading company that offers a comprehensive end-to-end trading experience in margin and deliverable foreign exchange, contracts for difference (CFDs), and financial spread betting. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438417-sr-backend-developer-java-at-axi-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Backend Developer - Java",
+   "id": 438417,
+   "title": "Sr. Backend Developer - Java",
+   "locations": "Bangalore",
+   "keywords": [
+    "Spring Boot",
+    "Microservices",
+    "AWS",
+    "Google Cloud (GCP)",
+    "Java",
+    "APIs",
+    "CI / CD",
+    "Azure",
+    "SQL"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438765",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438765-sr-product-software-engineer-i-1224-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Product Software Engineer I - (1224)",
+   "id": 438765,
+   "title": "Sr. Product Software Engineer I - (1224)",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "React.js",
+    "Node.js",
+    "AWS",
+    "JavaScript",
+    "Docker",
+    "CI / CD",
+    "Spring Boot",
+    "Kafka",
+    "Next.js",
+    "TypeScript",
+    "Data Structures",
+    "Algorithms",
+    "Vue.js",
+    "Angular",
+    "Express.js",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/425366",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/8898",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/8898/1d5a3b572a/MFwxjqDh_400x400.webp",
+    "id": 8898,
+    "company_name": "Rakuten",
+    "company_tagline": "Empower The World",
+    "company_founded": 1997,
+    "employee_count": 1000,
+    "instahyre_note": "Rakuen is an online marketplace for multi-category products, the largest of its kind in Japan. Product categories include apparels, electronic gadgets, mobile phones, footwear, home decor, and more. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-425366-consultant-java-backend-at-rakuten-2-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Consultant - Java Backend",
+   "id": 425366,
+   "title": "Consultant - Java Backend",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Java",
+    "J2EE",
+    "Spring"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439560",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/2070",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/2070/e13a7bd3e6/accenture_logo.webp",
+    "id": 2070,
+    "company_name": "Accenture",
+    "company_tagline": "Let there be change",
+    "company_founded": 1989,
+    "employee_count": 1000,
+    "instahyre_note": "Accenture is a global management consulting and professional services company that provides strategy, consulting, digital, technology, and operations services in over 120 countries. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439560-application-developer-at-accenture-2-bangalore-delhi-noida/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Application Developer",
+   "id": 439560,
+   "title": "Application Developer",
+   "locations": "Bangalore,Delhi,Noida",
+   "keywords": [
+    "DataPower",
+    "IBM WebSphere DataPower",
+    "XML",
+    "middleware"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/431484",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/13366",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/13366/8f320643a7/0_-_2019-08-09T153322.553.webp",
+    "id": 13366,
+    "company_name": "MyBillBook (FloBiz)",
+    "company_tagline": "Accelerating Growth of Indian SMB's through Digitisation",
+    "company_founded": 2019,
+    "employee_count": 200,
+    "instahyre_note": "FloBiz is a neo business platform that offers mobile solutions to digitize MSMEs. Its product MyBillbook is a mobile app that allows users to create invoices, manage their outstanding, and monitor their stock. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-431484-senior-backend-engineer-at-mybillbook-flobiz-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Backend Engineer",
+   "id": 431484,
+   "title": "Senior Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "Algorithms",
+    "Distributed Systems",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/435910",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/27544",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/27544/c76b716123/0_1.webp",
+    "id": 27544,
+    "company_name": "Aquera",
+    "company_tagline": "Identity Integration Platform as a Service",
+    "company_founded": 2016,
+    "employee_count": 200,
+    "instahyre_note": "Aquera offers a cloud-based service that provides integration between identity management platforms and IT infrastructure and further streamlining the associated identity management process and workflows. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-435910-integration-developer-at-aquera-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Integration Developer",
+   "id": 435910,
+   "title": "Integration Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Node.js"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/350634",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/46610",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/46610/5bd5833de8/Screenshot_2026-02-24_154427.webp",
+    "id": 46610,
+    "company_name": "CBX1",
+    "company_tagline": "Revolutionizing the marketing domain",
+    "company_founded": 2023,
+    "employee_count": 10,
+    "instahyre_note": "CBX1 is a B2B SaaS company transforming marketing with AI-driven solutions to build high-impact products from the ground up and is currently forming its core team in Bangalore. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-350634-software-developer-at-cbx1-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Developer",
+   "id": 350634,
+   "title": "Software Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "C++",
+    "Golang",
+    "Java",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439720",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/27993",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/27993/bfd16c67d2/0_2.webp",
+    "id": 27993,
+    "company_name": "Riskcovry",
+    "company_tagline": "Your digital insurance partner",
+    "company_founded": 2018,
+    "employee_count": 50,
+    "instahyre_note": "Riskcovry is building a 'financial infrastructure' model for insurance distribution. The company enables any insurance product from any insurer across any customer engagement channel, holistically and seamlessly. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439720-lead-senior-software-engineer-at-riskcovry-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead / Senior Software Engineer",
+   "id": 439720,
+   "title": "Lead / Senior Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Ruby on Rails",
+    "Ruby",
+    "Node.js",
+    "JavaScript",
+    "APIs",
+    "Architecture"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/401460",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/50922",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/50922/f8830f6f24/oleriasecurity_logo.webp",
+    "id": 50922,
+    "company_name": "Oleria",
+    "company_tagline": "Delivering adaptive and autonomous identity security",
+    "company_founded": 2022,
+    "employee_count": 10,
+    "instahyre_note": "Oleria is a software development company offering adaptive and autonomous identity security solutions that provide real-time visibility and proactively mitigate access risks to protect organizational data. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-401460-senior-software-engineer-at-oleria-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Software Engineer",
+   "id": 401460,
+   "title": "Senior Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Node.js",
+    "Python",
+    "JavaScript",
+    "Express.js"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/434787",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/1380",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/1380/eec5d72eea/target.webp",
+    "id": 1380,
+    "company_name": "Target in India",
+    "company_tagline": "Expect More. Pay Less",
+    "company_founded": 1980,
+    "employee_count": 1000,
+    "instahyre_note": "Target is one of the world's most recognized brands and one of America's leading retailers. It has over 1,800 stores in the US, as well as an e-commerce presence. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-434787-java-developer-at-target-in-india-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Java Developer",
+   "id": 434787,
+   "title": "Java Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "Spring",
+    "Kafka",
+    "LLMs",
+    "Spring Boot",
+    "Docker",
+    "SQL",
+    "NoSQL",
+    "AWS",
+    "Azure",
+    "Google Cloud (GCP)"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/423872",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/34141",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/34141/fbb2cc04af/Zepto_Logo.webp",
+    "id": 34141,
+    "company_name": "Zepto",
+    "company_tagline": "Groceries in minutes",
+    "company_founded": 2021,
+    "employee_count": 1000,
+    "instahyre_note": "Zepto is an online grocery delivery platform that aims to deliver groceries in less than 10 minutes through its network of hyperlocal stores and optimized micro warehouses. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-423872-senior-backend-engineer-at-zepto-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Backend Engineer",
+   "id": 423872,
+   "title": "Senior Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "backend",
+    "distributed systems"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/407023",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/52103",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/52103/bd689ace1d/wearematters_logo.webp",
+    "id": 52103,
+    "company_name": "Matters",
+    "company_tagline": "The AI security engineer",
+    "company_founded": 2022,
+    "employee_count": 10,
+    "instahyre_note": "Matters is an AI-native data security platform that protects sensitive data across cloud, SaaS, endpoint, and on-prem systems using semantic intelligence, behavioral context, and real-time enforcement. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-407023-senior-data-scientist-at-matters-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Data Scientist",
+   "id": 407023,
+   "title": "Senior Data Scientist",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Analysis",
+    "Generative AI",
+    "LLMs",
+    "Machine Learning",
+    "NLP",
+    "Python",
+    "PyTorch",
+    "TensorFlow"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/406401",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/52778",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/52778/20b3e59604/image_360_1.webp",
+    "id": 52778,
+    "company_name": "Different AI",
+    "company_tagline": "Revolutionizing the marketing domain",
+    "company_founded": 2023,
+    "employee_count": 10,
+    "instahyre_note": "Different AI is a B2B SaaS marketing platform that builds AI-driven tools around business goals to enable deeper customer engagement and transform how businesses plan and execute marketing. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-406401-senior-backend-engineer-at-different-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Backend Engineer",
+   "id": 406401,
+   "title": "Senior Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "C++",
+    "Data Structures",
+    "Golang",
+    "Java",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439360",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/49316",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/49316/2e8ee7f6f2/nurixai_logo.webp",
+    "id": 49316,
+    "company_name": "Nurix",
+    "company_tagline": "Premier GenAI services company building bespoke solutions for enterprises",
+    "company_founded": 2024,
+    "employee_count": 10,
+    "instahyre_note": "Nurix is an IT services company offering AI agents and virtual assistants to automate workflows with data-driven insights into customer engagement through personalized interactions and efficient query resolution. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439360-software-engineer-at-nurix-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Engineer",
+   "id": 439360,
+   "title": "Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Golang",
+    "Java",
+    "Node.js",
+    "Python"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436774",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/55624",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/55624/05e917bb63/broccoli_com_logo.webp",
+    "id": 55624,
+    "company_name": "Broccoli AI",
+    "company_tagline": "AI employees for the trades",
+    "company_founded": 1995,
+    "employee_count": 50,
+    "instahyre_note": "Broccoli AI is a software company that develops AI voice agents to automate customer communication and operational workflows, helping home service businesses improve operational efficiency and increase revenue. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436774-software-engineer-at-broccoli-ai-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Engineer",
+   "id": 436774,
+   "title": "Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "Python",
+    "Node.js",
+    "React.js",
+    "Angular"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438667",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/33056",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/33056/2b38c02906/1594664252320.webp",
+    "id": 33056,
+    "company_name": "Nightfall",
+    "company_tagline": "Discover, classify, and protect your sensitive data",
+    "company_founded": 2019,
+    "employee_count": 50,
+    "instahyre_note": "Nightfall is a cloud-native data loss prevention platform that leverages machine learning and natural language processing to discover, classify, and protect sensitive information across SaaS and data infrastructure"
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438667-senior-agentic-ai-engineer-at-nightfall-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Agentic AI Engineer",
+   "id": 438667,
+   "title": "Senior Agentic AI Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Agentic AI",
+    "NLP",
+    "Java",
+    "Python",
+    "Golang",
+    "Rust",
+    "Vector Databases",
+    "C++"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/17001",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/6992",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/6992/59acf99b62/47497857_309202126470355_3542562117494243328_.webp",
+    "id": 6992,
+    "company_name": "thinkify.io",
+    "company_tagline": "Engineering Simplified",
+    "company_founded": 2018,
+    "employee_count": 10,
+    "instahyre_note": "Thinkify is an IT company providing various services of UI/UX Design, Dev Ops, Mobile, Test Automation, and Web Development. Some of their major clients include Swiggy, Nestaway, Infoworks, and Zoomcar. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-17001-java-developer-at-thinkify-2-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Java Developer",
+   "id": 17001,
+   "title": "Java Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Java",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/423245",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/54504",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/54504/467708cc43/1678961455372.webp",
+    "id": 54504,
+    "company_name": "Amazon Store",
+    "company_tagline": "Managing the \"Everything Store\" model",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon Store, a division of Amazon.com powers its online marketplace, physical retail and brand storefronts while serving billions of customers and operates 600+ grocery stores and supports programs for B2B sales. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-423245-sde-2-at-amazon-store-bangalore-chennai-hyderabad/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "SDE 2",
+   "id": 423245,
+   "title": "SDE 2",
+   "locations": "Bangalore,Chennai,Hyderabad",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Django",
+    "Golang",
+    "J2EE",
+    "Java",
+    "Microservices",
+    "Python",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  }
+ ],
+ "meta": {
+  "offset": 0,
+  "limit": 35,
+  "total_count": 1086,
+  "total_count_relation": "eq",
+  "previous": null,
+  "next": "/api/v1/job_search?job_functions=10&jobLocations=Bangalore&years=5&limit=35&offset=35",
+  "top_job_functions_count": [
+   {
+    "id": 10,
+    "name": "Backend Development",
+    "count": 1086,
+    "type": "job_function"
+   },
+   {
+    "id": 9,
+    "name": "Data Science / Machine Learning",
+    "count": 525,
+    "type": "job_function"
+   },
+   {
+    "id": 1,
+    "name": "Full-Stack Development",
+    "count": 472,
+    "type": "job_function"
+   },
+   {
+    "id": 76,
+    "name": "Other Software Development",
+    "count": 281,
+    "type": "job_function"
+   }
+  ],
+  "top_industry_types_count": [
+   {
+    "name": 13,
+    "count": 735
+   },
+   {
+    "name": 9,
+    "count": 173
+   },
+   {
+    "name": 29,
+    "count": 50
+   },
+   {
+    "name": 41,
+    "count": 48
+   }
+  ],
+  "company_size_count": {
+   "small": 360,
+   "medium": 197,
+   "large": 529
+  },
+  "top_companies_count": [
+   {
+    "name": "Arctic Wolf",
+    "count": 35
+   },
+   {
+    "name": "Amazon",
+    "count": 25
+   },
+   {
+    "name": "Arcana",
+    "count": 20
+   },
+   {
+    "name": "InMobi",
+    "count": 20
+   }
+  ],
+  "top_locations_count": [
+   {
+    "location": "Bangalore",
+    "count": 1086
+   },
+   {
+    "location": "Gurgaon",
+    "count": 294
+   },
+   {
+    "location": "Work From Home",
+    "count": 173
+   },
+   {
+    "location": "Hyderabad",
+    "count": 116
+   },
+   {
+    "location": "Mumbai",
+    "count": 97
+   }
+  ],
+  "job_type_counts": {
+   "full_time": 1086,
+   "internship": 0
+  },
+  "max_experience": 25,
+  "facet_all_counts": {
+   "job_functions": 3699,
+   "company_size": 1086,
+   "industries": 1086,
+   "location": 1867,
+   "companies": 1086,
+   "job_type": 1086
+  },
+  "job_experience_levels": {
+   "associate": 4889,
+   "entry_level": 503,
+   "internship": 45,
+   "mid_senior": 7670,
+   "senior": 10406
+  }
+ }
+}

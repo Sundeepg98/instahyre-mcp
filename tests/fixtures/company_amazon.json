@@ -1,0 +1,1283 @@
+{
+ "objects": [
+  {
+   "resource_uri": "/api/v1/job_search/439584",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439584-lead-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Engineer",
+   "id": 439584,
+   "title": "Lead Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Node.js",
+    "Python",
+    "Data Structures",
+    "Algorithms",
+    "Golang"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439675",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439675-lead-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Engineer",
+   "id": 439675,
+   "title": "Lead Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Data Structures",
+    "Algorithms",
+    "Golang",
+    "Node.js",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438765",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438765-sr-product-software-engineer-i-1224-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Product Software Engineer I - (1224)",
+   "id": 438765,
+   "title": "Sr. Product Software Engineer I - (1224)",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "React.js",
+    "Node.js",
+    "AWS",
+    "JavaScript",
+    "Docker",
+    "CI / CD",
+    "Spring Boot",
+    "Kafka",
+    "Next.js",
+    "TypeScript",
+    "Data Structures",
+    "Algorithms",
+    "Vue.js",
+    "Angular",
+    "Express.js",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/426013",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/34980",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/34980/559d64bbb5/1633614104680.webp",
+    "id": 34980,
+    "company_name": "Amazon Ads",
+    "company_tagline": "Your brand, their world",
+    "company_founded": 2010,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon Ads helps brands of all sizes design ad experiences and craft relevant campaigns to delight customers around the world both on and off Amazon properties, currently catering to a 300+ million user base. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-426013-sr-frontend-engineer-at-amazon-ads-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Frontend Engineer",
+   "id": 426013,
+   "title": "Sr. Frontend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "front-end",
+    "frontend",
+    "HTML",
+    "JavaScript",
+    "Next.js",
+    "React",
+    "React.js",
+    "Redux",
+    "TypeScript"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/423245",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/54504",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/54504/467708cc43/1678961455372.webp",
+    "id": 54504,
+    "company_name": "Amazon Store",
+    "company_tagline": "Managing the \"Everything Store\" model",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon Store, a division of Amazon.com powers its online marketplace, physical retail and brand storefronts while serving billions of customers and operates 600+ grocery stores and supports programs for B2B sales. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-423245-sde-2-at-amazon-store-bangalore-chennai-hyderabad/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "SDE 2",
+   "id": 423245,
+   "title": "SDE 2",
+   "locations": "Bangalore,Chennai,Hyderabad",
+   "keywords": [
+    "Algorithms",
+    "Data Structures",
+    "Django",
+    "Golang",
+    "J2EE",
+    "Java",
+    "Microservices",
+    "Python",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439504",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439504-senior-data-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Senior Data Engineer",
+   "id": 439504,
+   "title": "Senior Data Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "AI",
+    "Airflow",
+    "Dagster",
+    "Prefect",
+    "SQL",
+    "python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439630",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439630-applied-scientist-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Applied Scientist",
+   "id": 439630,
+   "title": "Applied Scientist",
+   "locations": "Bangalore",
+   "keywords": [
+    "Machine Learning",
+    "Python",
+    "Generative AI",
+    "LLMs",
+    "Agentic AI",
+    "Computer Vision"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/370456",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-370456-backend-developer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Backend Developer",
+   "id": 370456,
+   "title": "Backend Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "AWS",
+    "C++",
+    "CI / CD",
+    "Data Structures",
+    "Golang",
+    "Java",
+    "Python",
+    "Spring"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439710",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439710-software-development-engineer-in-test-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Development Engineer in Test",
+   "id": 439710,
+   "title": "Software Development Engineer in Test",
+   "locations": "Bangalore",
+   "keywords": [
+    "Quality Assurance",
+    "SDET",
+    "Automation Testing",
+    "Cucumber",
+    "JavaScript",
+    "CI / CD",
+    "Jenkins",
+    "Playwright",
+    "API Testing",
+    "Selenium",
+    "Git",
+    "GitHub Actions",
+    "TypeScript",
+    "Postman"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436272",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436272-backend-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Backend Engineer",
+   "id": 436272,
+   "title": "Backend Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Architecture",
+    "C++",
+    "Distributed Systems",
+    "Golang",
+    "Java",
+    "Microservices",
+    "Node.js",
+    "Python",
+    "Scratch"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/412500",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-412500-machine-learning-engineer-iv-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Machine Learning Engineer IV",
+   "id": 412500,
+   "title": "Machine Learning Engineer IV",
+   "locations": "Bangalore",
+   "keywords": [
+    "CV",
+    "ML",
+    "PyTorch",
+    "TensorFlow",
+    "computer vision",
+    "machine learning"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/427280",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-427280-software-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Software Engineer",
+   "id": 427280,
+   "title": "Software Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "C++",
+    "Golang",
+    "Grafana",
+    "Hive",
+    "Node.js",
+    "Python",
+    "Spark"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/371296",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-371296-backend-developer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Backend Developer",
+   "id": 371296,
+   "title": "Backend Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Algorithms",
+    "AWS",
+    "C++",
+    "Data Structures",
+    "Golang",
+    "Java",
+    "Kafka",
+    "MongoDB",
+    "PostgreSQL",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/414306",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-414306-product-manager-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Product Manager",
+   "id": 414306,
+   "title": "Product Manager",
+   "locations": "Bangalore",
+   "keywords": [
+    "B2B",
+    "enterprise",
+    "integration",
+    "product",
+    "SaaS",
+    "analytics",
+    "data-driven"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439605",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439605-lead-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Lead Engineer",
+   "id": 439605,
+   "title": "Lead Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Node.js",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/406313",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-406313-founding-ai-engineer-at-amazon-gurgaon/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Founding AI Engineer",
+   "id": 406313,
+   "title": "Founding AI Engineer",
+   "locations": "Gurgaon",
+   "keywords": [
+    "Machine Learning",
+    "NLP",
+    "Python",
+    "Generative AI",
+    "LLMs",
+    "OpenAI",
+    "Data Structures",
+    "Algorithms"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439390",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439390-principle-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Principle Engineer",
+   "id": 439390,
+   "title": "Principle Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Data Structures",
+    "Algorithms",
+    "JavaScript",
+    "Next.js",
+    "TypeScript",
+    "LLMs",
+    "Agentic AI",
+    "Generative AI"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/339274",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-339274-process-associate-at-amazon-jaipur/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Process Associate",
+   "id": 339274,
+   "title": "Process Associate",
+   "locations": "Jaipur",
+   "keywords": [
+    "Sales",
+    "Business Development",
+    "Customer Service",
+    "Operations Management",
+    "Customer Relationship"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/439255",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-439255-sr-software-engineer-at-amazon-hyderabad/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Software Engineer",
+   "id": 439255,
+   "title": "Sr. Software Engineer",
+   "locations": "Hyderabad",
+   "keywords": [
+    "Fast api",
+    "Python",
+    "Fullstack Python developer"
+   ],
+   "accept_outstation": false,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436542",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436542-applied-ai-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Applied AI Engineer",
+   "id": 436542,
+   "title": "Applied AI Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Flask",
+    "Django"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/432942",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-432942-data-engineer-salesforce-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Data Engineer - Salesforce",
+   "id": 432942,
+   "title": "Data Engineer - Salesforce",
+   "locations": "Bangalore",
+   "keywords": [
+    "AWS",
+    "Databricks",
+    "Azure Data Factory",
+    "BigQuery",
+    "Data Analysis",
+    "Data Streaming",
+    "Data Warehousing",
+    "Datadog",
+    "ETL",
+    "Grafana",
+    "Java",
+    "Kafka",
+    "Prometheus",
+    "Python",
+    "Snowflake",
+    "SQL"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436549",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436549-ai-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "AI Engineer",
+   "id": 436549,
+   "title": "AI Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Agentic AI",
+    "Django",
+    "Flask",
+    "LLMs",
+    "Machine Learning",
+    "Python"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438185",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438185-product-software-engineer-ii-1102-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Product Software Engineer II - 1102",
+   "id": 438185,
+   "title": "Product Software Engineer II - 1102",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Next.js",
+    "React.js",
+    "Generative AI",
+    "LLMs",
+    "CI / CD",
+    "Agentic AI",
+    "OpenAI"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/395256",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-395256-sr-data-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Data Engineer",
+   "id": 395256,
+   "title": "Sr. Data Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Airflow",
+    "AWS",
+    "Data Analysis",
+    "Data Streaming",
+    "Data Warehousing",
+    "Databricks",
+    "Java",
+    "Kafka",
+    "Playwright",
+    "PySpark",
+    "Python",
+    "Snowflake",
+    "Spark"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/392485",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-392485-staff-software-engineer-at-amazon-gurgaon/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Staff Software Engineer",
+   "id": 392485,
+   "title": "Staff Software Engineer",
+   "locations": "Gurgaon",
+   "keywords": [
+    "Python",
+    "Java",
+    "Golang",
+    "Data Structures",
+    "AWS"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436810",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436810-ai-platform-engineer-inference-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "AI Platform Engineer (Inference)",
+   "id": 436810,
+   "title": "AI Platform Engineer (Inference)",
+   "locations": "Bangalore",
+   "keywords": [
+    "Distributed Systems",
+    "GPU",
+    "Kubernetes",
+    "LLMs",
+    "Python",
+    "Golang"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/436704",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-436704-applied-ai-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Applied AI Engineer",
+   "id": 436704,
+   "title": "Applied AI Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Python",
+    "Flask",
+    "Django"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/428994",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-428994-sr-engineering-manager-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Sr. Engineering Manager",
+   "id": 428994,
+   "title": "Sr. Engineering Manager",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "Spring",
+    "Agentic AI",
+    "AI Agent",
+    "concurrency",
+    "distributed",
+    "Microservices",
+    "Multithreading",
+    "REST",
+    "Spring Boot"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/404339",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/34980",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/34980/559d64bbb5/1633614104680.webp",
+    "id": 34980,
+    "company_name": "Amazon Ads",
+    "company_tagline": "Your brand, their world",
+    "company_founded": 2010,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon Ads helps brands of all sizes design ad experiences and craft relevant campaigns to delight customers around the world both on and off Amazon properties, currently catering to a 300+ million user base. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-404339-staff-ui-developer-at-amazon-ads-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Staff UI Developer",
+   "id": 404339,
+   "title": "Staff UI Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "JavaScript",
+    "React",
+    "React.js",
+    "TypeScript"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/419697",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/35130",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/35130/98563196dd/Status.webp",
+    "id": 35130,
+    "company_name": "Amazon Entertainment",
+    "company_tagline": "Amazon's digital entertainment products",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon Entertainment brings bold and innovative series and films from top-tier creators and self-produced content to customers in over 200 countries through its Prime Video platform. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-419697-applied-scientist-iii-at-amazon-entertainment-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Applied Scientist III",
+   "id": 419697,
+   "title": "Applied Scientist III",
+   "locations": "Bangalore",
+   "keywords": [
+    "Computer Vision",
+    "Machine Learning",
+    "NLP"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/438842",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-438842-staff-engineer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Staff Engineer",
+   "id": 438842,
+   "title": "Staff Engineer",
+   "locations": "Bangalore",
+   "keywords": [
+    "C++",
+    "Golang",
+    "Python",
+    "Java",
+    "Architecture"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/415549",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-415549-full-stack-developer-at-amazon-bangalore/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Full Stack Developer",
+   "id": 415549,
+   "title": "Full Stack Developer",
+   "locations": "Bangalore",
+   "keywords": [
+    "Java",
+    "JavaScript",
+    "Python",
+    "React.js"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/433550",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-433550-mobile-application-ios-at-amazon-bangalore-gurgaon/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Mobile Application - iOS",
+   "id": 433550,
+   "title": "Mobile Application - iOS",
+   "locations": "Bangalore,Gurgaon",
+   "keywords": [
+    "Data Structures",
+    "Algorithms",
+    "Game Development",
+    "C",
+    "iOS",
+    "Objective-C",
+    "Swift",
+    "Cocoa Touch",
+    "Push Notifications"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/431627",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-431627-sde-ii-frontend-at-amazon-gurgaon/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "SDE II - Frontend",
+   "id": 431627,
+   "title": "SDE II - Frontend",
+   "locations": "Gurgaon",
+   "keywords": [
+    "HTML",
+    "JavaScript",
+    "Next.js",
+    "React.js",
+    "TypeScript",
+    "CSS"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  },
+  {
+   "resource_uri": "/api/v1/job_search/416627",
+   "employer": {
+    "resource_uri": "/api/v1/candidate_opportunity_employer/377",
+    "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/377/efc6b030e3/amazon.webp",
+    "id": 377,
+    "company_name": "Amazon",
+    "company_tagline": "Earth's most customer-centric company",
+    "company_founded": 1994,
+    "employee_count": 1000,
+    "instahyre_note": "Amazon is the world's largest online retailer. The company has been referred to as \"one of the most influential economic and cultural forces in the world\", as well as the world's most valuable brand. "
+   },
+   "interview_status": null,
+   "reviewed_at": null,
+   "public_url": "https://www.instahyre.com/job-416627-technical-lead-computer-vision-at-amazon-pune/",
+   "is_strong_match": null,
+   "score": null,
+   "candidate_title": "Technical Lead - Computer Vision",
+   "id": 416627,
+   "title": "Technical Lead - Computer Vision",
+   "locations": "Pune",
+   "keywords": [
+    "CUDA",
+    "CV",
+    "DeepStream",
+    "Jetson",
+    "PyTorch",
+    "Python",
+    "TensorRT",
+    "computer vision"
+   ],
+   "accept_outstation": true,
+   "gender": 0
+  }
+ ],
+ "meta": {
+  "offset": 0,
+  "limit": 35,
+  "total_count": 212,
+  "total_count_relation": "eq",
+  "previous": null,
+  "next": "/api/v1/job_search?companies=Amazon&limit=35&offset=35",
+  "top_job_functions_count": [
+   {
+    "id": 10,
+    "name": "Backend Development",
+    "count": 87,
+    "type": "job_function"
+   },
+   {
+    "id": 9,
+    "name": "Data Science / Machine Learning",
+    "count": 41,
+    "type": "job_function"
+   },
+   {
+    "id": 1,
+    "name": "Full-Stack Development",
+    "count": 23,
+    "type": "job_function"
+   },
+   {
+    "id": 76,
+    "name": "Other Software Development",
+    "count": 20,
+    "type": "job_function"
+   }
+  ],
+  "top_industry_types_count": [
+   {
+    "name": 13,
+    "count": 176
+   },
+   {
+    "name": 41,
+    "count": 27
+   },
+   {
+    "name": 40,
+    "count": 9
+   },
+   {
+    "name": 57,
+    "count": 3
+   }
+  ],
+  "company_size_count": {
+   "small": 0,
+   "medium": 0,
+   "large": 212
+  },
+  "top_companies_count": [
+   {
+    "name": "Deutsche Telekom Digital Labs",
+    "count": 374
+   },
+   {
+    "name": "Accenture",
+    "count": 258
+   },
+   {
+    "name": "Amazon",
+    "count": 165
+   },
+   {
+    "name": "GreyOrange",
+    "count": 130
+   }
+  ],
+  "top_locations_count": [
+   {
+    "location": "Bangalore",
+    "count": 153
+   },
+   {
+    "location": "Gurgaon",
+    "count": 22
+   },
+   {
+    "location": "Work From Home",
+    "count": 16
+   },
+   {
+    "location": "Hyderabad",
+    "count": 9
+   }
+  ],
+  "job_type_counts": {
+   "full_time": 212,
+   "internship": 0
+  },
+  "max_experience": 18,
+  "facet_all_counts": {
+   "job_functions": 212,
+   "company_size": 212,
+   "industries": 212,
+   "location": 212,
+   "companies": 13455,
+   "job_type": 212
+  },
+  "job_experience_levels": {
+   "associate": 4889,
+   "entry_level": 503,
+   "internship": 45,
+   "mid_senior": 7670,
+   "senior": 10406
+  }
+ }
+}

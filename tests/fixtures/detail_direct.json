@@ -1,0 +1,41 @@
+{
+ "resource_uri": "/api/v1/employer_public_jobs/432558",
+ "opportunity_url": "/job-432558-java-engineer-at-wissen-technology-bangalore/",
+ "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/20108/bb7b528ea9/0.webp",
+ "hiring_company_name": "Ridgeline Analytics",
+ "candidate_title": "Java Engineer",
+ "is_internship": false,
+ "id": 432558,
+ "title": "Java Engineer",
+ "is_active": true,
+ "locations": [
+  "Bangalore"
+ ],
+ "keywords": [
+  "Data Structures",
+  "Java",
+  "Spring"
+ ],
+ "accept_outstation": true,
+ "gender": 0,
+ "job_category": "Software Engineering",
+ "description": "<html><body><p>We are seeking a Java Engineer (3- 6 years' experience) in Bangalore/Gurgaon to drive modernisation of enterprise financial platforms. You will lead cloud migration (AWS), integrate AI, and develop high-performance backend systems focusing on cleared derivatives, risk management, and margin optimisation.</p><p><br /></p><p><strong>Responsibilities: </strong></p><ul><li>Backend Development: Build high-performance, low-latency services using Java 8/11/17+ and Spring Boot.</li><li>Cloud Migration: Execute on-premises to AWS cloud migration initiatives.</li><li>Derivatives Focus: Implement complex business logic for cleared derivatives, covering trade matching and regulatory reporting.</li><li>AI Integration: Implement AI pipelines for automated financial data processing.</li><li>Architecture: Utilise AWS services (Lambda, ECS, S3 RDS, Kafka).</li></ul><p><br /></p><p><strong>Requirements: </strong></p><ul><li>Domain expertise in Cleared Derivatives (Futures & Options, Clearing Houses).</li><li>Experience designing scalable microservices.</li><li>Experience with Generative AI or Agent builders.</li><li>Knowledge of Infrastructure as Code (Terraform).</li><li>Strong analytical, problem-solving, and communication skills.</li></ul><p><br /></p><p><strong>Required Technical Skills: </strong></p><ul><li>Java and Spring: Advanced Core Java, Spring Boot, Spring Security, JPA/Hibernate.</li><li>AWS: Strong experience in AWS cloud infrastructure and security.</li><li>Databases: Expert-level SQL (Oracle/PostgreSQL).</li><li>DevOps: Experience with Docker, Kubernetes, and migration patterns.</li></ul></body></html>",
+ "workex_min": 3,
+ "workex_max": 6,
+ "job_functions": [
+  "/api/v1/job_function/10"
+ ],
+ "internship": null,
+ "recruiter_name": "Shalini Krishnan",
+ "recruiter_designation": "Manager",
+ "recruiter_company_name": "Ridgeline Analytics",
+ "recruiter_profile_url": "https://static.instahyre.com/images/candidates/placeholder.webp",
+ "job_function_names": [
+  "Backend Development"
+ ],
+ "job_function_dict": {
+  "Software Engineering": [
+   "Backend Development"
+  ]
+ }
+}

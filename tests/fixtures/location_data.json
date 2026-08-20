@@ -1,0 +1,5128 @@
+{
+ "success": true,
+ "data": {
+  "cities_preferred": [
+   {
+    "type": "remote",
+    "name": "Work from home / Remote",
+    "value": "Work From Home"
+   },
+   {
+    "type": "regions",
+    "name": "Anywhere in India",
+    "value": "Anywhere in India"
+   },
+   {
+    "type": "regions",
+    "name": "North India",
+    "value": "North India"
+   },
+   {
+    "type": "regions",
+    "name": "South India",
+    "value": "South India"
+   },
+   {
+    "type": "regions",
+    "name": "East India",
+    "value": "East India"
+   },
+   {
+    "type": "regions",
+    "name": "West India",
+    "value": "West India"
+   },
+   {
+    "type": "regions",
+    "name": "Anywhere outside India",
+    "value": "Anywhere outside India"
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Ahmedabad",
+    "value": "Ahmedabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Bangalore",
+    "value": "Bangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bengaluru, Bangaluru",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Chandigarh",
+    "value": "Chandigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Delhi",
+    "value": "Delhi",
+    "show_in_dropdown": "TRUE",
+    "alter": "New Delhi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Delhi / NCR",
+    "value": "Delhi / NCR",
+    "alter": [
+     "Delhi NCR"
+    ]
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Gurgaon",
+    "value": "Gurgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "Gurugram",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Hyderabad",
+    "value": "Hyderabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Secunderabad, Hyderguda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Kolkata",
+    "value": "Kolkata",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Mumbai",
+    "value": "Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bombay, Mumbai City",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Noida",
+    "value": "Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Pune",
+    "value": "Pune",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Anywhere in Andhra Pradesh",
+    "value": "Anywhere in Andhra Pradesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Anantapur",
+    "value": "Anantapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Chitoor",
+    "value": "Chitoor",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Eluru",
+    "value": "Eluru",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Gannavaram",
+    "value": "Gannavaram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Guntakal",
+    "value": "Guntakal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Guntur",
+    "value": "Guntur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kadapa",
+    "value": "Kadapa",
+    "show_in_dropdown": "TRUE",
+    "alter": "Cudappah",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kakinada",
+    "value": "Kakinada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kurnool",
+    "value": "Kurnool",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Machilipatnam",
+    "value": "Machilipatnam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Nandyal",
+    "value": "Nandyal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Nellore",
+    "value": "Nellore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Sri Potti Sriramulu Nellore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Ongole",
+    "value": "Ongole",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Rajahmundry",
+    "value": "Rajahmundry",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Tada",
+    "value": "Tada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Tirupati",
+    "value": "Tirupati",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Vijayawada",
+    "value": "Vijayawada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Visakhapatnam",
+    "value": "Visakhapatnam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Vizianagaram",
+    "value": "Vizianagaram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "arunachal pradesh",
+    "name": "Itanagar",
+    "value": "Itanagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Anywhere in Assam",
+    "value": "Anywhere in Assam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Dibrugarh",
+    "value": "Dibrugarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Guwahati",
+    "value": "Guwahati",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Silchar",
+    "value": "Silchar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "bihar",
+    "name": "Anywhere in Bihar",
+    "value": "Anywhere in Bihar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "bihar",
+    "name": "Bhagalpur",
+    "value": "Bhagalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "bihar",
+    "name": "Patna",
+    "value": "Patna",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Anywhere in Chhattisgarh",
+    "value": "Anywhere in Chhattisgarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Bhillai",
+    "value": "Bhillai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Bilaspur",
+    "value": "Bilaspur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Korba",
+    "value": "Korba",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Raipur",
+    "value": "Raipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chhattisgarh",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Raigarh",
+    "value": "Raigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "goa",
+    "name": "Anywhere in Goa",
+    "value": "Anywhere in Goa",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "goa",
+    "name": "Panaji",
+    "value": "Panaji",
+    "show_in_dropdown": "TRUE",
+    "alter": "Panjim",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "goa",
+    "name": "Vasco Da Gama",
+    "value": "Vasco Da Gama",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Anywhere in Gujarat",
+    "value": "Anywhere in Gujarat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Ahmedabad",
+    "value": "Ahmedabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Anand",
+    "value": "Anand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Ankleshwar",
+    "value": "Ankleshwar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Anklesvar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bharuch",
+    "value": "Bharuch",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bhavnagar",
+    "value": "Bhavnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bhuj",
+    "value": "Bhuj",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Dahej",
+    "value": "Dahej",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gandhidham",
+    "value": "Gandhidham",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gandhinagar",
+    "value": "Gandhinagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gir",
+    "value": "Gir",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Jamnagar",
+    "value": "Jamnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Kandla",
+    "value": "Kandla",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Porbandar",
+    "value": "Porbandar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Mehsana",
+    "value": "Mehsana",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mehesana",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Rajkot",
+    "value": "Rajkot",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Surat",
+    "value": "Surat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Vadodara",
+    "value": "Vadodara",
+    "show_in_dropdown": "TRUE",
+    "alter": "Baroda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Valsad",
+    "value": "Valsad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Vapi",
+    "value": "Vapi",
+    "show_in_dropdown": "TRUE",
+    "alter": "Wapi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Anywhere in Haryana",
+    "value": "Anywhere in Haryana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Ambala",
+    "value": "Ambala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Faridabad",
+    "value": "Faridabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Gurgaon",
+    "value": "Gurgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Hisar",
+    "value": "Hisar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Karnal",
+    "value": "Karnal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Kurukshetra",
+    "value": "Kurukshetra",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Panipat",
+    "value": "Panipat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Rohtak",
+    "value": "Rohtak",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Anywhere in Himachal Pradesh",
+    "value": "Anywhere in Himachal Pradesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Baddi",
+    "value": "Baddi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Dalhousie",
+    "value": "Dalhousie",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Dharmasala",
+    "value": "Dharmasala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Kulu / Manali",
+    "value": "Kulu / Manali",
+    "show_in_dropdown": "TRUE",
+    "alter": "Manali, Kulu, Kullu",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Shimla",
+    "value": "Shimla",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jammu & kashmir",
+    "name": "Anywhere in Jammu & Kashmir",
+    "value": "Anywhere in Jammu & Kashmir",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jammu & kashmir",
+    "name": "Jammu",
+    "value": "Jammu",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jammu & kashmir",
+    "name": "Srinagar",
+    "value": "Srinagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Jammu And Kashmir, jammu & kashmir, Kashmir",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Anywhere in Jharkhand",
+    "value": "Anywhere in Jharkhand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Bokaro",
+    "value": "Bokaro",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Dhanbad",
+    "value": "Dhanbad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Jamshedpur",
+    "value": "Jamshedpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Ranchi",
+    "value": "Ranchi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Anywhere in Karnataka",
+    "value": "Anywhere in Karnataka",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bangalore",
+    "value": "Bangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bengaluru",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Belgaum",
+    "value": "Belgaum",
+    "show_in_dropdown": "TRUE",
+    "alter": "Belagavi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bellary",
+    "value": "Bellary",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bidar",
+    "value": "Bidar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Davangere",
+    "value": "Davangere",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Dharwad",
+    "value": "Dharwad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Gulbarga",
+    "value": "Gulbarga",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Hubli",
+    "value": "Hubli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Kolar",
+    "value": "Kolar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Mangalore",
+    "value": "Mangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mangaluru,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Mysuru",
+    "value": "Mysuru",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mysore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Anywhere in Kerala",
+    "value": "Anywhere in Kerala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Calicut",
+    "value": "Calicut",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Cochin",
+    "value": "Cochin",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Ernakulam",
+    "value": "Ernakulam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Idukki",
+    "value": "Idukki",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kannur",
+    "value": "Kannur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Cannanore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kasargode",
+    "value": "Kasargode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kochi",
+    "value": "Kochi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kollam",
+    "value": "Kollam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kottayam",
+    "value": "Kottayam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kozhikode",
+    "value": "Kozhikode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Malappuram",
+    "value": "Malappuram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Palakkad",
+    "value": "Palakkad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Palghat",
+    "value": "Palghat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Pathanamthitta",
+    "value": "Pathanamthitta",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Thrissur",
+    "value": "Thrissur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Trichur",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Trivandrum",
+    "value": "Trivandrum",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Wayanad",
+    "value": "Wayanad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Anywhere in Madhya Pradesh",
+    "value": "Anywhere in Madhya Pradesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Bhopal",
+    "value": "Bhopal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Gwalior",
+    "value": "Gwalior",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Indore",
+    "value": "Indore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Jabalpur",
+    "value": "Jabalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Katni",
+    "value": "Katni",
+    "show_in_dropdown": "TRUE",
+    "alter": "Murwara",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Ujjain",
+    "value": "Ujjain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Anywhere in Maharashtra",
+    "value": "Anywhere in Maharashtra",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Ahmednagar",
+    "value": "Ahmednagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Aurangabad",
+    "value": "Aurangabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chhatrapati Sambhajinagar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Chandrapur",
+    "value": "Chandrapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chanda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Jalgaon",
+    "value": "Jalgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Kolhapur",
+    "value": "Kolhapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Khopoli",
+    "value": "Khopoli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Mumbai",
+    "value": "Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Nagpur",
+    "value": "Nagpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Nasik",
+    "value": "Nasik",
+    "show_in_dropdown": "TRUE",
+    "alter": "Nashik",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Navi Mumbai",
+    "value": "Navi Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Pune",
+    "value": "Pune",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Ratnagiri",
+    "value": "Ratnagiri",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Solapur",
+    "value": "Solapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Vasai",
+    "value": "Vasai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Vasai Virar, Virar, Vasai",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "manipur",
+    "name": "Imphal",
+    "value": "Imphal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "meghalaya",
+    "name": "Shillong",
+    "value": "Shillong",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "mizoram",
+    "name": "Aizawl",
+    "value": "Aizawl",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "nagaland",
+    "name": "Dimapur",
+    "value": "Dimapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Anywhere in Orissa",
+    "value": "Anywhere in Orissa",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Bhubaneshwar",
+    "value": "Bhubaneshwar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Cuttack",
+    "value": "Cuttack",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Jharsuguda",
+    "value": "Jharsuguda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Paradeep",
+    "value": "Paradeep",
+    "show_in_dropdown": "TRUE",
+    "alter": "Paradip",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Puri",
+    "value": "Puri",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Rourkela",
+    "value": "Rourkela",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Sambalpur",
+    "value": "Sambalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Anywhere in Punjab",
+    "value": "Anywhere in Punjab",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Amritsar",
+    "value": "Amritsar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Bathinda",
+    "value": "Bathinda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Jalandhar",
+    "value": "Jalandhar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Ludhiana",
+    "value": "Ludhiana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Mohali",
+    "value": "Mohali",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Pathankot",
+    "value": "Pathankot",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Patiala",
+    "value": "Patiala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Anywhere in Rajasthan",
+    "value": "Anywhere in Rajasthan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Ajmer",
+    "value": "Ajmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Barmer",
+    "value": "Barmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Bhilwara",
+    "value": "Bhilwara",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jaipur",
+    "value": "Jaipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jaisalmer",
+    "value": "Jaisalmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jodhpur",
+    "value": "Jodhpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Kota",
+    "value": "Kota",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Neemrana",
+    "value": "Neemrana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Udaipur",
+    "value": "Udaipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "sikkim",
+    "name": "Gangtok",
+    "value": "Gangtok",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Anywhere in Tamil Nadu",
+    "value": "Anywhere in Tamil Nadu",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Coimbatore",
+    "value": "Coimbatore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Cuddalore",
+    "value": "Cuddalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Erode",
+    "value": "Erode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Hosur",
+    "value": "Hosur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Madurai",
+    "value": "Madurai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chinthamani Madurai,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Nagercoil",
+    "value": "Nagercoil",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Ooty",
+    "value": "Ooty",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Salem",
+    "value": "Salem",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Thanjavur",
+    "value": "Thanjavur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Tirunelveli",
+    "value": "Tirunelveli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Trichy",
+    "value": "Trichy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Tuticorin",
+    "value": "Tuticorin",
+    "show_in_dropdown": "TRUE",
+    "alter": "Thoothukudi,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Vellore",
+    "value": "Vellore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Anywhere in Telangana",
+    "value": "Anywhere in Telangana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Adilabad",
+    "value": "Adilabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Bhadrachalam",
+    "value": "Bhadrachalam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Godavarikhani",
+    "value": "Godavarikhani",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Hanumakonda",
+    "value": "Hanumakonda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Hyderabad",
+    "value": "Hyderabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Secunderabad",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Karimnagar",
+    "value": "Karimnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Khammam",
+    "value": "Khammam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Kodad",
+    "value": "Kodad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Kothagudem",
+    "value": "Kothagudem",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Mahabubnagar",
+    "value": "Mahabubnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mahaboobnagar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Mancherial",
+    "value": "Mancherial",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Medak",
+    "value": "Medak",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Nalgonda",
+    "value": "Nalgonda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Nizamabad",
+    "value": "Nizamabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Rangareddy",
+    "value": "Rangareddy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Razole",
+    "value": "Razole",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Sangareddy",
+    "value": "Sangareddy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Siddipet",
+    "value": "Siddipet",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Suryapet",
+    "value": "Suryapet",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Tuni",
+    "value": "Tuni",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Warangal",
+    "value": "Warangal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tripura",
+    "name": "Agartala",
+    "value": "Agartala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Chandigarh",
+    "value": "Chandigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Daman & Diu",
+    "value": "Daman & Diu",
+    "show_in_dropdown": "TRUE",
+    "alter": "Diu, Daman, Daman and Diu",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Dadra & Nagar Haveli",
+    "value": "Dadra & Nagar Haveli",
+    "show_in_dropdown": "TRUE",
+    "alter": "Silvassa, Dadra And Nagar Haveli, Nagar Haveli",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Delhi",
+    "value": "Delhi",
+    "show_in_dropdown": "TRUE",
+    "alter": "New Delhi, Karol Bagh, Asmara Lines, Saket, Rohini",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Lakshadweep",
+    "value": "Lakshadweep",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Pondicherry",
+    "value": "Pondicherry",
+    "show_in_dropdown": "TRUE",
+    "alter": "Puducherry",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Anywhere in Uttar Pradesh",
+    "value": "Anywhere in Uttar Pradesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Agra",
+    "value": "Agra",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Aligarh",
+    "value": "Aligarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Allahabad",
+    "value": "Allahabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Prayagraj",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Bareilly",
+    "value": "Bareilly",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Bijnor",
+    "value": "Bijnor",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Faizabad",
+    "value": "Faizabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Fyzabad",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Ghaziabad",
+    "value": "Ghaziabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Gorakhpur",
+    "value": "Gorakhpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Greater Noida",
+    "value": "Greater Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Kanpur",
+    "value": "Kanpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Lucknow",
+    "value": "Lucknow",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Mathura",
+    "value": "Mathura",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Meerut",
+    "value": "Meerut",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Moradabad",
+    "value": "Moradabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Noida",
+    "value": "Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Saharanpur",
+    "value": "Saharanpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Varanasi",
+    "value": "Varanasi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Anywhere in Uttaranchal",
+    "value": "Anywhere in Uttaranchal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Dehradun",
+    "value": "Dehradun",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Haldwani",
+    "value": "Haldwani",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Kashipur",
+    "value": "Kashipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Roorkee",
+    "value": "Roorkee",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Anywhere in West Bengal",
+    "value": "Anywhere in West Bengal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Asansol",
+    "value": "Asansol",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Burdwan",
+    "value": "Burdwan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Durgapur",
+    "value": "Durgapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Haldia",
+    "value": "Haldia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Kharagpur",
+    "value": "Kharagpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Kolkata",
+    "value": "Kolkata",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Siliguri",
+    "value": "Siliguri",
+    "show_in_dropdown": "TRUE",
+    "alter": "Shiliguri",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "international locations",
+    "name": "Australia",
+    "value": "Australia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AU",
+    "is_country": true,
+    "iso_numeric_code": 36
+   },
+   {
+    "type": "international locations",
+    "name": "Austria",
+    "value": "Austria",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AT",
+    "is_country": true,
+    "iso_numeric_code": 40
+   },
+   {
+    "type": "international locations",
+    "name": "Bahrain",
+    "value": "Bahrain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BH",
+    "is_country": true,
+    "iso_numeric_code": 48
+   },
+   {
+    "type": "international locations",
+    "name": "Bangladesh",
+    "value": "Bangladesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BD",
+    "is_country": true,
+    "iso_numeric_code": 50
+   },
+   {
+    "type": "international locations",
+    "name": "Belgium",
+    "value": "Belgium",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BE",
+    "is_country": true,
+    "iso_numeric_code": 56
+   },
+   {
+    "type": "international locations",
+    "name": "Canada",
+    "value": "Canada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CA",
+    "is_country": true,
+    "iso_numeric_code": 124
+   },
+   {
+    "type": "international locations",
+    "name": "China",
+    "value": "China",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CN",
+    "is_country": true,
+    "iso_numeric_code": 156
+   },
+   {
+    "type": "international locations",
+    "name": "Doha",
+    "value": "Doha",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "QA"
+   },
+   {
+    "type": "international locations",
+    "name": "Dubai",
+    "value": "Dubai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AE"
+   },
+   {
+    "type": "international locations",
+    "name": "France",
+    "value": "France",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "FR",
+    "is_country": true,
+    "iso_numeric_code": 250
+   },
+   {
+    "type": "international locations",
+    "name": "Germany",
+    "value": "Germany",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "DE",
+    "is_country": true,
+    "iso_numeric_code": 276
+   },
+   {
+    "type": "international locations",
+    "name": "Greece",
+    "value": "Greece",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "GR",
+    "is_country": true,
+    "iso_numeric_code": 300
+   },
+   {
+    "type": "international locations",
+    "name": "Hong Kong",
+    "value": "Hong Kong",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "HK",
+    "is_country": true,
+    "iso_numeric_code": 344
+   },
+   {
+    "type": "international locations",
+    "name": "Iceland",
+    "value": "Iceland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IS",
+    "is_country": true,
+    "iso_numeric_code": 352
+   },
+   {
+    "type": "international locations",
+    "name": "Indonesia",
+    "value": "Indonesia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ID",
+    "is_country": true,
+    "iso_numeric_code": 360
+   },
+   {
+    "type": "international locations",
+    "name": "Ireland",
+    "value": "Ireland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IE",
+    "is_country": true,
+    "iso_numeric_code": 372
+   },
+   {
+    "type": "international locations",
+    "name": "Italy",
+    "value": "Italy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IT",
+    "is_country": true,
+    "iso_numeric_code": 380
+   },
+   {
+    "type": "international locations",
+    "name": "Japan",
+    "value": "Japan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "JP",
+    "is_country": true,
+    "iso_numeric_code": 392
+   },
+   {
+    "type": "international locations",
+    "name": "Kenya",
+    "value": "Kenya",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "KE",
+    "is_country": true,
+    "iso_numeric_code": 404
+   },
+   {
+    "type": "international locations",
+    "name": "Kuwait",
+    "value": "Kuwait",
+    "show_in_dropdown": "TRUE",
+    "alter": "Kuwait City",
+    "iso_alpha_code": "KW",
+    "is_country": true,
+    "iso_numeric_code": 414
+   },
+   {
+    "type": "international locations",
+    "name": "Lebanon",
+    "value": "Lebanon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LB",
+    "is_country": true,
+    "iso_numeric_code": 422
+   },
+   {
+    "type": "international locations",
+    "name": "Libya",
+    "value": "Libya",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LY",
+    "is_country": true,
+    "iso_numeric_code": 434
+   },
+   {
+    "type": "international locations",
+    "name": "Malaysia",
+    "value": "Malaysia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MY",
+    "is_country": true,
+    "iso_numeric_code": 458
+   },
+   {
+    "type": "international locations",
+    "name": "Maldives",
+    "value": "Maldives",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MV",
+    "is_country": true,
+    "iso_numeric_code": 462
+   },
+   {
+    "type": "international locations",
+    "name": "Mauritius",
+    "value": "Mauritius",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MU",
+    "is_country": true,
+    "iso_numeric_code": 480
+   },
+   {
+    "type": "international locations",
+    "name": "Mexico",
+    "value": "Mexico",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MX",
+    "is_country": true,
+    "iso_numeric_code": 484
+   },
+   {
+    "type": "international locations",
+    "name": "Nepal",
+    "value": "Nepal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NP",
+    "is_country": true,
+    "iso_numeric_code": 524
+   },
+   {
+    "type": "international locations",
+    "name": "Netherlands",
+    "value": "Netherlands",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NL",
+    "is_country": true,
+    "iso_numeric_code": 528
+   },
+   {
+    "type": "international locations",
+    "name": "New Zealand",
+    "value": "New Zealand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NZ",
+    "is_country": true,
+    "iso_numeric_code": 554
+   },
+   {
+    "type": "international locations",
+    "name": "Norway",
+    "value": "Norway",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NO",
+    "is_country": true,
+    "iso_numeric_code": 578
+   },
+   {
+    "type": "international locations",
+    "name": "Oman",
+    "value": "Oman",
+    "show_in_dropdown": "TRUE",
+    "alter": "Sultanate of Oman",
+    "iso_alpha_code": "OM",
+    "is_country": true,
+    "iso_numeric_code": 512
+   },
+   {
+    "type": "international locations",
+    "name": "Pakistan",
+    "value": "Pakistan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "PK",
+    "is_country": true,
+    "iso_numeric_code": 586
+   },
+   {
+    "type": "international locations",
+    "name": "Poland",
+    "value": "Poland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "PL",
+    "is_country": true,
+    "iso_numeric_code": 616
+   },
+   {
+    "type": "international locations",
+    "name": "Qatar",
+    "value": "Qatar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "QA",
+    "is_country": true,
+    "iso_numeric_code": 634
+   },
+   {
+    "type": "international locations",
+    "name": "Quilon",
+    "value": "Quilon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IN"
+   },
+   {
+    "type": "international locations",
+    "name": "Russia",
+    "value": "Russia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "RU",
+    "is_country": true,
+    "iso_numeric_code": 643
+   },
+   {
+    "type": "international locations",
+    "name": "Saudi Arabia",
+    "value": "Saudi Arabia",
+    "show_in_dropdown": "TRUE",
+    "alter": "Arabia Saudita",
+    "iso_alpha_code": "SA",
+    "is_country": true,
+    "iso_numeric_code": 682
+   },
+   {
+    "type": "international locations",
+    "name": "Singapore",
+    "value": "Singapore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "SG",
+    "is_country": true,
+    "iso_numeric_code": 702
+   },
+   {
+    "type": "international locations",
+    "name": "South Africa",
+    "value": "South Africa",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ZA",
+    "is_country": true,
+    "iso_numeric_code": 710
+   },
+   {
+    "type": "international locations",
+    "name": "South Korea",
+    "value": "South Korea",
+    "show_in_dropdown": "TRUE",
+    "alter": "Korea",
+    "iso_alpha_code": "KR",
+    "is_country": true,
+    "iso_numeric_code": 410
+   },
+   {
+    "type": "international locations",
+    "name": "Spain",
+    "value": "Spain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ES",
+    "is_country": true,
+    "iso_numeric_code": 724
+   },
+   {
+    "type": "international locations",
+    "name": "Sri Lanka",
+    "value": "Sri Lanka",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LK",
+    "is_country": true,
+    "iso_numeric_code": 144
+   },
+   {
+    "type": "international locations",
+    "name": "Sweden",
+    "value": "Sweden",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "SE",
+    "is_country": true,
+    "iso_numeric_code": 752
+   },
+   {
+    "type": "international locations",
+    "name": "Switzerland",
+    "value": "Switzerland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CH",
+    "is_country": true,
+    "iso_numeric_code": 756
+   },
+   {
+    "type": "international locations",
+    "name": "Thailand",
+    "value": "Thailand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "TH",
+    "is_country": true,
+    "iso_numeric_code": 764
+   },
+   {
+    "type": "international locations",
+    "name": "United Arab Emirates (UAE)",
+    "value": "United Arab Emirates (UAE)",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AE",
+    "is_country": true,
+    "iso_numeric_code": 784
+   },
+   {
+    "type": "international locations",
+    "name": "United Kingdom (UK)",
+    "value": "United Kingdom (UK)",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "GB",
+    "is_country": true,
+    "iso_numeric_code": 826
+   },
+   {
+    "type": "international locations",
+    "name": "United States (USA)",
+    "value": "United States (USA)",
+    "show_in_dropdown": "TRUE",
+    "alter": "United States, United States of America, USA",
+    "iso_alpha_code": "US",
+    "is_country": true,
+    "iso_numeric_code": 840
+   },
+   {
+    "type": "international locations",
+    "name": "Yemen",
+    "value": "Yemen",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "YE",
+    "is_country": true,
+    "iso_numeric_code": 887
+   },
+   {
+    "type": "international locations",
+    "name": "Zimbabwe",
+    "value": "Zimbabwe",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ZW",
+    "is_country": true,
+    "iso_numeric_code": 716
+   }
+  ],
+  "cities_current": [
+   {
+    "type": "top metropolitan cities",
+    "name": "Ahmedabad",
+    "value": "Ahmedabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Bangalore",
+    "value": "Bangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bengaluru, Bangaluru",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Chandigarh",
+    "value": "Chandigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Delhi",
+    "value": "Delhi",
+    "show_in_dropdown": "TRUE",
+    "alter": "New Delhi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Gurgaon",
+    "value": "Gurgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "Gurugram",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Hyderabad",
+    "value": "Hyderabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Secunderabad, Hyderguda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Kolkata",
+    "value": "Kolkata",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Mumbai",
+    "value": "Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bombay, Mumbai City",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Noida",
+    "value": "Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "top metropolitan cities",
+    "name": "Pune",
+    "value": "Pune",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Anantapur",
+    "value": "Anantapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Chitoor",
+    "value": "Chitoor",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Eluru",
+    "value": "Eluru",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Gannavaram",
+    "value": "Gannavaram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Guntakal",
+    "value": "Guntakal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Guntur",
+    "value": "Guntur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kadapa",
+    "value": "Kadapa",
+    "show_in_dropdown": "TRUE",
+    "alter": "Cudappah",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kakinada",
+    "value": "Kakinada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Kurnool",
+    "value": "Kurnool",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Machilipatnam",
+    "value": "Machilipatnam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Nandyal",
+    "value": "Nandyal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Nellore",
+    "value": "Nellore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Sri Potti Sriramulu Nellore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Ongole",
+    "value": "Ongole",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Rajahmundry",
+    "value": "Rajahmundry",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Tada",
+    "value": "Tada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Tirupati",
+    "value": "Tirupati",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Vijayawada",
+    "value": "Vijayawada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Visakhapatnam",
+    "value": "Visakhapatnam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "andhra pradesh",
+    "name": "Vizianagaram",
+    "value": "Vizianagaram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "arunachal pradesh",
+    "name": "Itanagar",
+    "value": "Itanagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Dibrugarh",
+    "value": "Dibrugarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Guwahati",
+    "value": "Guwahati",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "assam",
+    "name": "Silchar",
+    "value": "Silchar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "bihar",
+    "name": "Bhagalpur",
+    "value": "Bhagalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "bihar",
+    "name": "Patna",
+    "value": "Patna",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Bhillai",
+    "value": "Bhillai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Bilaspur",
+    "value": "Bilaspur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Korba",
+    "value": "Korba",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Raipur",
+    "value": "Raipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chhattisgarh",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "chhattisgarh",
+    "name": "Raigarh",
+    "value": "Raigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "goa",
+    "name": "Panaji",
+    "value": "Panaji",
+    "show_in_dropdown": "TRUE",
+    "alter": "Panjim",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "goa",
+    "name": "Vasco Da Gama",
+    "value": "Vasco Da Gama",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Ahmedabad",
+    "value": "Ahmedabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Anand",
+    "value": "Anand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Ankleshwar",
+    "value": "Ankleshwar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Anklesvar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bharuch",
+    "value": "Bharuch",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bhavnagar",
+    "value": "Bhavnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Bhuj",
+    "value": "Bhuj",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Dahej",
+    "value": "Dahej",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gandhidham",
+    "value": "Gandhidham",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gandhinagar",
+    "value": "Gandhinagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Gir",
+    "value": "Gir",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Jamnagar",
+    "value": "Jamnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Kandla",
+    "value": "Kandla",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Porbandar",
+    "value": "Porbandar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Mehsana",
+    "value": "Mehsana",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mehesana",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Rajkot",
+    "value": "Rajkot",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Surat",
+    "value": "Surat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Vadodara",
+    "value": "Vadodara",
+    "show_in_dropdown": "TRUE",
+    "alter": "Baroda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Valsad",
+    "value": "Valsad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "gujarat",
+    "name": "Vapi",
+    "value": "Vapi",
+    "show_in_dropdown": "TRUE",
+    "alter": "Wapi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Ambala",
+    "value": "Ambala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Faridabad",
+    "value": "Faridabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Gurgaon",
+    "value": "Gurgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Hisar",
+    "value": "Hisar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Karnal",
+    "value": "Karnal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Kurukshetra",
+    "value": "Kurukshetra",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Panipat",
+    "value": "Panipat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "haryana",
+    "name": "Rohtak",
+    "value": "Rohtak",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Baddi",
+    "value": "Baddi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Dalhousie",
+    "value": "Dalhousie",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Dharmasala",
+    "value": "Dharmasala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Kulu / Manali",
+    "value": "Kulu / Manali",
+    "show_in_dropdown": "TRUE",
+    "alter": "Manali, Kulu, Kullu",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "himachal pradesh",
+    "name": "Shimla",
+    "value": "Shimla",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jammu & kashmir",
+    "name": "Jammu",
+    "value": "Jammu",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jammu & kashmir",
+    "name": "Srinagar",
+    "value": "Srinagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Jammu And Kashmir, jammu & kashmir, Kashmir",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Bokaro",
+    "value": "Bokaro",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Dhanbad",
+    "value": "Dhanbad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Jamshedpur",
+    "value": "Jamshedpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "jharkhand",
+    "name": "Ranchi",
+    "value": "Ranchi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bangalore",
+    "value": "Bangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Bengaluru",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Belgaum",
+    "value": "Belgaum",
+    "show_in_dropdown": "TRUE",
+    "alter": "Belagavi",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bellary",
+    "value": "Bellary",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Bidar",
+    "value": "Bidar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Davangere",
+    "value": "Davangere",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Dharwad",
+    "value": "Dharwad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Gulbarga",
+    "value": "Gulbarga",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Hubli",
+    "value": "Hubli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Kolar",
+    "value": "Kolar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Mangalore",
+    "value": "Mangalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mangaluru,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "karnataka",
+    "name": "Mysuru",
+    "value": "Mysuru",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mysore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Calicut",
+    "value": "Calicut",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Cochin",
+    "value": "Cochin",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Ernakulam",
+    "value": "Ernakulam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Idukki",
+    "value": "Idukki",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kannur",
+    "value": "Kannur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Cannanore",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kasargode",
+    "value": "Kasargode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kochi",
+    "value": "Kochi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kollam",
+    "value": "Kollam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kottayam",
+    "value": "Kottayam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Kozhikode",
+    "value": "Kozhikode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Malappuram",
+    "value": "Malappuram",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Palakkad",
+    "value": "Palakkad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Palghat",
+    "value": "Palghat",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Pathanamthitta",
+    "value": "Pathanamthitta",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Thrissur",
+    "value": "Thrissur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Trichur",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Trivandrum",
+    "value": "Trivandrum",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "kerala",
+    "name": "Wayanad",
+    "value": "Wayanad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Bhopal",
+    "value": "Bhopal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Gwalior",
+    "value": "Gwalior",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Indore",
+    "value": "Indore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Jabalpur",
+    "value": "Jabalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Katni",
+    "value": "Katni",
+    "show_in_dropdown": "TRUE",
+    "alter": "Murwara",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "madhya pradesh",
+    "name": "Ujjain",
+    "value": "Ujjain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Ahmednagar",
+    "value": "Ahmednagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Aurangabad",
+    "value": "Aurangabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chhatrapati Sambhajinagar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Chandrapur",
+    "value": "Chandrapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chanda",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Jalgaon",
+    "value": "Jalgaon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Kolhapur",
+    "value": "Kolhapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Khopoli",
+    "value": "Khopoli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Mumbai",
+    "value": "Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Nagpur",
+    "value": "Nagpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Nasik",
+    "value": "Nasik",
+    "show_in_dropdown": "TRUE",
+    "alter": "Nashik",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Navi Mumbai",
+    "value": "Navi Mumbai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Pune",
+    "value": "Pune",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Ratnagiri",
+    "value": "Ratnagiri",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Solapur",
+    "value": "Solapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "maharashtra",
+    "name": "Vasai",
+    "value": "Vasai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Vasai Virar, Virar, Vasai",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "manipur",
+    "name": "Imphal",
+    "value": "Imphal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "meghalaya",
+    "name": "Shillong",
+    "value": "Shillong",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "mizoram",
+    "name": "Aizawl",
+    "value": "Aizawl",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "nagaland",
+    "name": "Dimapur",
+    "value": "Dimapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Bhubaneshwar",
+    "value": "Bhubaneshwar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Cuttack",
+    "value": "Cuttack",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Jharsuguda",
+    "value": "Jharsuguda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Paradeep",
+    "value": "Paradeep",
+    "show_in_dropdown": "TRUE",
+    "alter": "Paradip",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Puri",
+    "value": "Puri",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Rourkela",
+    "value": "Rourkela",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "orissa",
+    "name": "Sambalpur",
+    "value": "Sambalpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Amritsar",
+    "value": "Amritsar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Bathinda",
+    "value": "Bathinda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Jalandhar",
+    "value": "Jalandhar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Ludhiana",
+    "value": "Ludhiana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Mohali",
+    "value": "Mohali",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Pathankot",
+    "value": "Pathankot",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "punjab",
+    "name": "Patiala",
+    "value": "Patiala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Ajmer",
+    "value": "Ajmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Barmer",
+    "value": "Barmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Bhilwara",
+    "value": "Bhilwara",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jaipur",
+    "value": "Jaipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jaisalmer",
+    "value": "Jaisalmer",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Jodhpur",
+    "value": "Jodhpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Kota",
+    "value": "Kota",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Neemrana",
+    "value": "Neemrana",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "rajasthan",
+    "name": "Udaipur",
+    "value": "Udaipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "sikkim",
+    "name": "Gangtok",
+    "value": "Gangtok",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Coimbatore",
+    "value": "Coimbatore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Cuddalore",
+    "value": "Cuddalore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Erode",
+    "value": "Erode",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Hosur",
+    "value": "Hosur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Chennai",
+    "value": "Chennai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Madurai",
+    "value": "Madurai",
+    "show_in_dropdown": "TRUE",
+    "alter": "Chinthamani Madurai,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Nagercoil",
+    "value": "Nagercoil",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Ooty",
+    "value": "Ooty",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Salem",
+    "value": "Salem",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Thanjavur",
+    "value": "Thanjavur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Tirunelveli",
+    "value": "Tirunelveli",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Trichy",
+    "value": "Trichy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Tuticorin",
+    "value": "Tuticorin",
+    "show_in_dropdown": "TRUE",
+    "alter": "Thoothukudi,",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tamil nadu",
+    "name": "Vellore",
+    "value": "Vellore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Adilabad",
+    "value": "Adilabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Bhadrachalam",
+    "value": "Bhadrachalam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Godavarikhani",
+    "value": "Godavarikhani",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Hanumakonda",
+    "value": "Hanumakonda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Hyderabad",
+    "value": "Hyderabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Secunderabad",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Karimnagar",
+    "value": "Karimnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Khammam",
+    "value": "Khammam",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Kodad",
+    "value": "Kodad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Kothagudem",
+    "value": "Kothagudem",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Mahabubnagar",
+    "value": "Mahabubnagar",
+    "show_in_dropdown": "TRUE",
+    "alter": "Mahaboobnagar",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Mancherial",
+    "value": "Mancherial",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Medak",
+    "value": "Medak",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Nalgonda",
+    "value": "Nalgonda",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Nizamabad",
+    "value": "Nizamabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Rangareddy",
+    "value": "Rangareddy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Razole",
+    "value": "Razole",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Sangareddy",
+    "value": "Sangareddy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Siddipet",
+    "value": "Siddipet",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Suryapet",
+    "value": "Suryapet",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Tuni",
+    "value": "Tuni",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "telangana",
+    "name": "Warangal",
+    "value": "Warangal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "tripura",
+    "name": "Agartala",
+    "value": "Agartala",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Chandigarh",
+    "value": "Chandigarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Daman & Diu",
+    "value": "Daman & Diu",
+    "show_in_dropdown": "TRUE",
+    "alter": "Diu, Daman, Daman and Diu",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Dadra & Nagar Haveli",
+    "value": "Dadra & Nagar Haveli",
+    "show_in_dropdown": "TRUE",
+    "alter": "Silvassa, Dadra And Nagar Haveli, Nagar Haveli",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Delhi",
+    "value": "Delhi",
+    "show_in_dropdown": "TRUE",
+    "alter": "New Delhi, Karol Bagh, Asmara Lines, Saket, Rohini",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Lakshadweep",
+    "value": "Lakshadweep",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "union territories",
+    "name": "Pondicherry",
+    "value": "Pondicherry",
+    "show_in_dropdown": "TRUE",
+    "alter": "Puducherry",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Agra",
+    "value": "Agra",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Aligarh",
+    "value": "Aligarh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Allahabad",
+    "value": "Allahabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Prayagraj",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Bareilly",
+    "value": "Bareilly",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Bijnor",
+    "value": "Bijnor",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Faizabad",
+    "value": "Faizabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "Fyzabad",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Ghaziabad",
+    "value": "Ghaziabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Gorakhpur",
+    "value": "Gorakhpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Greater Noida",
+    "value": "Greater Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Kanpur",
+    "value": "Kanpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Lucknow",
+    "value": "Lucknow",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Mathura",
+    "value": "Mathura",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Meerut",
+    "value": "Meerut",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Moradabad",
+    "value": "Moradabad",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Noida",
+    "value": "Noida",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Saharanpur",
+    "value": "Saharanpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttar pradesh",
+    "name": "Varanasi",
+    "value": "Varanasi",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Dehradun",
+    "value": "Dehradun",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Haldwani",
+    "value": "Haldwani",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Kashipur",
+    "value": "Kashipur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "uttaranchal",
+    "name": "Roorkee",
+    "value": "Roorkee",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Asansol",
+    "value": "Asansol",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Burdwan",
+    "value": "Burdwan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Durgapur",
+    "value": "Durgapur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Haldia",
+    "value": "Haldia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Kharagpur",
+    "value": "Kharagpur",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Kolkata",
+    "value": "Kolkata",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "west bengal",
+    "name": "Siliguri",
+    "value": "Siliguri",
+    "show_in_dropdown": "TRUE",
+    "alter": "Shiliguri",
+    "iso_alpha_code": ""
+   },
+   {
+    "type": "international locations",
+    "name": "Australia",
+    "value": "Australia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AU",
+    "is_country": true,
+    "iso_numeric_code": 36
+   },
+   {
+    "type": "international locations",
+    "name": "Austria",
+    "value": "Austria",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AT",
+    "is_country": true,
+    "iso_numeric_code": 40
+   },
+   {
+    "type": "international locations",
+    "name": "Bahrain",
+    "value": "Bahrain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BH",
+    "is_country": true,
+    "iso_numeric_code": 48
+   },
+   {
+    "type": "international locations",
+    "name": "Bangladesh",
+    "value": "Bangladesh",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BD",
+    "is_country": true,
+    "iso_numeric_code": 50
+   },
+   {
+    "type": "international locations",
+    "name": "Belgium",
+    "value": "Belgium",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "BE",
+    "is_country": true,
+    "iso_numeric_code": 56
+   },
+   {
+    "type": "international locations",
+    "name": "Canada",
+    "value": "Canada",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CA",
+    "is_country": true,
+    "iso_numeric_code": 124
+   },
+   {
+    "type": "international locations",
+    "name": "China",
+    "value": "China",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CN",
+    "is_country": true,
+    "iso_numeric_code": 156
+   },
+   {
+    "type": "international locations",
+    "name": "Doha",
+    "value": "Doha",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "QA"
+   },
+   {
+    "type": "international locations",
+    "name": "Dubai",
+    "value": "Dubai",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AE"
+   },
+   {
+    "type": "international locations",
+    "name": "France",
+    "value": "France",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "FR",
+    "is_country": true,
+    "iso_numeric_code": 250
+   },
+   {
+    "type": "international locations",
+    "name": "Germany",
+    "value": "Germany",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "DE",
+    "is_country": true,
+    "iso_numeric_code": 276
+   },
+   {
+    "type": "international locations",
+    "name": "Greece",
+    "value": "Greece",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "GR",
+    "is_country": true,
+    "iso_numeric_code": 300
+   },
+   {
+    "type": "international locations",
+    "name": "Hong Kong",
+    "value": "Hong Kong",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "HK",
+    "is_country": true,
+    "iso_numeric_code": 344
+   },
+   {
+    "type": "international locations",
+    "name": "Iceland",
+    "value": "Iceland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IS",
+    "is_country": true,
+    "iso_numeric_code": 352
+   },
+   {
+    "type": "international locations",
+    "name": "Indonesia",
+    "value": "Indonesia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ID",
+    "is_country": true,
+    "iso_numeric_code": 360
+   },
+   {
+    "type": "international locations",
+    "name": "Ireland",
+    "value": "Ireland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IE",
+    "is_country": true,
+    "iso_numeric_code": 372
+   },
+   {
+    "type": "international locations",
+    "name": "Italy",
+    "value": "Italy",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IT",
+    "is_country": true,
+    "iso_numeric_code": 380
+   },
+   {
+    "type": "international locations",
+    "name": "Japan",
+    "value": "Japan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "JP",
+    "is_country": true,
+    "iso_numeric_code": 392
+   },
+   {
+    "type": "international locations",
+    "name": "Kenya",
+    "value": "Kenya",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "KE",
+    "is_country": true,
+    "iso_numeric_code": 404
+   },
+   {
+    "type": "international locations",
+    "name": "Kuwait",
+    "value": "Kuwait",
+    "show_in_dropdown": "TRUE",
+    "alter": "Kuwait City",
+    "iso_alpha_code": "KW",
+    "is_country": true,
+    "iso_numeric_code": 414
+   },
+   {
+    "type": "international locations",
+    "name": "Lebanon",
+    "value": "Lebanon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LB",
+    "is_country": true,
+    "iso_numeric_code": 422
+   },
+   {
+    "type": "international locations",
+    "name": "Libya",
+    "value": "Libya",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LY",
+    "is_country": true,
+    "iso_numeric_code": 434
+   },
+   {
+    "type": "international locations",
+    "name": "Malaysia",
+    "value": "Malaysia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MY",
+    "is_country": true,
+    "iso_numeric_code": 458
+   },
+   {
+    "type": "international locations",
+    "name": "Maldives",
+    "value": "Maldives",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MV",
+    "is_country": true,
+    "iso_numeric_code": 462
+   },
+   {
+    "type": "international locations",
+    "name": "Mauritius",
+    "value": "Mauritius",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MU",
+    "is_country": true,
+    "iso_numeric_code": 480
+   },
+   {
+    "type": "international locations",
+    "name": "Mexico",
+    "value": "Mexico",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "MX",
+    "is_country": true,
+    "iso_numeric_code": 484
+   },
+   {
+    "type": "international locations",
+    "name": "Nepal",
+    "value": "Nepal",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NP",
+    "is_country": true,
+    "iso_numeric_code": 524
+   },
+   {
+    "type": "international locations",
+    "name": "Netherlands",
+    "value": "Netherlands",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NL",
+    "is_country": true,
+    "iso_numeric_code": 528
+   },
+   {
+    "type": "international locations",
+    "name": "New Zealand",
+    "value": "New Zealand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NZ",
+    "is_country": true,
+    "iso_numeric_code": 554
+   },
+   {
+    "type": "international locations",
+    "name": "Norway",
+    "value": "Norway",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "NO",
+    "is_country": true,
+    "iso_numeric_code": 578
+   },
+   {
+    "type": "international locations",
+    "name": "Oman",
+    "value": "Oman",
+    "show_in_dropdown": "TRUE",
+    "alter": "Sultanate of Oman",
+    "iso_alpha_code": "OM",
+    "is_country": true,
+    "iso_numeric_code": 512
+   },
+   {
+    "type": "international locations",
+    "name": "Pakistan",
+    "value": "Pakistan",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "PK",
+    "is_country": true,
+    "iso_numeric_code": 586
+   },
+   {
+    "type": "international locations",
+    "name": "Poland",
+    "value": "Poland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "PL",
+    "is_country": true,
+    "iso_numeric_code": 616
+   },
+   {
+    "type": "international locations",
+    "name": "Qatar",
+    "value": "Qatar",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "QA",
+    "is_country": true,
+    "iso_numeric_code": 634
+   },
+   {
+    "type": "international locations",
+    "name": "Quilon",
+    "value": "Quilon",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "IN"
+   },
+   {
+    "type": "international locations",
+    "name": "Russia",
+    "value": "Russia",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "RU",
+    "is_country": true,
+    "iso_numeric_code": 643
+   },
+   {
+    "type": "international locations",
+    "name": "Saudi Arabia",
+    "value": "Saudi Arabia",
+    "show_in_dropdown": "TRUE",
+    "alter": "Arabia Saudita",
+    "iso_alpha_code": "SA",
+    "is_country": true,
+    "iso_numeric_code": 682
+   },
+   {
+    "type": "international locations",
+    "name": "Singapore",
+    "value": "Singapore",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "SG",
+    "is_country": true,
+    "iso_numeric_code": 702
+   },
+   {
+    "type": "international locations",
+    "name": "South Africa",
+    "value": "South Africa",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ZA",
+    "is_country": true,
+    "iso_numeric_code": 710
+   },
+   {
+    "type": "international locations",
+    "name": "South Korea",
+    "value": "South Korea",
+    "show_in_dropdown": "TRUE",
+    "alter": "Korea",
+    "iso_alpha_code": "KR",
+    "is_country": true,
+    "iso_numeric_code": 410
+   },
+   {
+    "type": "international locations",
+    "name": "Spain",
+    "value": "Spain",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ES",
+    "is_country": true,
+    "iso_numeric_code": 724
+   },
+   {
+    "type": "international locations",
+    "name": "Sri Lanka",
+    "value": "Sri Lanka",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "LK",
+    "is_country": true,
+    "iso_numeric_code": 144
+   },
+   {
+    "type": "international locations",
+    "name": "Sweden",
+    "value": "Sweden",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "SE",
+    "is_country": true,
+    "iso_numeric_code": 752
+   },
+   {
+    "type": "international locations",
+    "name": "Switzerland",
+    "value": "Switzerland",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "CH",
+    "is_country": true,
+    "iso_numeric_code": 756
+   },
+   {
+    "type": "international locations",
+    "name": "Thailand",
+    "value": "Thailand",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "TH",
+    "is_country": true,
+    "iso_numeric_code": 764
+   },
+   {
+    "type": "international locations",
+    "name": "United Arab Emirates (UAE)",
+    "value": "United Arab Emirates (UAE)",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "AE",
+    "is_country": true,
+    "iso_numeric_code": 784
+   },
+   {
+    "type": "international locations",
+    "name": "United Kingdom (UK)",
+    "value": "United Kingdom (UK)",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "GB",
+    "is_country": true,
+    "iso_numeric_code": 826
+   },
+   {
+    "type": "international locations",
+    "name": "United States (USA)",
+    "value": "United States (USA)",
+    "show_in_dropdown": "TRUE",
+    "alter": "United States, United States of America, USA",
+    "iso_alpha_code": "US",
+    "is_country": true,
+    "iso_numeric_code": 840
+   },
+   {
+    "type": "international locations",
+    "name": "Yemen",
+    "value": "Yemen",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "YE",
+    "is_country": true,
+    "iso_numeric_code": 887
+   },
+   {
+    "type": "international locations",
+    "name": "Zimbabwe",
+    "value": "Zimbabwe",
+    "show_in_dropdown": "TRUE",
+    "alter": "",
+    "iso_alpha_code": "ZW",
+    "is_country": true,
+    "iso_numeric_code": 716
+   }
+  ],
+  "cities_current_groups": [
+   {
+    "value": "top metropolitan cities",
+    "label": "-----Top Metropolitan Cities-----"
+   },
+   {
+    "value": "andhra pradesh",
+    "label": "-----Andhra Pradesh-----"
+   },
+   {
+    "value": "arunachal pradesh",
+    "label": "-----Arunachal Pradesh-----"
+   },
+   {
+    "value": "assam",
+    "label": "-----Assam-----"
+   },
+   {
+    "value": "bihar",
+    "label": "-----Bihar-----"
+   },
+   {
+    "value": "chhattisgarh",
+    "label": "-----Chhattisgarh-----"
+   },
+   {
+    "value": "goa",
+    "label": "-----Goa-----"
+   },
+   {
+    "value": "gujarat",
+    "label": "-----Gujarat-----"
+   },
+   {
+    "value": "haryana",
+    "label": "-----Haryana-----"
+   },
+   {
+    "value": "himachal pradesh",
+    "label": "-----Himachal Pradesh-----"
+   },
+   {
+    "value": "jammu & kashmir",
+    "label": "-----Jammu & Kashmir-----"
+   },
+   {
+    "value": "jharkhand",
+    "label": "-----Jharkhand-----"
+   },
+   {
+    "value": "karnataka",
+    "label": "-----Karnataka-----"
+   },
+   {
+    "value": "kerala",
+    "label": "-----Kerala-----"
+   },
+   {
+    "value": "madhya pradesh",
+    "label": "-----Madhya Pradesh-----"
+   },
+   {
+    "value": "maharashtra",
+    "label": "-----Maharashtra-----"
+   },
+   {
+    "value": "manipur",
+    "label": "-----Manipur-----"
+   },
+   {
+    "value": "meghalaya",
+    "label": "-----Meghalaya-----"
+   },
+   {
+    "value": "mizoram",
+    "label": "-----Mizoram-----"
+   },
+   {
+    "value": "nagaland",
+    "label": "-----Nagaland-----"
+   },
+   {
+    "value": "orissa",
+    "label": "-----Orissa-----"
+   },
+   {
+    "value": "punjab",
+    "label": "-----Punjab-----"
+   },
+   {
+    "value": "rajasthan",
+    "label": "-----Rajasthan-----"
+   },
+   {
+    "value": "sikkim",
+    "label": "-----Sikkim-----"
+   },
+   {
+    "value": "tamil nadu",
+    "label": "-----Tamil Nadu-----"
+   },
+   {
+    "value": "telangana",
+    "label": "-----Telangana-----"
+   },
+   {
+    "value": "tripura",
+    "label": "-----Tripura-----"
+   },
+   {
+    "value": "union territories",
+    "label": "-----Union Territories-----"
+   },
+   {
+    "value": "uttar pradesh",
+    "label": "-----Uttar Pradesh-----"
+   },
+   {
+    "value": "uttaranchal",
+    "label": "-----Uttaranchal-----"
+   },
+   {
+    "value": "west bengal",
+    "label": "-----West Bengal-----"
+   },
+   {
+    "value": "international locations",
+    "label": "-----International Locations-----"
+   }
+  ],
+  "cities_preferred_groups": [
+   {
+    "value": "regions",
+    "label": "-----Regions-----"
+   },
+   {
+    "value": "top metropolitan cities",
+    "label": "-----Top Metropolitan Cities-----"
+   },
+   {
+    "value": "andhra pradesh",
+    "label": "-----Andhra Pradesh-----"
+   },
+   {
+    "value": "arunachal pradesh",
+    "label": "-----Arunachal Pradesh-----"
+   },
+   {
+    "value": "assam",
+    "label": "-----Assam-----"
+   },
+   {
+    "value": "bihar",
+    "label": "-----Bihar-----"
+   },
+   {
+    "value": "chhattisgarh",
+    "label": "-----Chhattisgarh-----"
+   },
+   {
+    "value": "goa",
+    "label": "-----Goa-----"
+   },
+   {
+    "value": "gujarat",
+    "label": "-----Gujarat-----"
+   },
+   {
+    "value": "haryana",
+    "label": "-----Haryana-----"
+   },
+   {
+    "value": "himachal pradesh",
+    "label": "-----Himachal Pradesh-----"
+   },
+   {
+    "value": "jammu & kashmir",
+    "label": "-----Jammu & Kashmir-----"
+   },
+   {
+    "value": "jharkhand",
+    "label": "-----Jharkhand-----"
+   },
+   {
+    "value": "karnataka",
+    "label": "-----Karnataka-----"
+   },
+   {
+    "value": "kerala",
+    "label": "-----Kerala-----"
+   },
+   {
+    "value": "madhya pradesh",
+    "label": "-----Madhya Pradesh-----"
+   },
+   {
+    "value": "maharashtra",
+    "label": "-----Maharashtra-----"
+   },
+   {
+    "value": "manipur",
+    "label": "-----Manipur-----"
+   },
+   {
+    "value": "meghalaya",
+    "label": "-----Meghalaya-----"
+   },
+   {
+    "value": "mizoram",
+    "label": "-----Mizoram-----"
+   },
+   {
+    "value": "nagaland",
+    "label": "-----Nagaland-----"
+   },
+   {
+    "value": "orissa",
+    "label": "-----Orissa-----"
+   },
+   {
+    "value": "punjab",
+    "label": "-----Punjab-----"
+   },
+   {
+    "value": "rajasthan",
+    "label": "-----Rajasthan-----"
+   },
+   {
+    "value": "sikkim",
+    "label": "-----Sikkim-----"
+   },
+   {
+    "value": "tamil nadu",
+    "label": "-----Tamil Nadu-----"
+   },
+   {
+    "value": "telangana",
+    "label": "-----Telangana-----"
+   },
+   {
+    "value": "tripura",
+    "label": "-----Tripura-----"
+   },
+   {
+    "value": "union territories",
+    "label": "-----Union Territories-----"
+   },
+   {
+    "value": "uttar pradesh",
+    "label": "-----Uttar Pradesh-----"
+   },
+   {
+    "value": "uttaranchal",
+    "label": "-----Uttaranchal-----"
+   },
+   {
+    "value": "west bengal",
+    "label": "-----West Bengal-----"
+   },
+   {
+    "value": "international locations",
+    "label": "-----International Locations-----"
+   }
+  ]
+ }
+}

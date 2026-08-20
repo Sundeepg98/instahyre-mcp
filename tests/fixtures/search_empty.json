@@ -1,0 +1,40 @@
+{
+ "objects": [],
+ "meta": {
+  "offset": 0,
+  "limit": 35,
+  "total_count": 0,
+  "total_count_relation": "eq",
+  "previous": null,
+  "next": null,
+  "top_job_functions_count": [],
+  "top_industry_types_count": [],
+  "company_size_count": {
+   "small": 0,
+   "medium": 0,
+   "large": 0
+  },
+  "top_companies_count": [],
+  "top_locations_count": [],
+  "job_type_counts": {
+   "full_time": 0,
+   "internship": 0
+  },
+  "max_experience": 0,
+  "facet_all_counts": {
+   "job_functions": 0,
+   "company_size": 0,
+   "industries": 0,
+   "location": 0,
+   "companies": 0,
+   "job_type": 0
+  },
+  "job_experience_levels": {
+   "associate": 4889,
+   "entry_level": 503,
+   "internship": 45,
+   "mid_senior": 7670,
+   "senior": 10406
+  }
+ }
+}

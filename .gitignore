@@ -1,0 +1,22 @@
+# Local state -- session cookies, cached payloads, the job index, the browser
+# profile. None of this belongs in git, and the session file holds live
+# credentials-equivalent cookies.
+_state/
+*.db
+session.json
+browser_profile/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Scratch
+*.log
