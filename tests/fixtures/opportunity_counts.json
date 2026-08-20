@@ -1,0 +1,111 @@
+{
+  "success": true,
+  "status_counts": {
+    "0": 238,
+    "1": 0,
+    "2": 0,
+    "total": 238
+  },
+  "location_counts": [
+    {
+      "name": "Bangalore",
+      "count": 204
+    },
+    {
+      "name": "Work From Home",
+      "count": 35
+    },
+    {
+      "name": "Gurgaon",
+      "count": 8
+    },
+    {
+      "name": "Hyderabad",
+      "count": 7
+    }
+  ],
+  "job_type_counts": {
+    "2": 0,
+    "1": 238
+  },
+  "company_counts": {
+    "1": 79,
+    "3": 49,
+    "2": 110
+  },
+  "industry_counts": [
+    {
+      "industry_id": 13,
+      "name": "Computer Software / IT / Internet",
+      "count": 144
+    },
+    {
+      "industry_id": 9,
+      "name": "Banking / Financial Services",
+      "count": 33
+    },
+    {
+      "industry_id": 12,
+      "name": "Computer Hardware / Networking",
+      "count": 17
+    },
+    {
+      "industry_id": 29,
+      "name": "Healthcare / Hospitals",
+      "count": 15
+    }
+  ],
+  "location_counts_all": 238,
+  "company_counts_all": 238,
+  "industry_counts_all": 238,
+  "experience": {
+    "min": 1,
+    "max": 9
+  },
+  "top_job_functions": [
+    {
+      "id": 1,
+      "name": "Full-Stack Development",
+      "count": 25
+    },
+    {
+      "id": 10,
+      "name": "Backend Development",
+      "count": 20
+    },
+    {
+      "id": 3,
+      "name": "Frontend Development",
+      "count": 1
+    },
+    {
+      "id": 8,
+      "name": "DevOps / Cloud",
+      "count": 1
+    }
+  ],
+  "top_companies": [
+    {
+      "id": 48328,
+      "name": "Arctic Wolf",
+      "count": 15
+    },
+    {
+      "id": 54291,
+      "name": "The Walt Disney Company",
+      "count": 9
+    },
+    {
+      "id": 377,
+      "name": "Amazon",
+      "count": 6
+    },
+    {
+      "id": 40320,
+      "name": "Axi",
+      "count": 6
+    }
+  ],
+  "job_functions_all": 238,
+  "top_companies_all": 238
+}

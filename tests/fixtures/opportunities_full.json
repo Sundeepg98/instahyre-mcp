@@ -1,0 +1,149 @@
+{
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_opportunity/6100000003",
+      "score": "2.475",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000003",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/42193",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+        "id": 42193,
+        "company_name": "Thena",
+        "company_tagline": "We help to manage customers in slack",
+        "company_founded": 2022,
+        "employee_count": 1,
+        "instahyre_note": "Thena is a customer engagement platform for Slack that organizes customer channels with request identification, connects to internal tools, allows customer escalations, notifies teams, and analyzes their behavior. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/438148",
+        "opportunity_url": "/job-438148-engineering-team-lead-at-thena-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+        "hiring_company_name": "Thena",
+        "candidate_title": "Engineering Team Lead",
+        "is_internship": false,
+        "id": 438148,
+        "title": "Engineering Team Lead",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "React.js",
+          "TypeScript",
+          "Python",
+          "Algorithms",
+          "Architecture",
+          "Data Structures",
+          "JavaScript",
+          "LangChain",
+          "NestJS",
+          "Temporal"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_opportunity/6100000001",
+      "score": "1.964",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000001",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/27544",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/27544/c76b716123/0_1.webp",
+        "id": 27544,
+        "company_name": "Aquera",
+        "company_tagline": "Identity Integration Platform as a Service",
+        "company_founded": 2016,
+        "employee_count": 200,
+        "instahyre_note": "Aquera offers a cloud-based service that provides integration between identity management platforms and IT infrastructure and further streamlining the associated identity management process and workflows. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/435910",
+        "opportunity_url": "/job-435910-integration-developer-at-aquera-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/27544/c76b716123/0_1.webp",
+        "hiring_company_name": "Aquera",
+        "candidate_title": "Integration Developer",
+        "is_internship": false,
+        "id": 435910,
+        "title": "Integration Developer",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "Node.js",
+          "Algorithms",
+          "Data Structures"
+        ],
+        "accept_outstation": false,
+        "gender": 0
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_opportunity/6100000002",
+      "score": "1.595",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000002",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/40320",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/40320/18beeac3e3/KO_9ZF8M_400x400.webp",
+        "id": 40320,
+        "company_name": "Axi",
+        "company_tagline": "We help to achieve trading ambitions",
+        "company_founded": 2007,
+        "employee_count": 50,
+        "instahyre_note": "Axi is a global online FX and CFD trading company that offers a comprehensive end-to-end trading experience in margin and deliverable foreign exchange, contracts for difference (CFDs), and financial spread betting. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/438417",
+        "opportunity_url": "/job-438417-sr-backend-developer-java-at-axi-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/40320/18beeac3e3/KO_9ZF8M_400x400.webp",
+        "hiring_company_name": "Axi",
+        "candidate_title": "Sr. Backend Developer - Java",
+        "is_internship": false,
+        "id": 438417,
+        "title": "Sr. Backend Developer - Java",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "AWS",
+          "Spring Boot",
+          "Microservices",
+          "Google Cloud (GCP)",
+          "Java",
+          "APIs",
+          "CI / CD",
+          "Azure",
+          "SQL"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      }
+    }
+  ],
+  "meta": {
+    "offset": 0,
+    "limit": 1000,
+    "total_count": 238,
+    "previous": null,
+    "next": null,
+    "filter_date": "2026-08-20T18:25:09"
+  },
+  "calculation_done_at": "2026-08-13T12:55:30.716597+00:00"
+}

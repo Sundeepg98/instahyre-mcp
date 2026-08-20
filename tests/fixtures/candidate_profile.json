@@ -1,0 +1,243 @@
+{
+  "resource_uri": "/api/v1/candidate_misc/profile/candidate/9999999",
+  "user": {
+    "resource_uri": "/api/v1/users/user/8888888",
+    "full_name": "Test Candidate",
+    "id": 8888888,
+    "first_name": "Test",
+    "last_name": "Candidate",
+    "email": "test@example.com"
+  },
+  "profile_image_src": "https://media.instahyre.com/images/profile/base/candidate/1/x/test.webp",
+  "profile_image": {
+    "resource_uri": "/api/v1/profiles/profile_image/7770005",
+    "image_url": "https://media.instahyre.com/images/profile/base/candidate/1/x/test.webp",
+    "is_google_default_image": false,
+    "title": "test.webp"
+  },
+  "alternate_phone": "",
+  "phone": "+910000000000",
+  "main_skills": "RabbitMQ,Scala,Svelte,Kotlin",
+  "is_premium_for_agency": null,
+  "id": 9999999,
+  "total_experience": 7,
+  "current_company": "Halcyon Grid Technologies",
+  "current_designation": "Systems Developer",
+  "job_function_skills": "Backend Development",
+  "previous_companies": "Tidepool Software,Quillmark Health",
+  "companies_interned_at": "",
+  "calculation_done_at": "2026-08-13T12:55:30.716597+00:00",
+  "is_hireable": true,
+  "is_imported": false,
+  "companies_to_block": [
+    {
+      "company_name": "Thornbury Systems",
+      "company_name_nopunc": "thornburysystems"
+    }
+  ],
+  "has_manager_exp": false,
+  "education": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/education/7770002",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "university": {
+        "resource_uri": "/api/v1/candidate_misc/profile/universities/41007",
+        "id": 41007,
+        "name": "Fairmount Institute Of Technology, Northbrook"
+      },
+      "degree": "/api/v1/candidate_misc/profile/degrees/8",
+      "specialization": "/api/v1/candidate_misc/profile/specializations/21",
+      "id": 7770002,
+      "graduation_year": 2019,
+      "current_degree": {
+        "id": 8,
+        "name": "MTech / ME",
+        "resource_uri": "/api/v1/candidate_misc/profile/degrees/8"
+      }
+    }
+  ],
+  "candidate_skills": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880003",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "id": 88880003,
+      "name": "RabbitMQ"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880001",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "id": 88880001,
+      "name": "Scala"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880004",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "id": 88880004,
+      "name": "Svelte"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880002",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "id": 88880002,
+      "name": "Kotlin"
+    }
+  ],
+  "jsp": {
+    "resource_uri": "/api/v1/candidate_misc/profile/candidate_jsp/7770001",
+    "candidate": "/api/v1/candidate_misc/profile/limited_candidate/9999999",
+    "job_function": {
+      "resource_uri": "/api/v1/job_function/10",
+      "id": 10,
+      "name": "Backend Development",
+      "is_live": true,
+      "slug": "backend-development",
+      "previous_slug": "",
+      "job_category": {
+        "resource_uri": "/api/v1/job_category/1",
+        "id": 1,
+        "name": "Software Engineering",
+        "previous_slug": "",
+        "is_tech": true
+      }
+    },
+    "industry_types": [
+      {
+        "resource_uri": "/api/v1/industry_type/13",
+        "id": 13,
+        "name": "Computer Software / IT / Internet"
+      },
+      {
+        "resource_uri": "/api/v1/industry_type/29",
+        "id": 29,
+        "name": "Healthcare / Hospitals"
+      }
+    ],
+    "languages": [
+      {
+        "resource_uri": "/api/v1/candidate_misc/profile/language/120",
+        "id": 120,
+        "name": "English"
+      }
+    ],
+    "current_salary": "0.0",
+    "fresher_salary": "0.0",
+    "is_immediate_joinee": true,
+    "status_string": "Actively Looking",
+    "total_experience": 7,
+    "main_skills": [
+      "RabbitMQ",
+      "Scala",
+      "Svelte",
+      "Kotlin"
+    ],
+    "suggested_industry_types": [
+      40,
+      13,
+      29
+    ],
+    "job_type": 1,
+    "id": 7770001,
+    "status": 0,
+    "status_last_modified_at": null,
+    "career_stage": 1,
+    "career_break_start_date": null,
+    "career_break_reason": null,
+    "is_salary_hidden": false,
+    "has_manager_exp": false,
+    "notice_period": 0,
+    "location_preferences": [
+      "Pune",
+      "Work From Home"
+    ],
+    "region_preferences": "",
+    "current_location": "Pune",
+    "career_stage_value": 1
+  },
+  "social_accounts_user": {
+    "resource_uri": "/api/v1/candidate_misc/profile/social_accounts_user/7770004",
+    "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+    "id": 7770004,
+    "behance": "",
+    "dribbble": "",
+    "linkedin": "https://www.linkedin.com/in/test-candidate",
+    "github": "https://github.com/testcandidate",
+    "bitbucket": "",
+    "twitter": "",
+    "stackoverflow": "",
+    "website": ""
+  },
+  "resume": {
+    "resource_uri": "/api/v1/candidate_misc/profile/resume/7770003",
+    "pdf_file": "https://media.instahyre.com/resume/9999999/x/pdf/resume.pdf",
+    "url": "https://media.instahyre.com/resume/9999999/x/resume.pdf",
+    "is_fresh": true,
+    "id": 7770003,
+    "title": "resume.pdf",
+    "uploaded_on": "2026-08-13T10:59:44+00:00",
+    "watermark_file": "https://media.instahyre.com/resume/9999999/x/watermark_pdf/resume.pdf",
+    "html_file": "https://media.instahyre.com/resume/9999999/x/html/resume.html.jgz",
+    "conversion_status": "Converted"
+  },
+  "diversity_info": {
+    "resource_uri": "/api/v1/diversity_info/7770006",
+    "identity_options": [
+      null
+    ],
+    "is_differently_abled": null,
+    "work_permit": null,
+    "work_permit_countries": null
+  },
+  "profile_field_updates": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770012",
+      "id": 7770012,
+      "field_type": 0,
+      "last_modified_at": "2026-08-13T12:55:05.489289+00:00"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770011",
+      "id": 7770011,
+      "field_type": 1,
+      "last_modified_at": "2026-08-13T10:51:44.323287+00:00"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770015",
+      "id": 7770015,
+      "field_type": 2,
+      "last_modified_at": "2026-08-13T11:11:00.038775+00:00"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770014",
+      "id": 7770014,
+      "field_type": 3,
+      "last_modified_at": "2026-08-13T11:10:59.922857+00:00"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770013",
+      "id": 7770013,
+      "field_type": 4,
+      "last_modified_at": "2026-08-13T10:59:44.026129+00:00"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/profile_field_updates/7770016",
+      "id": 7770016,
+      "field_type": 6,
+      "last_modified_at": "2026-08-13T11:15:30.595369+00:00"
+    }
+  ],
+  "number_verified_at": null,
+  "current_company_nopunc": "halcyongridtechnologies",
+  "onboarding_completed_at": "2026-08-13T11:15:31+00:00",
+  "is_private": false,
+  "gender": 0,
+  "seen_go_premium_modal_at": null,
+  "seen_follow_premium_modal_at": null,
+  "seen_whatsapp_enable_modal_at": null,
+  "seen_active_check_modal_at": null,
+  "whatsapp_enabled": false,
+  "followed_instagram_at": null,
+  "followed_linkedin_at": null,
+  "show_status_form": false,
+  "show_active_check_modal": false,
+  "has_valid_name": true
+}

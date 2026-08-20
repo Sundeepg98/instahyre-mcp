@@ -1,7 +1,13 @@
 # Instahyre MCP
 
-Job search over Instahyre's public API, exposed as MCP tools. No browser in the
-data path.
+Instahyre as MCP tools: public job search, plus the authenticated inbound side
+that is the actual point of this platform. No browser in the data path, on
+either tier.
+
+Instahyre is a **reverse marketplace** -- employers put you in a curated queue
+and recruiters open your resume. Outbound search is the commodity half; the
+scarce signal is who engaged, and how fast you notice. `instahyre_inbound_digest`
+is the tool that answers that in one call.
 
 ## Why this one has no browser
 
@@ -55,6 +61,24 @@ venv/Scripts/python -m playwright install chromium
 | `instahyre_list_industries` | The 74 industry types with ids. | 1 (cached 30d) |
 | `instahyre_server_info` | Cache state, request count, and what this platform cannot provide. | 0 |
 
+### Authenticated -- inbound triage
+
+The half that matters. Every one of these needs a live session.
+
+| Tool | What it does | Requests |
+|---|---|---|
+| `instahyre_inbound_digest` | **Start here.** Queue badge, who viewed your resume, unread messages, top-scoring untouched matches, and what appeared since last run. | ~5 |
+| `instahyre_list_opportunities` | The curated queue: roles employers matched to you, with real match scores. Ranked across the whole queue. | 1 |
+| `instahyre_get_opportunity` | One match, composed from the queue record + public job detail + sibling roles at that employer. | 2-3 |
+| `instahyre_opportunity_counts` | Queue facets: status, location, industry, employer, size. No records. | 1 |
+| `instahyre_recruiter_activity` | Who viewed / contacted / did not shortlist you. The most perishable signal here. | 2 |
+| `instahyre_list_applications` | Every application and decline, with state. | 2 |
+| `instahyre_get_profile` | Your profile, plus completeness gaps ranked by what each costs you. | 1-2 |
+| `instahyre_account_settings` | Visibility, notifications, blocked employers. | 1-2 |
+| `instahyre_apply` | Apply to **one** opportunity. **Irreversible.** Preview-only unless `confirm=True`. | 0-1 |
+| `instahyre_decline_opportunity` | Mark one "not interested". Also irreversible, same gate. | 0-1 |
+| `instahyre_preview_profile_update` | Builds the profile update that would be sent -- and deliberately never sends it. | 1-2 |
+
 ### Session
 
 | Tool | What it does |
@@ -82,6 +106,19 @@ unimplemented feature, and `instahyre_server_info` repeats them at runtime.
 - **Applicant counts, company ratings: none.** No competition signal.
 - **Hybrid vs onsite: not modelled.** `Work From Home` is the only remote token
   (~8.6% of the corpus); the arrangement of the rest is simply not in the data.
+- **Saved or bookmarked jobs: none.** There is no bookmark feature. Saved
+  *searches* exist (`/saved_job_searches`) and have no job-side equivalent.
+- **Message bodies: unreachable.** The site has an inbox, and the API publishes
+  its unread *count*. The message list demands a `conv_id` and no endpoint
+  anywhere enumerates conversations, so threads must be read on the website.
+- **Machine timestamps on recruiter activity: none.** `action_date` arrives
+  pre-formatted for a human -- `"13 hours ago"`, `"Aug 17 at 3:47 PM"`. Read
+  them; do not compute on them.
+- **A per-opportunity detail route: none.** `candidate_matching/<id>` is a 400,
+  not a 404. `instahyre_get_opportunity` finds a record by scanning the queue,
+  which is why it composes rather than fetches.
+- **Recruiter contact details: none.** Activity names the recruiter and their
+  firm; there is no email or phone anywhere on the candidate API.
 
 ## Traps this client handles for you
 
@@ -110,6 +147,62 @@ answer.
 - **`candidate_opportunity_employer/:id` is advertised on every search result
   and returns 404.** A dead reference; ignored.
 
+### Traps on the authenticated tier
+
+- **`status` on the queue is accepted and ignored.** It looks like the obvious
+  filter name. `status=1` and `status=2` both returned the full unfiltered 228.
+  The one that works is **`interest_facet`**, and it is the only one this client
+  sends. A filter that lies is worse than one that errors.
+- **The queue's filter spelling is not the search's.** Singular `location` and
+  `industry_type` here; plural `jobLocations` and `industry_types` on
+  `job_search`. Passing the search spelling filters *nothing* and looks like a
+  wide result, so the two builders are deliberately not shared.
+- **A bare queue request is HTTP 400 with an empty body** -- no field, no
+  message. It needs an explicit `limit`. Every queue call sends one.
+- **Two queue resources disagree.** `candidate_matching` returns 228,
+  `candidate_opportunity` returns 238 (a strict superset), and
+  `fetch_filter_counts` totals 238. The default matches the count the website
+  itself shows; `include_unindexed=True` reaches the wider one.
+- **Page-then-sort would lie.** The server returns the queue in its own order,
+  so ranking a page and calling its top "the best match" reports the best of an
+  arbitrary N. Measured: `limit=5` surfaced a 4.50 while a 16.05 sat further
+  down the same queue. `instahyre_list_opportunities` fetches the whole queue,
+  ranks it, then slices -- one request either way.
+- **`is_strong_match` cannot be filtered on**, and says so loudly:
+  `{"error": "The 'is_strong_match' field does not allow filtering."}`
+- **`has_valid_number` is not `number_verified_at`.** One means the number
+  passes format validation, the other means OTP verification actually happened.
+  They disagree on this account, so the tools name them differently
+  (`phone_format_valid` vs `phone_verified`) rather than letting two tools
+  appear to contradict each other.
+- **The activity feed's `employer` is the recruiting firm, not the hiring one.**
+  Usually a staffing agency. `job.hiring_company_name` is who the role is for.
+  Collapsing the two misattributes every event, so both are kept.
+
+## The candidate id, and why there is still no browser
+
+Every profile and settings route is detail-only -- a GET on the collection is
+HTTP 405 -- so none of them work without the numeric candidate id. And that id
+is only ever server-injected into an authenticated HTML page, which is exactly
+what a plain client cannot read: the HTML paths are Cloudflare-gated (403 to
+`httpx`, a `"Just a moment..."` interstitial to headless Chromium) while
+`/api/v1/*` is exempt.
+
+That looked like it forced Playwright into the data path and would have cost
+this server its defining property.
+
+It does not. `/candidate_misc/profile/education` **is** a collection, it **does**
+answer GET, and every row carries its owner's `resource_uri`. One cheap request
+recovers the id; it is then cached for 30 days. If a profile has no education
+entry, `instahyre_get_profile` raises `candidate_id_unavailable` and says how to
+fix it -- rather than returning an empty profile that would read as "you have
+not filled anything in".
+
+The endpoint map itself was recovered honestly: a browser was pointed at the
+signed-in pages **once**, with every non-GET request aborted at the router, and
+the XHRs it issued were recorded. Those paths are transcribed exactly as the
+site's own app issues them -- which is why none of them carry a trailing slash.
+
 ## The agency filter
 
 About 84% of Instahyre postings come from third-party staffing agencies rather
@@ -124,15 +217,50 @@ Verdicts cache for 6 hours, and `instahyre_sync_index` pre-warms them.
 
 ## Safety
 
-- **There is no bulk-apply tool and there will not be one.** Instahyre's FAQ is
-  explicit that an application **cannot be withdrawn** once sent. Automating the
-  one irreversible, reputation-bearing action is the wrong optimisation.
-- Any destructive or irreversible action requires an explicit confirmation
-  argument that defaults to not acting.
+**Instahyre applications cannot be withdrawn.** Their FAQ says the application
+is sent automatically by the system: there is no undo, no support path, and the
+employer sees it immediately. Everything below follows from that one fact.
+
+- **Apply is single-only, and irreversible.** `instahyre_apply` takes exactly
+  one `opportunity_id`. There is no bulk-apply tool and there will not be one --
+  Instahyre's API has `apply_bulk/`, and exposing it would make a single call
+  irreversible across an entire queue. The forbidden path is pinned in
+  `constants.FORBIDDEN_ENDPOINTS`, and a test walks the package AST to prove no
+  call site can construct it.
+- **Declining is equally final.** `instahyre_decline_opportunity` is the same
+  endpoint with one boolean flipped, it is permanent, and it feeds Instahyre's
+  matching algorithm. Same gate, same warnings.
+- **`confirm=False` is the default and sends nothing.** It returns the exact
+  request that would go out -- method, URL, body, headers -- plus the role,
+  employer and match score, so a human can look before anything happens.
+- **Four guards stand between `confirm=True` and a POST**, and each one can
+  genuinely fail: the confirmation itself; a refusal to spend the same
+  irreversible action twice on one opportunity; a live check that the target
+  path is not on the forbidden list; and a refusal to send unsigned when the
+  session carries no CSRF token. Each is covered by a test that was shown
+  failing when the guard is removed.
+- **The request shape was never learned by sending one.** It is transcribed
+  from Instahyre's own shipped frontend dispatcher. No request of this shape has
+  ever been executed by this package, which is stated in the tool docstring and
+  in every preview.
+- **Profile writes are preview-only, on purpose.** The read shape is verified;
+  the write contract is not, and verifying it means writing to the live profile
+  that generates every future match. A PATCH with a field shape slightly wrong
+  could blank a field or return 200 having changed nothing -- and a silent no-op
+  is the failure class this server exists to refuse. So
+  `instahyre_preview_profile_update` shows the request and stops.
+- **The confirm gate is advisory to the caller, not structural.** Nothing here
+  can observe whether a human actually saw the preview; the distance between
+  nothing and a permanent action is one boolean. Every docstring on the way in
+  says to preview first.
 - Requests are paced ~1.2s apart with jitter, retried with exponential backoff,
   and honour `Retry-After`. Personal volume only.
 - Passwords are used for a single request and never logged, cached or written to
-  disk. `_state/` (session cookies, index, browser profile) is gitignored.
+  disk. **Instahyre echoes password fields back in the settings payload**; they
+  are stripped before anything is returned, cached or logged, and a test proves
+  it against a fixture that still contains those keys. `_state/` (session
+  cookies, index, browser profile) is gitignored, and committed fixtures are
+  sanitised of personal data.
 
 ## State
 
@@ -165,9 +293,15 @@ venv/Scripts/python -m pip install -e ../jobcore
 
 ## Tests
 
-249 tests, entirely offline -- every HTTP call goes through
+357 tests, entirely offline -- every HTTP call goes through
 `httpx.MockTransport` over golden fixtures captured from the live API, and an
-unmocked path fails loudly rather than returning empty.
+unmocked path fails loudly rather than returning empty. Write paths are
+exercised in mocked form only; no test has ever sent a real application.
+
+`tests/test_inbound_safety.py` is the file guarding the irreversible half. It
+asserts the absence of a POST, not merely the presence of an exception -- a test
+that only checks the raise would pass against an implementation that sends first
+and raises afterwards.
 
 ```bash
 venv/Scripts/python -m pytest tests/ -q

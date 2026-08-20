@@ -1,0 +1,41 @@
+{
+  "resource_uri": "/api/v1/candidate_misc/settings/candidate_settings/9999999",
+  "profile_image_src": "https://media.instahyre.com/images/profile/base/candidate/1/x/test.webp",
+  "profile_image": {
+    "resource_uri": "/api/v1/profiles/profile_image/7770005",
+    "image_url": "https://media.instahyre.com/images/profile/base/candidate/1/x/test.webp",
+    "is_google_default_image": false,
+    "title": "test.webp"
+  },
+  "name": "Test Candidate",
+  "email": "test@example.com",
+  "current_password": null,
+  "confirm_password": null,
+  "password": null,
+  "phone": "+910000000000",
+  "has_valid_email": true,
+  "has_valid_number": true,
+  "number_verified_at": null,
+  "companies_to_block": [
+    {
+      "company_name": "Thornbury Systems",
+      "company_name_nopunc": "thornburysystems"
+    }
+  ],
+  "is_private": false,
+  "alternate_phone": "",
+  "notification_channels": null,
+  "job_search_status": 0,
+  "current_company": "Halcyon Grid Technologies",
+  "current_company_nopunc": "halcyongridtechnologies",
+  "gender": 0,
+  "resume_viewed_notification_type": 1,
+  "recruiter_message_email_unsubscribed_at": null,
+  "resume_views_email_unsubscribed_at": null,
+  "profile_reminder_email_unsubscribed_at": null,
+  "newsletter_email_unsubscribed_at": null,
+  "product_updates_email_unsubscribed_at": null,
+  "whatsapp_enabled": false,
+  "success_message": "Your settings have been updated.",
+  "has_usable_password": false
+}

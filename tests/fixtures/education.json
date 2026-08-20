@@ -1,0 +1,29 @@
+{
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/education/7770002",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "university": {
+        "resource_uri": "/api/v1/candidate_misc/profile/universities/41007",
+        "id": 41007,
+        "name": "Fairmount Institute Of Technology, Northbrook"
+      },
+      "degree": "/api/v1/candidate_misc/profile/degrees/8",
+      "specialization": "/api/v1/candidate_misc/profile/specializations/21",
+      "id": 7770002,
+      "graduation_year": 2019,
+      "current_degree": {
+        "id": 8,
+        "name": "MTech / ME",
+        "resource_uri": "/api/v1/candidate_misc/profile/degrees/8"
+      }
+    }
+  ],
+  "meta": {
+    "offset": 0,
+    "limit": 1000,
+    "total_count": 1,
+    "previous": null,
+    "next": null
+  }
+}

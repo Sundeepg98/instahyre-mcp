@@ -38,6 +38,18 @@ EXPECTED_TOOLS = {
     "instahyre_login_browser",
     "instahyre_logout",
     "instahyre_server_info",
+    # Tier 2 -- authenticated.
+    "instahyre_inbound_digest",
+    "instahyre_list_opportunities",
+    "instahyre_get_opportunity",
+    "instahyre_opportunity_counts",
+    "instahyre_recruiter_activity",
+    "instahyre_list_applications",
+    "instahyre_get_profile",
+    "instahyre_account_settings",
+    "instahyre_apply",
+    "instahyre_decline_opportunity",
+    "instahyre_preview_profile_update",
 }
 
 
@@ -137,8 +149,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_fourteen_tools(tools):
-    assert len(tools) == 14
+def test_the_server_registers_exactly_twenty_five_tools(tools):
+    assert len(tools) == 25
 
 
 def test_every_tool_name_is_namespaced(tools):

@@ -1,0 +1,294 @@
+{
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000003",
+      "score": "2.475",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000003",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/42193",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+        "id": 42193,
+        "company_name": "Thena",
+        "company_tagline": "We help to manage customers in slack",
+        "company_founded": 2022,
+        "employee_count": 1,
+        "instahyre_note": "Thena is a customer engagement platform for Slack that organizes customer channels with request identification, connects to internal tools, allows customer escalations, notifies teams, and analyzes their behavior. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/438148",
+        "opportunity_url": "/job-438148-engineering-team-lead-at-thena-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+        "hiring_company_name": "Thena",
+        "candidate_title": "Engineering Team Lead",
+        "is_internship": false,
+        "id": 438148,
+        "title": "Engineering Team Lead",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "React.js",
+          "TypeScript",
+          "Python",
+          "Algorithms",
+          "Architecture",
+          "Data Structures",
+          "JavaScript",
+          "LangChain",
+          "NestJS",
+          "Temporal"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000001",
+      "score": "1.964",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000001",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/27544",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/27544/c76b716123/0_1.webp",
+        "id": 27544,
+        "company_name": "Aquera",
+        "company_tagline": "Identity Integration Platform as a Service",
+        "company_founded": 2016,
+        "employee_count": 200,
+        "instahyre_note": "Aquera offers a cloud-based service that provides integration between identity management platforms and IT infrastructure and further streamlining the associated identity management process and workflows. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/435910",
+        "opportunity_url": "/job-435910-integration-developer-at-aquera-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/27544/c76b716123/0_1.webp",
+        "hiring_company_name": "Aquera",
+        "candidate_title": "Integration Developer",
+        "is_internship": false,
+        "id": 435910,
+        "title": "Integration Developer",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "Node.js",
+          "Algorithms",
+          "Data Structures"
+        ],
+        "accept_outstation": false,
+        "gender": 0
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000002",
+      "score": "1.595",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 0,
+      "reviewed_at": null,
+      "id": "6100000002",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/40320",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/40320/18beeac3e3/KO_9ZF8M_400x400.webp",
+        "id": 40320,
+        "company_name": "Axi",
+        "company_tagline": "We help to achieve trading ambitions",
+        "company_founded": 2007,
+        "employee_count": 50,
+        "instahyre_note": "Axi is a global online FX and CFD trading company that offers a comprehensive end-to-end trading experience in margin and deliverable foreign exchange, contracts for difference (CFDs), and financial spread betting. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/438417",
+        "opportunity_url": "/job-438417-sr-backend-developer-java-at-axi-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/40320/18beeac3e3/KO_9ZF8M_400x400.webp",
+        "hiring_company_name": "Axi",
+        "candidate_title": "Sr. Backend Developer - Java",
+        "is_internship": false,
+        "id": 438417,
+        "title": "Sr. Backend Developer - Java",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "AWS",
+          "Spring Boot",
+          "Microservices",
+          "Google Cloud (GCP)",
+          "Java",
+          "APIs",
+          "CI / CD",
+          "Azure",
+          "SQL"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000006",
+      "score": "4.500",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 6,
+      "reviewed_at": null,
+      "id": "6100000006",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/49316",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/49316/2e8ee7f6f2/nurixai_logo.webp",
+        "id": 49316,
+        "company_name": "Nurix",
+        "company_tagline": "Premier GenAI services company building bespoke solutions for enterprises",
+        "company_founded": 2024,
+        "employee_count": 10,
+        "instahyre_note": "Nurix is an IT services company offering AI agents and virtual assistants to automate workflows with data-driven insights into customer engagement through personalized interactions and efficient query resolution. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/439750",
+        "opportunity_url": "/job-439750-software-engineer-at-nurix-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/49316/2e8ee7f6f2/nurixai_logo.webp",
+        "hiring_company_name": "Nurix",
+        "candidate_title": "Software Engineer",
+        "is_internship": false,
+        "id": 439750,
+        "title": "Software Engineer",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "Node.js",
+          "Python"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      },
+      "may_know": [
+        "Python"
+      ]
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000005",
+      "score": "4.500",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 6,
+      "reviewed_at": null,
+      "id": "6100000005",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/5003",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/5003/dcac758458/nineleaps.webp",
+        "id": 5003,
+        "company_name": "Nineleaps",
+        "company_tagline": "We build high performance solutions",
+        "company_founded": 2014,
+        "employee_count": 200,
+        "instahyre_note": "Nineleaps are enablers of Digital Transformation across industries, helping partner companies become future ready. They have developed highly scalable & performance driven applications in Web, Mobile, and Analytics"
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/439233",
+        "opportunity_url": "/job-439233-system-engineer-at-nineleaps-2-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/5003/dcac758458/nineleaps.webp",
+        "hiring_company_name": "Nineleaps",
+        "candidate_title": "System Engineer",
+        "is_internship": false,
+        "id": 439233,
+        "title": "System Engineer",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "Node.js",
+          "API",
+          "APIs",
+          "CSS",
+          "HTML",
+          "Node",
+          "NodeJS",
+          "integration",
+          "integrations",
+          "jQuery",
+          "middleware"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      },
+      "may_know": [
+        "API",
+        "APIs",
+        "CSS",
+        "HTML",
+        "integration"
+      ]
+    },
+    {
+      "resource_uri": "/api/v1/candidate_opportunities/candidate_matching/6100000004",
+      "score": "4.500",
+      "is_active": true,
+      "interview_status": 0,
+      "creation_source": 6,
+      "reviewed_at": null,
+      "id": "6100000004",
+      "is_location_match": true,
+      "is_strong_match": true,
+      "message": null,
+      "employer": {
+        "resource_uri": "/api/v1/candidate_opportunity_employer/41532",
+        "profile_image_src": "https://media.instahyre.com/images/profile/base/employer/41532/bf1131c947/1674725713325.webp",
+        "id": 41532,
+        "company_name": "CheQ",
+        "company_tagline": "Enabling easy repayments and real rewards",
+        "company_founded": 2022,
+        "employee_count": 50,
+        "instahyre_note": "CheQ is a fintech startup that aims to make it easier for users to find and manage their credit products online by helping customers with easy repayments and rewards while encrypting all transactions. "
+      },
+      "job": {
+        "resource_uri": "/api/v1/candidatejob/438784",
+        "opportunity_url": "/job-438784-backend-engineer-at-cheq-2-bangalore/",
+        "employer_profile_url": "https://media.instahyre.com/images/profile/base/employer/41532/bf1131c947/1674725713325.webp",
+        "hiring_company_name": "CheQ",
+        "candidate_title": "Backend Engineer",
+        "is_internship": false,
+        "id": 438784,
+        "title": "Backend Engineer",
+        "is_active": true,
+        "locations": "Bangalore",
+        "keywords": [
+          "Node.js",
+          "TypeScript",
+          "Python",
+          "JavaScript",
+          "Shell Scripting"
+        ],
+        "accept_outstation": true,
+        "gender": 0
+      },
+      "may_know": [
+        "Python"
+      ]
+    }
+  ],
+  "meta": {
+    "offset": 0,
+    "limit": 1000,
+    "total_count": 228,
+    "previous": null,
+    "next": null,
+    "filter_date": "2026-08-20T18:21:18"
+  },
+  "calculation_done_at": "2026-08-13T12:55:30.716597+00:00"
+}

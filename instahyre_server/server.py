@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import time
 from typing import Any, Optional
 
 from fastmcp import FastMCP
@@ -543,7 +544,7 @@ def instahyre_server_info() -> dict:
     client = get_client()
     return {
         "server": "instahyre",
-        "tier": "public tools live; authenticated tier gated on login",
+        "tier": "public tools always live; authenticated tools need instahyre_login",
         "requests_this_process": client.http.request_count,
         "min_seconds_between_requests": client.http.min_interval,
         "scoring_engine": scoring.ENGINE,
@@ -555,10 +556,376 @@ def instahyre_server_info() -> dict:
             "sort": "the API accepts a sort parameter and ignores it; use instahyre_rank_jobs",
             "applicant_counts": "no competition signal is published",
             "hybrid_vs_onsite": "only 'Work From Home' is modelled; the rest is unlabelled",
+            "saved_jobs": "no bookmark feature exists; only saved SEARCHES, and no job-side equivalent",
+            "message_bodies": "the inbox exposes an unread count only; threads need a conv_id no endpoint lists",
+            "opportunity_detail_route": "there is none; a queue record is found by scanning the queue",
         },
+        "deliberately_not_built": {
+            "apply_bulk": (
+                "Instahyre's API has it. It is a one-way door across a whole queue at once and "
+                "is permanently out of scope."
+            ),
+            "profile_writes": (
+                "The read shape is verified; the WRITE contract is not, and verifying it means "
+                "writing to the live profile that generates every match. "
+                "instahyre_preview_profile_update shows the request instead."
+            ),
+        },
+        "irreversible_tools": ["instahyre_apply", "instahyre_decline_opportunity"],
         "page_size": C.PAGE_SIZE,
+        "opportunity_page_size": C.OPP_DEFAULT_LIMIT,
     }
 
+
+
+# ---------------------------------------------------------------------------
+# TIER 2 -- authenticated. The inbound side, which is what this platform is for.
+# ---------------------------------------------------------------------------
+#
+# Instahyre is a REVERSE marketplace: employers put a candidate into a curated
+# queue and recruiters open his resume. Outbound search is the commodity half;
+# everything below is the half that is actually scarce. Ordered by value:
+# triage the queue, see who looked, then tune the profile that feeds both.
+
+
+@mcp.tool()
+@handled
+def instahyre_inbound_digest(rank_against_my_profile: bool = True, top_n: int = 8) -> dict:
+    """What needs attention on Instahyre today. Start here.
+
+    One call answers the only question this platform really poses: has anyone
+    engaged, and what should be looked at first. Pulls the queue badge, who
+    viewed the resume, unread recruiter messages, the top-scoring untouched
+    opportunities, and anything that appeared since the last run.
+
+    Costs about five requests. Read this before instahyre_list_opportunities --
+    it is the same data, already triaged.
+
+    Args:
+        rank_against_my_profile: Also score each opportunity with the shared
+            jobcore engine using the skills on his own Instahyre profile, so
+            scores are comparable with the Naukri server's. Costs one extra
+            (cached) request. Instahyre's own score still drives the order.
+        top_n: How many opportunities to surface.
+    """
+    client = get_client()
+    inbound = client.inbound
+    digest: dict[str, Any] = {}
+
+    digest["opportunities_waiting"] = inbound.navbar_count()
+    digest["recruiter_activity"] = inbound.activity_counts()
+
+    viewed = inbound.activity("viewed", limit=10)
+    if viewed["events"]:
+        digest["who_looked_at_you"] = viewed["events"]
+        digest["activity_timing_note"] = viewed["timing_note"]
+    else:
+        digest["who_looked_at_you"] = []
+        digest["activity_note"] = "No recruiter has opened this resume yet."
+
+    digest["messages"] = inbound.unread_messages()
+
+    queue = inbound.list_opportunities(interest="pending", limit=C.OPP_MAX_LIMIT)
+    top = queue["opportunities"][:top_n]
+
+    if rank_against_my_profile and top:
+        my_skills = inbound.profile_skills()
+        if my_skills:
+            digest["scored_against_skills"] = my_skills
+            for entry in top:
+                verdict = scoring.score_job(
+                    job_skills=entry.get("skills") or [],
+                    profile_skills=my_skills,
+                    profile_years=None,
+                )
+                entry["fit_score"] = verdict.get("overall_score")
+                entry["matched_skills"] = (verdict.get("skill_match") or {}).get("matched")
+            digest["scoring_engine"] = scoring.ENGINE
+        else:
+            digest["scoring_note"] = (
+                "No skills on the Instahyre profile, so nothing to score against. "
+                "instahyre_get_profile lists the gaps."
+            )
+
+    digest["top_opportunities"] = top
+    digest["queue_total"] = queue.get("total_matching")
+    digest["score_note"] = shape.SCORE_NOTE
+    if queue.get("queue_recalculated_at"):
+        digest["queue_recalculated_at"] = queue["queue_recalculated_at"]
+    if queue.get("diagnosis"):
+        digest["queue_diagnosis"] = queue["diagnosis"]
+
+    new_jobs = client.store.jobs_first_seen_after(time.time() - 86400, limit=15)
+    digest["first_seen_in_last_24h"] = [
+        {"job_id": j["id"], "title": j["title"], "company": j["company"]} for j in new_jobs
+    ]
+    digest["freshness_note"] = (
+        "Instahyre publishes no posting or match date anywhere, so 'first seen' is this "
+        "server's own local record. It only becomes meaningful once these tools have run "
+        "more than once."
+    )
+    return digest
+
+
+@mcp.tool()
+@handled
+def instahyre_list_opportunities(
+    interest: str = "pending",
+    location: Optional[str] = None,
+    company_size: Optional[str] = None,
+    job_type: Optional[str] = None,
+    industry_id: Optional[int] = None,
+    limit: int = 30,
+    offset: int = 0,
+    include_unindexed: bool = False,
+) -> dict:
+    """The curated queue: roles employers matched TO him, with match scores.
+
+    This is the inbound side and it is where this platform pays. Unlike
+    instahyre_search_jobs, every record here was selected by Instahyre for this
+    profile and carries a real match score. Returned highest score first.
+
+    One request. An empty result always says why it is empty.
+
+    Args:
+        interest: "pending" (not yet acted on), "interested" (already applied),
+            or "not_interested" (already declined). Applications and declines
+            are the same queue in a different state -- there is no separate
+            applications endpoint on this platform.
+        location: A single city, e.g. "Bangalore", or "Work From Home".
+        company_size: "small", "medium" or "large".
+        job_type: "full_time" or "internship".
+        industry_id: An industry id from instahyre_opportunity_counts.
+        limit: Records per page, up to 1000. The queue is small enough that
+            asking for all of it in one call is normal here.
+        include_unindexed: Instahyre serves this queue from two resources that
+            disagree. The default matches the count shown on the website; this
+            switches to the wider one, which returns roughly 15 more records
+            that their search index has dropped.
+    """
+    return get_client().inbound.list_opportunities(
+        interest=interest,
+        location=location,
+        company_size=company_size,
+        job_type=job_type,
+        industry_id=industry_id,
+        limit=limit,
+        offset=offset,
+        full_queue=include_unindexed,
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_get_opportunity(opportunity_id: str, full_description: bool = False) -> dict:
+    """Everything about one matched opportunity, assembled from three sources.
+
+    The queue record gives the match score and whether it has been actioned;
+    the public job page adds the description, experience band, named recruiter
+    and agency verdict; a third call lists what else that employer has open for
+    him. Two or three requests, cached.
+
+    Args:
+        opportunity_id: The long numeric string ``id`` from
+            instahyre_list_opportunities -- NOT the ``job_id``. A job id will
+            not resolve here and raises rather than returning an empty record.
+        full_description: Return the whole description instead of ~1200 chars.
+    """
+    return get_client().inbound.get_opportunity(
+        opportunity_id, full_description=full_description
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_opportunity_counts() -> dict:
+    """Facet counts across the whole queue: status, location, industry, employer.
+
+    One request, no records. The fastest way to see the shape of the inbound
+    pipeline -- how many are untouched, where they are, and which employers are
+    most active -- before pulling any of it.
+
+    ``by_status`` is also the application ledger: "interested" is how many were
+    applied to, "not_interested" how many were declined.
+    """
+    return get_client().inbound.opportunity_counts()
+
+
+@mcp.tool()
+@handled
+def instahyre_recruiter_activity(kind: str = "viewed", limit: int = 25) -> dict:
+    """Who opened this resume, and for which role. The most perishable signal here.
+
+    A recruiter who looked today is reachable in a way they will not be next
+    week, which is exactly what a human checking a website daily handles badly.
+    One request.
+
+    Note the two different companies on each event: ``recruiter_company`` is who
+    made the search (usually a staffing agency on this platform) and
+    ``hiring_company`` is who the role is actually for. They are frequently not
+    the same firm.
+
+    Args:
+        kind: "viewed" (opened the resume), "contacted" (reached out), or
+            "not_shortlisted" (looked and passed). Those three are exactly the
+            tabs the website shows.
+        limit: Maximum events to return.
+    """
+    inbound = get_client().inbound
+    result = inbound.activity(kind, limit=limit)
+    result["all_tabs"] = inbound.activity_counts()
+    return result
+
+
+@mcp.tool()
+@handled
+def instahyre_list_applications() -> dict:
+    """Every Instahyre application and decline on this account, with its state.
+
+    There is no applications endpoint on this platform -- an application is a
+    queue record in a different state -- so this reads both states and reports
+    them together. Two requests.
+
+    Zero applications is a real and common answer here: on a reverse
+    marketplace the normal move is to wait for the queue and act selectively,
+    not to accumulate applications.
+    """
+    inbound = get_client().inbound
+    applied = inbound.list_opportunities(interest="interested", limit=C.OPP_MAX_LIMIT)
+    declined = inbound.list_opportunities(interest="not_interested", limit=C.OPP_MAX_LIMIT)
+    return {
+        "applied": applied["opportunities"],
+        "applied_count": applied.get("total_matching"),
+        "declined": declined["opportunities"],
+        "declined_count": declined.get("total_matching"),
+        "note": (
+            "Instahyre applications cannot be withdrawn, so this list only ever grows. "
+            "Saved or bookmarked jobs do not exist on this platform at all."
+        ),
+    }
+
+
+@mcp.tool()
+@handled
+def instahyre_get_profile() -> dict:
+    """His Instahyre profile, plus what is missing and what each gap costs.
+
+    The profile is the only lever on this platform that compounds: it decides
+    which employers ever see him, so a gap here suppresses every future match
+    cycle rather than one application. Gaps are ranked by consequence.
+
+    Phone and email are deliberately NOT returned -- only whether they are on
+    file. Two requests on a cold cache, one afterwards.
+    """
+    return get_client().inbound.profile()
+
+
+@mcp.tool()
+@handled
+def instahyre_account_settings() -> dict:
+    """Visibility, notification and blocked-employer settings.
+
+    Worth checking when the queue looks thin: a private profile stops employers
+    finding him at all, and blocked employers are silently excluded.
+
+    Instahyre echoes password fields in this payload. They are stripped before
+    this returns and are never cached or logged.
+    """
+    return get_client().inbound.account_settings()
+
+
+@mcp.tool()
+@handled
+def instahyre_apply(opportunity_id: str, confirm: bool = False) -> dict:
+    """Apply to ONE matched opportunity. IRREVERSIBLE -- read this first.
+
+    Instahyre applications CANNOT BE WITHDRAWN. Their own FAQ says the
+    application is sent automatically by the system, so there is no undo, no
+    support path, and the employer sees it immediately. Treat every call as
+    permanent and as carrying his real reputation.
+
+    With ``confirm=False`` (the default) NOTHING is sent: it returns the exact
+    request that would go out, plus the role, the employer and the match score,
+    so a human can look before anything happens. Always show that preview and
+    get an explicit yes before calling again with ``confirm=True``.
+
+    There is deliberately no bulk apply in this server. Instahyre's API has one;
+    exposing it would make a single call irreversible across a whole queue.
+
+    A note on provenance, because it matters for an action that cannot be
+    undone: the request shape was read out of Instahyre's own shipped frontend,
+    never by sending a trial application. No request of this shape has ever been
+    executed by this server, so the response is unverified territory.
+
+    Args:
+        opportunity_id: The ``id`` from instahyre_list_opportunities.
+        confirm: Must be True to actually send. False returns a preview only.
+    """
+    inbound = get_client().inbound
+    if not confirm:
+        return inbound.apply_preview(opportunity_id, is_interested=True)
+    return inbound.submit_interest(opportunity_id, is_interested=True, confirm=True)
+
+
+@mcp.tool()
+@handled
+def instahyre_decline_opportunity(opportunity_id: str, confirm: bool = False) -> dict:
+    """Mark ONE opportunity "not interested". Also irreversible.
+
+    This is not a soft dismissal. It is the same endpoint an application uses
+    with the boolean flipped, it is permanent, and it feeds Instahyre's matching
+    algorithm -- so it shapes which employers are shown in future cycles.
+
+    ``confirm=False`` (the default) sends nothing and returns the exact request
+    that would go out.
+
+    Args:
+        opportunity_id: The ``id`` from instahyre_list_opportunities.
+        confirm: Must be True to actually send.
+    """
+    inbound = get_client().inbound
+    if not confirm:
+        return inbound.apply_preview(opportunity_id, is_interested=False)
+    return inbound.submit_interest(opportunity_id, is_interested=False, confirm=True)
+
+
+@mcp.tool()
+@handled
+def instahyre_preview_profile_update(
+    current_designation: Optional[str] = None,
+    current_company: Optional[str] = None,
+    total_experience: Optional[int] = None,
+    notice_period_days: Optional[int] = None,
+) -> dict:
+    """Build the profile update that WOULD be sent -- and stop there, on purpose.
+
+    This tool never writes. That is a deliberate limit, not an oversight, and
+    the reason is worth stating plainly: the write contract for the profile
+    could not be verified without performing a real write on his live profile,
+    and the profile is what generates his entire match queue. A PATCH with a
+    field shape guessed slightly wrong could blank a field or return 200 while
+    changing nothing -- and a silent no-op is the exact failure class this
+    server exists to refuse.
+
+    So it returns the request an update tool would issue, and the update itself
+    stays a two-second job on the website where it is visible and correctable.
+
+    What IS known: the profile GET shape (every field, verified live) and the
+    detail route. What is NOT known: whether a PATCH suffices or whether the
+    ``submit/`` sub-action must follow it, and which fields are writable.
+
+    Args:
+        current_designation: Job title to set.
+        current_company: Employer to set.
+        total_experience: Years of experience to set.
+        notice_period_days: Notice period in days.
+    """
+    return get_client().inbound.profile_update_preview(
+        current_designation=current_designation,
+        current_company=current_company,
+        total_experience=total_experience,
+        notice_period_days=notice_period_days,
+    )
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)

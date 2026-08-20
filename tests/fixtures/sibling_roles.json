@@ -1,0 +1,104 @@
+{
+  "success": true,
+  "message": "Operation succeeded.",
+  "opp_data": [
+    {
+      "id": 6175103713,
+      "job_title": "AI Automation Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103714,
+      "job_title": "AI SOC Automation Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 3,
+      "job_workex_max": 7
+    },
+    {
+      "id": 6175103715,
+      "job_title": "Conversational AI Engineer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 2,
+      "job_workex_max": 5
+    },
+    {
+      "id": 6175103716,
+      "job_title": "Developer - AI SOC Automation",
+      "job_locations": "Bangalore",
+      "job_workex_min": 3,
+      "job_workex_max": 6
+    },
+    {
+      "id": 6175103717,
+      "job_title": "MR - Golang Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103719,
+      "job_title": "Python Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 8
+    },
+    {
+      "id": 6175103720,
+      "job_title": "Python Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 3,
+      "job_workex_max": 6
+    },
+    {
+      "id": 6175103721,
+      "job_title": "Python Developer",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103722,
+      "job_title": "Senior Backend Developer - Python",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103724,
+      "job_title": "Senior Developer - AI Proactive Defense",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103725,
+      "job_title": "Senior Developer - Proactive Defense",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103726,
+      "job_title": "Senior Developer - Python",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103727,
+      "job_title": "Senior Quality Engineer - AI Integrations",
+      "job_locations": "Bangalore",
+      "job_workex_min": 5,
+      "job_workex_max": 9
+    },
+    {
+      "id": 6175103728,
+      "job_title": "Sr. Backend Developer - JavaScript",
+      "job_locations": "Bangalore",
+      "job_workex_min": 2,
+      "job_workex_max": 5
+    }
+  ]
+}

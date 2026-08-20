@@ -129,3 +129,153 @@ TTL_TAXONOMY = 30 * 24 * 3600
 TTL_SEARCH = 15 * 60
 TTL_DETAIL = 6 * 3600
 TTL_OPPORTUNITIES = 5 * 60
+
+
+# ===========================================================================
+# AUTHENTICATED TIER
+# ===========================================================================
+#
+# Everything below was VERIFIED live against the operator's own session on
+# 2026-08-20. The endpoint paths were not guessed and were not read out of a
+# bundle: a browser was pointed at the signed-in candidate pages once, with
+# every non-GET request aborted at the router, and the XHRs it made were
+# recorded. That is why these paths carry NO trailing slash -- they are
+# transcribed exactly as the site's own app issues them, and the HTTP client
+# does not follow redirects, so a slash added "for tidiness" turns a 200 into
+# an unexplained 301.
+
+# --- The inbound queue -----------------------------------------------------
+#
+# TWO resources serve the same queue and they DISAGREE.
+#
+#   candidate_matching     -> 228 records. This is what the website shows, and
+#                             what the navbar badge counts.
+#   candidate_opportunity  -> 238 records, a strict superset (the extra 15 are
+#                             ordinary strong matches the search index has
+#                             dropped), and it is also what fetch_filter_counts
+#                             totals.
+#
+# We default to candidate_matching so a count here always equals the count he
+# sees on the site. The extra 15 are reachable, deliberately, behind a flag.
+EP_OPPORTUNITIES = "/candidate_opportunities/candidate_matching"
+EP_OPPORTUNITIES_FULL = "/candidate_opportunities/candidate_opportunity"
+EP_OPP_FILTER_COUNTS = "/candidate_opportunities/candidate_opportunity/fetch_filter_counts"
+EP_OPP_NAVBAR_COUNT = "/candidate_opportunities/candidate_matching/fetch_navbar_count"
+# The sibling-roles sub-path. VERIFIED: the leading slash is required on BOTH
+# resources. The frontend builds one of them without it; that variant 400s.
+EP_OPP_SIBLINGS = (
+    "/candidate_opportunities/candidate_opportunity/{opportunity_id}/opps_from_this_company"
+)
+EP_SAVED_SEARCHES = "/candidate_opportunities/saved_job_searches"
+
+# VERIFIED: a bare GET on either queue resource returns HTTP 400 with an EMPTY
+# body -- no field name, no message. Sending an explicit limit fixes it.
+# Never issue a queue request without one.
+OPP_LIMIT_REQUIRED = True
+OPP_DEFAULT_LIMIT = 30
+OPP_MAX_LIMIT = 1000
+
+# The queue's filter contract is NOT job_search's. Singular "location" and
+# "industry_type" here vs plural "jobLocations"/"industry_types" there;
+# passing the search spelling silently filters nothing. Do not share a builder.
+OPP_PARAMS = frozenset(
+    {"interest_facet", "location", "industry_type", "company_size", "job_type", "limit", "offset"}
+)
+
+# VERIFIED: "interest_facet" is the queue's status filter and it WORKS.
+# "status", which reads like the obvious name, is accepted and IGNORED --
+# status=1 and status=2 both returned the unfiltered 228. A filter that lies is
+# worse than one that errors, so only interest_facet is ever sent.
+INTEREST_FACET = {"pending": 0, "interested": 1, "not_interested": 2}
+INTEREST_FACET_NAMES = {0: "pending", 1: "interested", 2: "not_interested"}
+
+# "interview_status" on a queue record. Mirrors interest_facet.
+INTERVIEW_STATUS_NAMES = {0: "no action taken", 1: "you expressed interest", 2: "you declined"}
+
+# VERIFIED loud: filtering on is_strong_match returns
+# {"error": "The 'is_strong_match' field does not allow filtering."}
+OPP_UNFILTERABLE = frozenset({"is_strong_match", "is_location_match", "score", "reviewed_at"})
+
+# --- Recruiter activity ----------------------------------------------------
+#
+# The single most perishable signal on the platform: who looked at you, when.
+EP_ACTIVITY = "/candidate_misc/activity/employer_activity"
+EP_ACTIVITY_COUNTS = "/candidate_misc/activity/employer_activity/fetch_facet_counts"
+
+# The tab labels are taken verbatim from the rendered activity page, not
+# inferred from the integers. VERIFIED: omitting activity_facet returns
+# 400 "Request is missing the activity_facet or its value is invalid."
+ACTIVITY_FACET = {"viewed": 0, "contacted": 1, "not_shortlisted": 2}
+ACTIVITY_FACET_NAMES = {0: "viewed", 1: "contacted", 2: "not_shortlisted"}
+ACTIVITY_FACET_LABELS = {
+    0: "viewed your resume",
+    1: "contacted you",
+    2: "did not shortlist you",
+}
+
+# --- Profile, settings, and the candidate id -------------------------------
+#
+# Every profile route is DETAIL-ONLY: a GET on the collection is HTTP 405, so
+# nothing works without the numeric candidate id.
+#
+# The id is server-injected into an authenticated HTML page, and the HTML paths
+# are Cloudflare-gated -- 403 to a plain client, "Just a moment..." to headless
+# Chromium. That looked like it forced a browser into the data path.
+#
+# It does not. "/candidate_misc/profile/education" is a COLLECTION that does
+# answer GET, and every row carries the owning candidate's resource_uri. One
+# cheap request recovers the id, and it is cached from then on. This is the
+# reason the authenticated tier still needs no browser.
+EP_PROFILE = "/candidate_misc/profile/candidate/{candidate_id}"
+EP_SETTINGS = "/candidate_misc/settings/candidate_settings/{candidate_id}"
+EP_EDUCATION = "/candidate_misc/profile/education"
+EP_PRIMARY_SKILL = "/candidate_misc/profile/primary_skill"
+
+# Settings GET echoes the account's password fields back in the payload. They
+# are stripped before anything is returned, logged or cached. Never widen this.
+SETTINGS_NEVER_EMIT = frozenset({"password", "current_password", "confirm_password"})
+
+# Personal contact details. Real, his, and of no use to an agent choosing a
+# job -- so they are summarised as present/absent rather than echoed.
+CONTACT_FIELDS = frozenset({"phone", "alternate_phone", "email", "name"})
+
+# VERIFIED: 0 is what this account reads today. The remaining codes are NOT
+# known -- the labelled dropdown lives on an authenticated page whose bundle is
+# not in the captured corpus. The tool reports the integer and says so.
+JOB_SEARCH_STATUS_KNOWN = {0: "actively looking (default)"}
+
+# --- Messages --------------------------------------------------------------
+#
+# The site has an INBOX. Only its unread COUNT is reachable: the message list
+# demands a "conv_id" and NO endpoint enumerates conversations (both
+# /resume_modal/emails/conversation and .../conversations are 404).
+EP_MESSAGE_COUNT = "/resume_modal/emails/message/message_count"
+# VERIFIED: this path answers only WITH the unread flag. Without it, Cloudflare
+# returns an HTML 403 -- which the client correctly raises as ChallengeDetected.
+MESSAGE_COUNT_PARAMS = {"unread": 1}
+
+# --- The one-way door ------------------------------------------------------
+#
+# Instahyre's own FAQ: an application "is sent automatically by the system, so
+# it cannot be withdrawn". Declining is equally final. Both actions POST here.
+EP_APPLY = "/candidate_opportunities/candidate_opportunity/apply/"
+
+# Transcribed from the shipped frontend dispatcher, which builds ONE body for
+# both actions and switches on a single boolean:
+#
+#   var data={"is_interested":choice}
+#   if($scope.enableCandidateESOpps){data.job_id=opp.job.id;}
+#   else{data.id=opp.id||null; if($scope.showSearchedJobs||!opp.id){data.job_id=opp.job.id;}}
+#
+# Sending both keys is what the legacy branch does when it has both, so that is
+# what we would send. NOTHING in this package has ever executed this request:
+# the shape comes from reading their code, never from watching a response.
+APPLY_IS_INTERESTED_APPLY = True
+APPLY_IS_INTERESTED_DECLINE = False
+
+# apply_bulk/ exists on the API. It is permanently out of scope and no code
+# path in this package may construct it.
+FORBIDDEN_ENDPOINTS = frozenset({"/candidate_opportunities/candidate_opportunity/apply_bulk/"})
+
+TTL_ACTIVITY = 5 * 60
+TTL_PROFILE = 15 * 60

@@ -1,0 +1,71 @@
+{
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/activity/employer_activity",
+      "employer": {
+        "resource_uri": "/api/v1/employer_misc/employer_profile/anon_employer_limited/47729",
+        "company_name": "Recro",
+        "company_name_nopunc": "recro",
+        "alternate_names_nopunc": ",recro,"
+      },
+      "action_date": "13 hours ago",
+      "recruiter_name": "Anjali Venkatesh",
+      "recruiter_id": 111111,
+      "employer_url": null,
+      "profile_image": "https://media.instahyre.com/images/profile/base/employer/41532/bf1131c947/1674725713325.webp",
+      "job": {
+        "title": "Senior Backend Engineer",
+        "candidate_title": "Senior Backend Engineer",
+        "hiring_company_name": "CheQ",
+        "url": "/job-439345-senior-backend-engineer-at-cheq-2-bangalore/"
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/activity/employer_activity",
+      "employer": {
+        "resource_uri": "/api/v1/employer_misc/employer_profile/anon_employer_limited/47729",
+        "company_name": "Recro",
+        "company_name_nopunc": "recro",
+        "alternate_names_nopunc": ",recro,"
+      },
+      "action_date": "Aug 17 at 3:47 PM",
+      "recruiter_name": "Arvind Suresh Verma",
+      "recruiter_id": 22222,
+      "employer_url": null,
+      "profile_image": "https://media.instahyre.com/images/profile/base/employer/48234/66f9986d76/1693912069589.webp",
+      "job": {
+        "title": "AI Platform Engineering Specialist",
+        "candidate_title": "AI Platform Engineering Specialist",
+        "hiring_company_name": "Emergent Labs",
+        "url": "/job-413369-ai-platform-engineering-specialist-at-emergent-labs-bangalore/"
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/activity/employer_activity",
+      "employer": {
+        "resource_uri": "/api/v1/employer_misc/employer_profile/anon_employer_limited/47729",
+        "company_name": "Recro",
+        "company_name_nopunc": "recro",
+        "alternate_names_nopunc": ",recro,"
+      },
+      "action_date": "Aug 17 at 1:46 PM",
+      "recruiter_name": "Neha Gupta",
+      "recruiter_id": 33333,
+      "employer_url": null,
+      "profile_image": "https://media.instahyre.com/images/profile/base/employer/42193/4fe29262d0/1679452148712.webp",
+      "job": {
+        "title": "Engineering Team Lead",
+        "candidate_title": "Engineering Team Lead",
+        "hiring_company_name": "Thena",
+        "url": "/job-438148-engineering-team-lead-at-thena-bangalore/"
+      }
+    }
+  ],
+  "meta": {
+    "offset": 0,
+    "limit": 20,
+    "total_count": 3,
+    "previous": null,
+    "next": null
+  }
+}

@@ -36,6 +36,11 @@ class InstahyreClient:
         self.http = http or InstahyreHTTP()
         self.store = store or Store(default_db_path())
         self.taxonomy = Taxonomy(self.http, self.store)
+        # The authenticated tier. Shares this client's cookie jar deliberately,
+        # so instahyre_logout disables it and there is one session per process.
+        from .inbound import Inbound
+
+        self.inbound = Inbound(self.http, self.store, self)
 
     def close(self) -> None:
         self.http.close()
