@@ -78,6 +78,35 @@ def handled(func):
     return wrapper
 
 
+def progress_reporter():
+    """A best-effort bridge from a blocking tool to the client's progress bar.
+
+    Only ``instahyre_login_browser`` needs it, and only because it can sit for
+    five minutes with nothing to show for itself. FastMCP runs sync tools in an
+    anyio worker thread, so the async ``Context`` methods have to be driven back
+    into the event loop through ``anyio.from_thread``.
+
+    Every part of that is optional -- there may be no request context, no
+    progress token, or a client that has hung up -- so this returns ``None``
+    when it cannot wire itself up, and the hook it returns is called inside a
+    guard on the other side. Progress never decides anything.
+    """
+    try:
+        from fastmcp.server.dependencies import get_context
+
+        ctx = get_context()
+        if ctx is None:
+            return None
+        from anyio import from_thread
+    except Exception:  # no request context, or a FastMCP that works differently
+        return None
+
+    def report(elapsed: float, total: float, message: str) -> None:
+        from_thread.run(ctx.report_progress, elapsed, total, message)
+
+    return report
+
+
 # ---------------------------------------------------------------------------
 # TIER 1 -- public. No login required.
 # ---------------------------------------------------------------------------
@@ -430,10 +459,21 @@ def instahyre_login(email: str, password: str) -> dict:
     """
     client = get_client()
     login_with_password(client.http, email, password)
-    saved = get_sessions().save_from(client.http, method="password")
+    # Verify BEFORE writing anything. The POST coming back 200 with a cookie is
+    # not a session -- and saving first meant a login the server went on to
+    # reject still overwrote a jar that had been working.
     status = check_auth(client.http)
+    if status.get("authenticated") is not True:
+        return {
+            "authenticated": status.get("authenticated"),
+            "method": "password",
+            "session_saved": False,
+            "reason": status.get("reason"),
+            "verified_by": status.get("checked_against"),
+        }
+    saved = get_sessions().save_from(client.http, method="password")
     return {
-        "authenticated": status.get("authenticated"),
+        "authenticated": True,
         "method": "password",
         "session_saved": saved.get("has_session"),
         "verified_by": status.get("checked_against"),
@@ -445,11 +485,21 @@ def instahyre_login(email: str, password: str) -> dict:
 def instahyre_login_browser(wait_seconds: int = 300) -> dict:
     """Open a browser window so you can sign in by hand -- for Google sign-in.
 
-    Use this when the account uses "Continue with Google", which is a redirect
+    THIS TOOL BLOCKS AND THE WINDOW STAYS OPEN. It returns only when an
+    authenticated API call actually succeeds, or when ``wait_seconds`` runs
+    out -- up to five minutes by default. Tell the human to go and sign in;
+    do not treat the delay as a hang and do not call it again in parallel.
+
+    Use it when the account uses "Continue with Google", which is a redirect
     flow no HTTP client can complete. A visible Chromium window opens on
-    Instahyre's login page against a persistent profile; sign in there and this
-    returns as soon as the session cookie appears. The profile persists, so
-    later runs usually find the session already live.
+    Instahyre's login page against a persistent profile. The profile persists,
+    so later runs usually find the session already live and return in about a
+    second.
+
+    A ``sessionid`` cookie is NOT the finish line -- Instahyre issues one to
+    signed-out visitors, so this polls ``/api/v1/job_category/`` until it
+    answers 200. On a timeout, or if you close the window, it returns
+    ``authenticated: false`` with a reason rather than claiming success.
 
     This is the ONLY tool in this server that starts a browser. All data
     fetching is plain HTTP.
@@ -460,7 +510,12 @@ def instahyre_login_browser(wait_seconds: int = 300) -> dict:
     from .auth import login_via_browser
 
     client = get_client()
-    return login_via_browser(client.http, get_sessions(), wait_seconds=wait_seconds)
+    return login_via_browser(
+        client.http,
+        get_sessions(),
+        wait_seconds=wait_seconds,
+        on_progress=progress_reporter(),
+    )
 
 
 @mcp.tool()
