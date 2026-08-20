@@ -10,7 +10,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Proprietary" }
 authors = [{ name = "Sundeep" }]
-dependencies = ["httpx>=0.27", "fastmcp>=2.0"]
+# The fastmcp cap is explained at length in requirements.txt; the short form is
+# that its next UNKNOWN major (4.x) is code nobody has run this server against,
+# and the suite is measured green on 3.4.7. The two files must agree --
+# tests/test_requirements_pins.py compares them, because a cap applied to one
+# source of truth and not the other protects nothing.
+dependencies = ["httpx>=0.27", "fastmcp>=2.0,<4"]
 
 [project.optional-dependencies]
 # Only needed for the Google OAuth sign-in path.

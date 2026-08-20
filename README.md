@@ -150,12 +150,56 @@ scorer extracted from the Naukri server) when importable, so scores are
 comparable across boards. It falls back to a small local scorer otherwise, and
 the output always names which engine produced the number.
 
+Two things worth knowing about that fallback. It is chosen by *what is
+importable*, so a checkout **without** a `../jobcore` sibling -- a fresh clone,
+or a CI runner -- scores with the local fallback, and those numbers are not
+comparable with a jobcore-backed board. And `pip install -r requirements.txt`
+does not install jobcore (a `jobcore @ git+...` line there would silently
+uninstall a local `pip install -e ../jobcore`). To get comparable scores:
+
+```bash
+venv/Scripts/python -m pip install -e ../jobcore
+```
+
+`scripts/clean_install_check.py` prints which engine an install resolved to.
+
 ## Tests
 
-242 tests, entirely offline -- every HTTP call goes through
+249 tests, entirely offline -- every HTTP call goes through
 `httpx.MockTransport` over golden fixtures captured from the live API, and an
 unmocked path fails loudly rather than returning empty.
 
 ```bash
 venv/Scripts/python -m pytest tests/ -q
 ```
+
+### Checking a CLEAN install
+
+```bash
+venv/Scripts/python scripts/clean_install_check.py
+```
+
+Clones the committed tree into a throwaway workspace, builds a brand new venv,
+runs the Install recipe above from scratch, imports the server and runs the
+suite -- then deletes the workspace. Your working tree and your venv are never
+touched.
+
+Run it after touching `requirements.txt` or `pyproject.toml`, and before
+believing a green local suite. **A local venv is a cache of a resolve that
+happened in the past**, and it cannot show you what a resolve today would
+produce. On 2026-08-20 the sibling naukri server declared `mcp[cli]>=1.25.0`
+unbounded; `mcp 2.0.0` moved `mcp/server/fastmcp` to `mcp/server/mcpserver`, a
+clean resolve picked it up, and all 55 of naukri's test modules died at
+collection -- *"5 deselected, 55 errors"*, zero tests run -- while every local
+run stayed green on a venv holding mcp 1.26.0 from before 2.0.0 shipped.
+
+This server was **not** affected by that particular move, and that was measured
+rather than assumed: it depends on the standalone `fastmcp` project, and after
+`import instahyre_server.server` the loaded modules include `mcp.server.auth`
+and `mcp.server.models` but **not** `mcp.server.fastmcp`. fastmcp additionally
+caps its own dependency at `mcp<2.0`. What it did share was the disease --
+an unbounded `>=` on its framework package -- so `fastmcp` is now capped at the
+next untested major (`<4`; the suite is measured green on 3.4.7), and
+`tests/test_requirements_pins.py` holds that in place by reading
+`requirements.txt` and `pyproject.toml` as text. An assertion about the
+*installed* version would pass happily in the very venv that hides the bug.

@@ -1,12 +1,58 @@
 # Data path: plain HTTP. No browser is used to fetch anything.
 httpx>=0.27
-fastmcp>=2.0
+
+# The upper bound is load-bearing, and its VALUE was measured rather than copied.
+#
+# WHY A BOUND: on 2026-08-20 the sibling naukri server declared `mcp[cli]>=1.25.0`
+# unbounded. `mcp 2.0.0` shipped, relocating mcp/server/fastmcp to
+# mcp/server/mcpserver, and a clean resolve killed all 55 of its test modules at
+# collection ("5 deselected, 55 errors", zero tests run) while every LOCAL naukri
+# run stayed green on a venv holding mcp 1.26.0 from before 2.0.0 existed. An
+# unbounded `>=` on a framework package is a time bomb lit by someone else's
+# release, and a local venv -- a cache of a past resolve -- cannot see it.
+#
+# THIS SERVER WAS NOT AFFECTED BY THAT PARTICULAR MOVE, and that was verified,
+# not assumed. It depends on the standalone `fastmcp` project, not `mcp[cli]`,
+# and it imports `fastmcp` directly. Measured 2026-08-20 in a throwaway venv:
+# after `import instahyre_server.server`, sys.modules held mcp.server.auth,
+# mcp.server.experimental and mcp.server.models but NOT mcp.server.fastmcp --
+# the relocated module is not in this server's import graph at all. fastmcp
+# additionally caps its own dependency at `mcp<2.0,>=1.24.0`, so mcp 1.29.0 is
+# what a clean resolve installs here and mcp 2.x cannot arrive by accident.
+#
+# WHY <4 AND NOT <3: a clean resolve today picks fastmcp 3.4.7 and the suite
+# gives "242 passed in 5.11s" on it. Capping <3 would pin a working server to an
+# older major for no reason anyone could point at -- the cargo-cult version of
+# naukri's fix. The bound goes at the next UNKNOWN major instead: fastmcp 4.x is
+# code nobody has run this against, and fastmcp 2.0 was itself a rewrite of the
+# library that became mcp.server.fastmcp, so its majors have a track record of
+# moving things. Raising this to <5 is a decision to go test on 4.x first.
+# tests/test_requirements_pins.py fails if this cap disappears or narrows.
+fastmcp>=2.0,<4
 
 # Login only. Needed exclusively for the Google OAuth sign-in path
 # (instahyre_login_browser); email/password login and all data fetching work
-# without it.
+# without it. Imported lazily inside the function, so neither the server import
+# nor the test suite needs it present.
 playwright>=1.40
 
-# Shared scoring engine, consumed from the sibling checkout at
-# ../jobcore/src when not installed. Pure stdlib, no dependencies.
+# Tests only. Listed here because README.md's Install block is
+# `pip install -r requirements.txt` followed immediately by `pytest`, and a
+# recipe whose second line cannot run is a recipe that is lying to a new
+# developer. (`pip install -e .[test]` installs the same thing from pyproject.)
+pytest>=8.0
+
+# Shared scoring engine, consumed from the sibling checkout at ../jobcore/src
+# when not installed. Pure stdlib, no dependencies. Deliberately NOT a
+# requirement line: a `jobcore @ git+...` here would silently uninstall a local
+# `pip install -e ../jobcore` (measured 2026-08-20 -- pip prints "Attempting
+# uninstall" and the "Editable project location" line disappears).
+#
+# It is genuinely OPTIONAL: instahyre_server/scoring.py falls back to a small
+# local scorer and every tool that scores reports `scoring_engine` so the caller
+# can tell which produced the number. Worth knowing: a checkout WITHOUT the
+# sibling -- which is what a fresh clone or a CI runner has -- scores with the
+# fallback. Verified 2026-08-20 in a sibling-free clean checkout:
+# `scoring ENGINE = local-fallback`. For jobcore-comparable scores:
+#     pip install -e ../jobcore
 # jobcore
