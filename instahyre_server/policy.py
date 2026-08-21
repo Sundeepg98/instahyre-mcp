@@ -101,9 +101,16 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
     """The small provenance block a tool result carries alongside its scores."""
     if loaded is None:
         loaded = current()
+    # BOTH fingerprints, and they are not interchangeable. ``policy_hash``
+    # covers scoring AND candidate -- the whole effective config. A scored
+    # result can only vouch for the arithmetic, so it stamps ``scoring_hash``;
+    # printing that one here is what lets a stored score be matched back to the
+    # config that produced it. Comparing a result's stamp against
+    # ``policy_hash`` reports a difference that does not exist.
     out = {
         "policy_rev": loaded.policy_rev,
         "policy_hash": loaded.policy_hash,
+        "scoring_hash": loaded.scoring_hash,
         "config_source": loaded.source,
     }
     # Only surfaced when there is something to say. A quiet field that is
@@ -135,10 +142,17 @@ def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> di
             "unknown section %r; expected one of %s"
             % (section, ", ".join(SECTIONS))
         )
+    # A CONFIG READOUT, not a result stamp: this is what ``instahyre_config()``
+    # hands back, and the unnarrowed branch above returns jobcore's own report,
+    # which prints both fingerprints. Narrowing must not drop one -- a section
+    # view that carried only ``policy_hash`` could not answer "is the score I
+    # stored yesterday comparable with this config", which is the single
+    # question the two-hash split exists to make answerable.
     return {
         "section": key,
         key: full.get(key),
         "policy_rev": full.get("policy_rev"),
         "policy_hash": full.get("policy_hash"),
+        "scoring_hash": full.get("scoring_hash"),
         "source": full.get("source"),
     }

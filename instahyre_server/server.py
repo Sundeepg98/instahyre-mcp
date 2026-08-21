@@ -350,6 +350,7 @@ def instahyre_rank_jobs(
     company_size: Optional[str] = None,
     exclude_agencies: bool = False,
     top_n: int = 10,
+    explain: bool = False,
 ) -> dict:
     """Search, then rank the results by fit against your own skills. No login needed.
 
@@ -369,9 +370,12 @@ def instahyre_rank_jobs(
     job's band where a cached detail supplies it. No salary component can ever
     contribute, because Instahyre publishes no salary data.
 
-    ``policy_rev`` / ``policy_hash`` in the result identify the weights that
-    produced these numbers. Two rankings with different hashes are not directly
-    comparable; ``instahyre_config()`` says what changed.
+    ``scoring_hash`` in the result identifies the weights, bonuses and bands
+    that produced these numbers; two rankings whose ``scoring_hash`` differs are
+    not directly comparable. ``policy_rev`` / ``policy_hash`` are the wider
+    config fingerprint -- they also cover the candidate half, so they can differ
+    between two rankings that ARE comparable. ``instahyre_config()`` says what
+    changed.
 
     Args:
         my_skills: Your skills, e.g. ["Node.js", "TypeScript", "AWS"]. Omit to
@@ -380,6 +384,12 @@ def instahyre_rank_jobs(
             Omit to use ``candidate.years_experience``.
         my_location: Your city. Omit to use ``candidate.locations``.
         top_n: How many ranked jobs to return.
+        explain: Add the arithmetic behind each score to that job's own row --
+            the weights, the base skills/experience split, every bonus and the
+            cap, and the ``scoring_hash`` it was computed under. Costs no extra
+            request: this is working the engine already did and normally
+            discards. Off by default because the block is several times the
+            size of the row it explains.
     """
     snapshot = policy.current()
     scoring_args = policy.scoring_args(snapshot)
@@ -416,6 +426,7 @@ def instahyre_rank_jobs(
             profile_years=my_experience_years,
             job_location=(job.get("locations") or [None])[0],
             profile_location=my_location,
+            explain=explain,
             **scoring_args,
         )
         entry = {
@@ -427,6 +438,11 @@ def instahyre_rank_jobs(
             "recommendation": verdict.get("recommendation"),
             "matched_skills": (verdict.get("skill_match") or {}).get("matched"),
         }
+        if explain:
+            # Indexed, not ``.get()``: if jobcore ever stops emitting the block
+            # the caller asked for, that must raise rather than quietly land a
+            # ``None`` under the key.
+            entry["explain"] = verdict["explain"]
         if job.get("posted_by_agency") is not None:
             entry["posted_by_agency"] = job["posted_by_agency"]
         ranked.append(entry)
@@ -618,7 +634,11 @@ def instahyre_config(section: Optional[str] = None) -> dict:
     score looks wrong, when two rankings disagree, or before trusting a
     comparison against the Naukri or Uplers servers: all three read the SAME
     ``jobhunt.json``, so a score means the same thing on all three only when
-    the ``policy_hash`` matches.
+    the ``scoring_hash`` matches. Both fingerprints are reported, and they
+    answer different questions -- ``scoring_hash`` covers the arithmetic alone
+    and is the one every scored result stamps, while ``policy_hash`` also
+    covers the candidate block, so two comparable scores can sit under two
+    different ``policy_hash`` values.
 
     ``source: null`` means no config file was found and the built-in defaults
     are in force -- which is the shipped behaviour, not a fault. ``searched``
@@ -657,7 +677,9 @@ def instahyre_config(section: Optional[str] = None) -> dict:
 
 @mcp.tool()
 @handled
-def instahyre_inbound_digest(rank_against_my_profile: bool = True, top_n: int = 8) -> dict:
+def instahyre_inbound_digest(
+    rank_against_my_profile: bool = True, top_n: int = 8, explain: bool = False
+) -> dict:
     """What needs attention on Instahyre today. Start here.
 
     One call answers the only question this platform really poses: has anyone
@@ -674,6 +696,14 @@ def instahyre_inbound_digest(rank_against_my_profile: bool = True, top_n: int = 
             scores are comparable with the Naukri server's. Costs one extra
             (cached) request. Instahyre's own score still drives the order.
         top_n: How many opportunities to surface.
+        explain: Add the arithmetic behind each jobcore score to that
+            opportunity's own row -- the weights, the base skills/experience
+            split, every bonus and the cap, and the ``scoring_hash`` it was
+            computed under. Costs no extra request: this is working the engine
+            already did and normally discards. Does nothing when
+            ``rank_against_my_profile`` is False, because then no jobcore score
+            was computed and there is nothing to explain. Off by default
+            because the block is several times the size of the row it explains.
     """
     client = get_client()
     inbound = client.inbound
@@ -706,10 +736,17 @@ def instahyre_inbound_digest(rank_against_my_profile: bool = True, top_n: int = 
                     job_skills=entry.get("skills") or [],
                     profile_skills=my_skills,
                     profile_years=None,
+                    explain=explain,
                     **scoring_args,
                 )
                 entry["fit_score"] = verdict.get("overall_score")
                 entry["matched_skills"] = (verdict.get("skill_match") or {}).get("matched")
+                if explain:
+                    # Reachable only inside this branch, which is the point:
+                    # with rank_against_my_profile False there is no jobcore
+                    # score on these rows, so there is nothing to explain.
+                    # Indexed, not ``.get()`` -- a missing block must raise.
+                    entry["explain"] = verdict["explain"]
             digest["scoring_engine"] = scoring.ENGINE
             digest.update(policy.summary(snapshot))
         else:

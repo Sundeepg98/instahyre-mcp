@@ -429,13 +429,25 @@ problem: it imports fine and installs nothing, so nothing pins its version and
 The numbers are values, not literals. Weights, verdict bands, bonuses, the
 experience curve and vocabulary additions live in a shared `jobhunt.json` that
 all three servers read; edit it and the next call scores differently, with no
-restart. `instahyre_config()` reports the effective policy, its `policy_hash`,
-and which file it came from -- or, when there is none, every path that was
-tried. `source: null` means built-in defaults, which is the shipped behaviour.
+restart. `instahyre_config()` reports the effective policy, both of its
+fingerprints, and which file it came from -- or, when there is none, every path
+that was tried. `source: null` means built-in defaults, which is the shipped
+behaviour.
 
-Two scores are directly comparable only when their `policy_hash` matches, which
+Two scores are directly comparable only when their `scoring_hash` matches, which
 is why every scored result carries one as soon as the policy stops being the
-default.
+default. That hash covers the arithmetic alone -- weights, bonuses, caps, bands.
+`policy_hash` is the wider one, covering scoring *and* the candidate block, and
+it is what a config readout is identified by; a result cannot vouch for it,
+because the candidate half is a call argument rather than a property of the
+number. The readout prints both, and that pair is what matches a stored score
+back to the config that produced it.
+
+Pass `explain=True` to `instahyre_rank_jobs` or `instahyre_inbound_digest` to
+get the working behind each score on its own row -- weights, the base
+skills/experience split, every bonus and the cap, and the `scoring_hash` used.
+It costs no extra request and is off by default, because the block is several
+times the size of the row it explains.
 
 What that file **cannot** do is grant this server any autonomy. `instahyre_apply`
 and `instahyre_decline_opportunity` take `confirm=True` from a human every single

@@ -71,8 +71,11 @@ __all__ = [
 ENGINE = "jobcore"
 
 #: The engine's version, reported beside :data:`ENGINE`. A score is only
-#: comparable with another score from the same engine AND the same policy;
-#: this names the first half, ``policy_hash`` names the second.
+#: comparable with another score from the same engine AND the same arithmetic;
+#: this names the first half, ``scoring_hash`` names the second. ``policy_hash``
+#: is the WIDER fingerprint -- scoring AND candidate -- so it is what a config
+#: readout prints, never what a result stamps: the candidate half is a call
+#: argument here, not a property of the number.
 ENGINE_VERSION = jobcore.__version__
 
 #: Built engines, keyed by the (policy, candidate) pair they are bound to.
@@ -128,6 +131,7 @@ def score_job(
     policy: Optional[ScoringPolicy] = None,
     candidate: Optional[CandidatePolicy] = None,
     policy_rev: Optional[int] = None,
+    explain: bool = False,
 ) -> dict:
     """Score one job against a profile. Returns a flat dict plus ``engine``.
 
@@ -139,6 +143,11 @@ def score_job(
             and the work-mode preference order.
         policy_rev: stamped into the result when the policy is not the shipped
             default, so a number that came out of a non-default policy says so.
+        explain: add jobcore's ``explain`` block -- the arithmetic that produced
+            the number, not the number. Deliberately NOT part of
+            ``scoring_args``: that function carries policy, and this is a
+            per-call display choice. Left ``False``, the returned dict is
+            byte-identical to what it was before this argument existed.
     """
     engine = engine_for(policy, candidate)
     result = dict(
@@ -152,6 +161,7 @@ def score_job(
             experience_min=experience_min,
             experience_max=experience_max,
             policy_rev=policy_rev,
+            explain=explain,
         )
     )
     result["engine"] = ENGINE

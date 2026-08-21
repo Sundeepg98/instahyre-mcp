@@ -196,14 +196,22 @@ class TestDefaultsAreTodaysLiterals:
         itself. The next test proves the other half.
         """
         result = scoring.score_job(**MOVER)
-        assert "policy_hash" not in result
+        assert "scoring_hash" not in result
         assert "policy_rev" not in result
 
     def test_a_non_default_scored_result_says_so(self, tmp_path, monkeypatch):
+        """The stamp key is ``scoring_hash``, and it is NOT ``policy_hash``.
+
+        A result can only vouch for the arithmetic. ``policy_hash`` covers
+        scoring AND candidate, and the candidate half arrives as a call
+        argument, so it is not a property of the number -- it belongs to the
+        config readout, which prints both.
+        """
         point_at(monkeypatch, write_config(tmp_path / "jobhunt.json",
                                            weights_doc(0.8, 0.2)))
         result = scoring.score_job(**MOVER, **policy.scoring_args())
-        assert result["policy_hash"], "a non-default policy must stamp its hash"
+        assert result["scoring_hash"], "a non-default policy must stamp its hash"
+        assert "policy_hash" not in result
         assert result["policy_rev"] >= 1
 
 
