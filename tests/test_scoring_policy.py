@@ -29,6 +29,15 @@ the OLD call (the flat function with no policy) and asserted NOT to move, and
 each source-scanning instrument is pointed at input it must trip on. Six bugs
 in this family this week were checks that could not fail; an uncontrolled guard
 is a claim, not a measurement.
+
+And the whole file has been RUN against a permissive build -- one that accepts
+the policy and discards it, which is precisely the bug it exists to catch::
+
+    PYTHONPATH=scripts pytest tests/test_scoring_policy.py -p permissive_scorer_control
+    # 6 failed, 40 passed
+
+``scripts/permissive_scorer_control.py`` ships that plugin and lists which six,
+and why the other forty are supposed to survive it.
 """
 
 from __future__ import annotations

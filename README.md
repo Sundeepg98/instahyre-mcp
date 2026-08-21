@@ -461,6 +461,22 @@ raises afterwards. It also walks the package AST to enumerate the write surface:
 every `.post(` names its endpoint as a bare constant, and `.patch(` appears in
 exactly one module.
 
+`tests/test_scoring_policy.py` holds the config seam: 15 golden cases captured
+from the pre-change scorer prove the defaults did not move, and the rest prove
+a weight in `jobhunt.json` does. It has been run against a deliberately
+permissive build -- one that accepts the policy and discards it, which is the
+exact bug it exists to catch -- and 6 of its assertions go red there while the
+parity cases stay green:
+
+```bash
+$env:PYTHONPATH="scripts"
+venv/Scripts/python -m pytest tests/test_scoring_policy.py -p permissive_scorer_control
+# 6 failed, 40 passed
+```
+
+`scripts/permissive_scorer_control.py` ships that plugin and explains which six
+fail and why the other forty are supposed to survive it.
+
 `tests/test_hardening.py` pins three defects that shipped green and were only
 found by mutating the modules afterwards -- a restore that could empty the
 profile, a withheld-message counter that could not count past one, and two
