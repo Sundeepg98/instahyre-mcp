@@ -303,6 +303,31 @@ def isolated_state_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
 
 
 @pytest.fixture(autouse=True)
+def no_ambient_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """No test reads whatever ``jobhunt.json`` happens to exist on this machine.
+
+    ``jobcore.config`` walks up from the package looking for a shared config
+    file. A developer box that has one would score every test differently from
+    CI, which is the same class of bug as a venv that caches an old resolve:
+    green here, red there, and nothing in the output says why. ``:none:`` is an
+    explicit disable token -- an EMPTY ``JOBHUNT_CONFIG`` means *unset* and
+    keeps searching, so unsetting the variable would not be enough.
+
+    The loader also caches per path, so the cache is dropped on the way in AND
+    on the way out: a test that points ``JOBHUNT_CONFIG`` at a tmp file must
+    not leave that snapshot behind for the next one.
+    """
+    from instahyre_server import policy as policy_module
+
+    monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+    monkeypatch.delenv("JOBHUNT_HOME", raising=False)
+    monkeypatch.delenv("JOBHUNT_DISABLE", raising=False)
+    policy_module.invalidate_cache()
+    yield
+    policy_module.invalidate_cache()
+
+
+@pytest.fixture(autouse=True)
 def block_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
     """Any client built without a MockTransport fails loudly instead of dialling."""
 

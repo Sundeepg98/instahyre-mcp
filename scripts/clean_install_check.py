@@ -18,20 +18,29 @@ it throws the cached resolve away and starts from the declared requirements.
 THE SECOND THING IT CATCHES, which is specific to this server
 ------------------------------------------------------------
 The checkout is deliberately made ALONE, with no `../jobcore` sibling -- because
-that is what a fresh clone or a CI runner actually has.
-`instahyre_server/scoring.py` falls back to `../../jobcore/src` and then to a
-small local scorer, so a developer box (where jobcore IS a sibling) reports
-`scoring ENGINE = jobcore` while a fresh clone reports `local-fallback`. Step 4
-prints which one this install got, so the difference is visible instead of
-being discovered through scores that quietly stopped being comparable.
+that is what a fresh clone or a CI runner actually has. jobcore is a REQUIRED
+dependency (`instahyre_server/scoring.py` imports it at module scope, and the
+local fallback scorer that used to cover its absence has been deleted), so a
+sibling-free install has to get it from git. That is what `requirements-ci.txt`
+is for, and this script runs exactly that recipe.
+
+Until 2026-08-21 this script asserted the opposite: it PASSED on a sibling-free
+clone that resolved to `scoring ENGINE = local-fallback`, and merely printed a
+note saying the numbers were not comparable with any other board. A check that
+passes on the broken configuration is the check that already failed to fail, so
+step 4 now demands `jobcore` by name.
+
+NOTE: this needs NETWORK and `git`, because the pinned jobcore comes from
+GitHub. `pip install -r requirements.txt` alone -- the other half of the
+recipe -- does not.
 
 WHAT IT DOES
 ------------
   1. `git clone` this repo into a throwaway workspace -- COMMITTED state only,
      so nothing here reads or disturbs your working tree
   2. build a brand new venv
-  3. run the documented install recipe from README.md ("Install")
-  4. import the server, and report the scoring engine it resolved to
+  3. run the documented sibling-free install recipe from README.md ("Install")
+  4. import the server, and REQUIRE that the scoring engine is jobcore
   5. run the suite, and print the resolved version of everything installed
 
 USAGE
@@ -48,6 +57,7 @@ green.
 """
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -60,25 +70,41 @@ REPO_NAME = REPO.name
 
 # The documented recipe from README.md, as pip argument lists. Keep this in step
 # with the README: if the two disagree, one of them is lying to a new developer.
+#
+# requirements-ci.txt is `-r requirements.txt` PLUS jobcore pinned to a commit,
+# which is the recipe for a checkout with no ../jobcore sibling -- exactly what
+# this script builds.
 INSTALL = [
-    ["install", "-r", "requirements.txt"],
+    ["install", "-r", "requirements-ci.txt"],
 ]
 
 IMPORT_PROBE = (
     "import instahyre_server, instahyre_server.server, instahyre_server.scoring as sc; "
     "import importlib.metadata as md; "
+    "from instahyre_server import policy; "
     "print('instahyre_server', instahyre_server.__version__, 'on fastmcp', md.version('fastmcp')); "
-    "print('scoring ENGINE =', sc.ENGINE)"
+    "print('scoring ENGINE =', sc.ENGINE, sc.ENGINE_VERSION); "
+    "print('jobcore dist =', md.version('jobcore')); "
+    "print('config source =', policy.current().source)"
 )
 
 
-def run(cmd, cwd, timeout=2400):
-    """Run one command, echo it and its output verbatim, return (rc, output)."""
+def run(cmd, cwd, timeout=2400, env=None):
+    """Run one command, echo it and its output verbatim, return (rc, output).
+
+    *env* is MERGED onto the inherited environment, never a replacement: on
+    Windows a bare env dict without SYSTEMROOT breaks socket startup, so a
+    replacement would produce failures that have nothing to do with the check.
+    """
     print("\n$ %s\n  (cwd=%s)" % (subprocess.list2cmdline(cmd), cwd), flush=True)
     started = time.time()
+    child_env = None
+    if env:
+        child_env = dict(os.environ)
+        child_env.update(env)
     proc = subprocess.run(
         cmd, cwd=str(cwd), capture_output=True, text=True,
-        encoding="utf-8", errors="replace", timeout=timeout,
+        encoding="utf-8", errors="replace", timeout=timeout, env=child_env,
     )
     out = (proc.stdout or "") + (proc.stderr or "")
     print(out, flush=True)
@@ -127,6 +153,7 @@ def main():
     failures = []
 
     print("\n--- STEP 1: clone committed state, with NO jobcore sibling ---")
+    print("    (jobcore therefore has to arrive from git, via requirements-ci.txt)")
     rc, _ = run(["git", "clone", "--no-hardlinks", "--quiet", str(REPO), str(checkout)],
                 cwd=workspace)
     if rc or not checkout.is_dir():
@@ -147,24 +174,25 @@ def main():
         if rc:
             failures.append("pip " + " ".join(pip_args))
 
-    print("\n--- STEP 4: import the server, and name the scoring engine ---")
-    rc, out = run([str(py), "-c", IMPORT_PROBE], cwd=checkout)
+    print("\n--- STEP 4: import the server, and REQUIRE the jobcore engine ---")
+    rc, out = run([str(py), "-c", IMPORT_PROBE], cwd=checkout,
+                  env={"JOBHUNT_CONFIG": ":none:"})
     if rc:
         failures.append("import probe")
-    elif "local-fallback" in out:
-        # Not a failure: it is the documented behaviour of a sibling-free
-        # checkout, and every scoring tool reports `scoring_engine`. It is
-        # printed loudly because scores from this install are NOT comparable
-        # with a jobcore-backed one, and that is easy to forget.
-        print("NOTE: no jobcore here, so scores come from the local fallback and are "
-              "not comparable with jobcore-backed boards. `pip install -e ../jobcore` "
-              "in a checkout that has the sibling.")
+    elif "scoring ENGINE = jobcore" not in out:
+        # A hard failure, not a note. There is no second scorer to fall back to
+        # any more, and an install whose scores are not comparable with the
+        # naukri and uplers boards is a broken install, not a variant of one.
+        failures.append("scoring engine is not jobcore")
+        print("FAIL: this install did not resolve jobcore. Scores from it would "
+              "not be comparable with any other board -- if they existed at all.")
 
     print("\n--- STEP 5: what a resolve TODAY actually picks ---")
     run([str(py), "-m", "pip", "list", "--format=freeze"], cwd=checkout)
 
     print("\n--- STEP 6: the suite ---")
-    rc, out = run([str(py), "-m", "pytest"], cwd=checkout)
+    rc, out = run([str(py), "-m", "pytest"], cwd=checkout,
+                  env={"JOBHUNT_CONFIG": ":none:"})
     if rc:
         failures.append("pytest (exit %d)" % rc)
 

@@ -15,6 +15,16 @@ authors = [{ name = "Sundeep" }]
 # and the suite is measured green on 3.4.7. The two files must agree --
 # tests/test_requirements_pins.py compares them, because a cap applied to one
 # source of truth and not the other protects nothing.
+#
+# jobcore is a REQUIRED runtime dependency and is deliberately NOT listed here.
+# It is not on PyPI, so the only way to name it would be a git direct reference
+# -- and a direct reference in THIS file makes `pip install -e .` silently
+# uninstall a local `pip install -e ../jobcore` (measured; pip prints no
+# "already satisfied" line for a direct URL, so the clobber is invisible).
+# The install contract for this repo is requirements.txt + one of the two
+# jobcore lines in README.md's Install block; requirements-ci.txt carries the
+# pinned git URL for a sibling-free checkout. tests/test_requirements_pins.py
+# asserts that arrangement rather than leaving it to convention.
 dependencies = ["httpx>=0.27", "fastmcp>=2.0,<4"]
 
 [project.optional-dependencies]

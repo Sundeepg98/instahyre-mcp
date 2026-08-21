@@ -42,17 +42,26 @@ playwright>=1.40
 # developer. (`pip install -e .[test]` installs the same thing from pyproject.)
 pytest>=8.0
 
-# Shared scoring engine, consumed from the sibling checkout at ../jobcore/src
-# when not installed. Pure stdlib, no dependencies. Deliberately NOT a
-# requirement line: a `jobcore @ git+...` here would silently uninstall a local
-# `pip install -e ../jobcore` (measured 2026-08-20 -- pip prints "Attempting
-# uninstall" and the "Editable project location" line disappears).
+# jobcore -- the shared scoring engine (skill taxonomy, fit score, the policy
+# object that `jobhunt.json` configures). Pure stdlib, no dependencies, shared
+# with the naukri and uplers servers so a fit score means the same thing on all
+# three. It is REQUIRED: instahyre_server/scoring.py imports it at module scope.
 #
-# It is genuinely OPTIONAL: instahyre_server/scoring.py falls back to a small
-# local scorer and every tool that scores reports `scoring_engine` so the caller
-# can tell which produced the number. Worth knowing: a checkout WITHOUT the
-# sibling -- which is what a fresh clone or a CI runner has -- scores with the
-# fallback. Verified 2026-08-20 in a sibling-free clean checkout:
-# `scoring ENGINE = local-fallback`. For jobcore-comparable scores:
-#     pip install -e ../jobcore
-# jobcore
+# It used to be optional, with a small local fallback scorer behind a
+# `sys.path` insert at ../jobcore/src. Both are gone. The fallback did no skill
+# aliasing at all -- "Node.js" on a job never matched "nodejs" on the profile --
+# so it produced systematically lower numbers under the same `fit_score` key,
+# and it could not read the shared config, which made it a second and
+# unconfigurable engine the moment the weights became configurable. A missing
+# jobcore is now a loud ImportError naming the fix.
+#
+# NOT A REQUIREMENT LINE HERE, and that is deliberate: a `jobcore @ git+...` in
+# THIS file would silently uninstall a local `pip install -e ../jobcore`
+# (measured 2026-08-20 -- pip prints "Attempting uninstall" and the "Editable
+# project location" line disappears, with no "already satisfied" line to warn
+# you). tests/test_requirements_pins.py holds that in place.
+#
+# INSTALL IT ONE OF THESE TWO WAYS:
+#     pip install -e ../jobcore            # you have the sibling checkout
+#     pip install -r requirements-ci.txt   # you do not: pinned, from git
+# `ModuleNotFoundError: jobcore` means neither line was run.

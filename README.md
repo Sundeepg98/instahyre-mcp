@@ -11,7 +11,7 @@ is the tool that answers that in one call.
 
 ## The architecture: httpx by default, browser where the API cannot reach
 
-**30 of the 32 tools are plain `httpx`. Two use a browser, and both say so.**
+**31 of the 33 tools are plain `httpx`. Two use a browser, and both say so.**
 
 Instahyre's `/api/v1/*` is exempt from Cloudflare bot management. It answers a
 cold, unauthenticated, honestly-identified HTTP client on the first request --
@@ -39,7 +39,7 @@ not join the data path.**
 |---|---|---|
 | `instahyre_login_browser` | yes, visible window | Google OAuth is a redirect dance no HTTP client can complete. |
 | `instahyre_verify_apply_target` | yes, visible window | Reads a server-injected page flag that decides **which endpoint an application posts to**. No API exposes it, and the page is Cloudflare-gated. Applications cannot be withdrawn, so this is worth a browser rather than an assumption. |
-| everything else (30 tools) | no | Plain `httpx`. |
+| everything else (31 tools) | no | Plain `httpx`. |
 
 Both browser tools abort **every** non-GET request at the router, except
 Cloudflare's own `/cdn-cgi/` challenge handshake -- which mutates nothing in the
@@ -60,11 +60,23 @@ is a signal to stop and reassess, not to route around.
 ```bash
 python -m venv venv
 venv/Scripts/python -m pip install -r requirements.txt
+
+# ...then jobcore, the shared scoring engine. It is REQUIRED, and it is not on
+# PyPI. Pick the line that matches your checkout:
+venv/Scripts/python -m pip install -e ../jobcore          # you have the sibling
+venv/Scripts/python -m pip install -r requirements-ci.txt # you do not (pinned, from git)
+
 venv/Scripts/python -m pytest tests/ -q
 ```
 
+The two jobcore lines are alternatives, not steps. Run the editable one if
+`../jobcore` is checked out beside this repo -- it is the only way to iterate on
+the scorer -- and the `requirements-ci.txt` one otherwise. Do **not** run the
+second after the first: a direct-URL requirement silently uninstalls an editable
+install, with no "already satisfied" line to warn you.
+
 Playwright's browser binary is only needed by the two browser tools
-(`instahyre_login_browser`, `instahyre_verify_apply_target`). The other 30 work
+(`instahyre_login_browser`, `instahyre_verify_apply_target`). The other 31 work
 without it:
 
 ```bash
@@ -87,6 +99,7 @@ venv/Scripts/python -m playwright install chromium
 | `instahyre_list_locations` | The accepted location tokens, grouped. | 1 (cached 30d) |
 | `instahyre_list_industries` | The 74 industry types with ids. | 1 (cached 30d) |
 | `instahyre_server_info` | Cache state, request count, and what this platform cannot provide. | 0 |
+| `instahyre_config` | The scoring policy in force, its hash, and which file it came from. | 0 |
 
 ### Authenticated -- inbound triage
 
@@ -394,27 +407,49 @@ employer sees it immediately. Everything below follows from that one fact.
 
 ## Scoring
 
-`instahyre_rank_jobs` uses the shared `jobcore` engine (the platform-agnostic
-scorer extracted from the Naukri server) when importable, so scores are
-comparable across boards. It falls back to a small local scorer otherwise, and
-the output always names which engine produced the number.
+`instahyre_rank_jobs` and `instahyre_inbound_digest` score with the shared
+[`jobcore`](https://github.com/Sundeepg98/jobcore) engine -- the same one the
+Naukri and Uplers servers use -- so a fit score means the same thing on all
+three boards. It is a hard dependency: there is **no local fallback scorer**,
+and a missing jobcore is an `ImportError` naming the fix rather than a quietly
+different number.
 
-Two things worth knowing about that fallback. It is chosen by *what is
-importable*, so a checkout **without** a `../jobcore` sibling -- a fresh clone,
-or a CI runner -- scores with the local fallback, and those numbers are not
-comparable with a jobcore-backed board. And `pip install -r requirements.txt`
-does not install jobcore (a `jobcore @ git+...` line there would silently
-uninstall a local `pip install -e ../jobcore`). To get comparable scores:
+There used to be a fallback, behind a `sys.path` insert at `../jobcore/src`.
+Both are gone, deliberately. The fallback did no skill aliasing at all, so
+`"Node.js"` on a job never matched `"nodejs"` on the profile and every score it
+produced was systematically low under the same `fit_score` key; it carried its
+own `0.6/0.4` split and its own verdict bands, already drifted from jobcore's;
+and once the weights became configurable it was a second, *unconfigurable*
+engine shadowing the configurable one. The `sys.path` insert had its own
+problem: it imports fine and installs nothing, so nothing pins its version and
+`importlib.metadata` cannot even see it.
 
-```bash
-venv/Scripts/python -m pip install -e ../jobcore
-```
+### The policy: `jobhunt.json`
 
-`scripts/clean_install_check.py` prints which engine an install resolved to.
+The numbers are values, not literals. Weights, verdict bands, bonuses, the
+experience curve and vocabulary additions live in a shared `jobhunt.json` that
+all three servers read; edit it and the next call scores differently, with no
+restart. `instahyre_config()` reports the effective policy, its `policy_hash`,
+and which file it came from -- or, when there is none, every path that was
+tried. `source: null` means built-in defaults, which is the shipped behaviour.
+
+Two scores are directly comparable only when their `policy_hash` matches, which
+is why every scored result carries one as soon as the policy stops being the
+default.
+
+What that file **cannot** do is grant this server any autonomy. `instahyre_apply`
+and `instahyre_decline_opportunity` take `confirm=True` from a human every single
+time, in source; there is no agent module and no scheduler here; and jobcore
+refuses to *load* its Tier C keys (agent enablement, agent mode, apply
+thresholds) from the file at all, naming each refusal in `tier_c_refusals`
+rather than ignoring it silently.
+
+`scripts/clean_install_check.py` fails outright if an install does not resolve
+jobcore.
 
 ## Tests
 
-524 tests, entirely offline -- every HTTP call goes through
+576 tests, entirely offline -- every HTTP call goes through
 `httpx.MockTransport` over golden fixtures captured from the live API, and an
 unmocked path fails loudly rather than returning empty. Write paths are
 exercised in mocked form only; **no test has ever sent a real application.**

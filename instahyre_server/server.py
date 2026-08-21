@@ -17,10 +17,10 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from . import constants as C
-from . import scoring, shape
+from . import policy, scoring, shape
 from .cache import Store, default_db_path
 from .client import InstahyreClient
-from .errors import InstahyreError
+from .errors import InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
 from .session import SessionStore, check_auth, login_with_password
 
@@ -340,7 +340,7 @@ def instahyre_sync_index(
 @mcp.tool()
 @handled
 def instahyre_rank_jobs(
-    my_skills: list[str],
+    my_skills: Optional[list[str]] = None,
     my_experience_years: Optional[float] = None,
     my_location: Optional[str] = None,
     skills: Optional[list[str]] = None,
@@ -358,22 +358,42 @@ def instahyre_rank_jobs(
     filters if that number is large and you want the genuine top of the field.
 
     The API's own ``sort`` parameter is inert, so this is the only ordering that
-    works. Scoring uses the shared ``jobcore`` engine when it is available -- the
-    same one the Naukri server uses, so scores are comparable across boards --
-    and the output names which engine produced them. Expect absolute scores to
-    run low: Instahyre lists many keywords per job, and the skill component is
-    the share of the JOB's skills you cover, so the useful signal is the
-    ordering rather than the number.
+    works. Scoring is the shared ``jobcore`` engine -- the same one the Naukri
+    and Uplers servers use, under the same ``jobhunt.json`` policy, so a fit
+    score means the same thing on all three. Expect absolute scores to run low:
+    Instahyre lists many keywords per job, and the skill component is the share
+    of the JOB's skills you cover, so the useful signal is the ordering rather
+    than the number.
 
     Skill matching runs on the search result's keyword list; experience uses the
     job's band where a cached detail supplies it. No salary component can ever
     contribute, because Instahyre publishes no salary data.
 
+    ``policy_rev`` / ``policy_hash`` in the result identify the weights that
+    produced these numbers. Two rankings with different hashes are not directly
+    comparable; ``instahyre_config()`` says what changed.
+
     Args:
-        my_skills: Your skills, e.g. ["Node.js", "TypeScript", "AWS"].
+        my_skills: Your skills, e.g. ["Node.js", "TypeScript", "AWS"]. Omit to
+            use ``candidate.skills`` from the shared config, when it has any.
         my_experience_years: Your years of experience, for the band check.
+            Omit to use ``candidate.years_experience``.
+        my_location: Your city. Omit to use ``candidate.locations``.
         top_n: How many ranked jobs to return.
     """
+    snapshot = policy.current()
+    scoring_args = policy.scoring_args(snapshot)
+    if not my_skills:
+        my_skills = list(snapshot.candidate.skills)
+    if not my_skills:
+        raise InvalidFilter(
+            "No skills to score against. Pass my_skills=[...], or put them in "
+            "candidate.skills in the shared config (instahyre_config() says "
+            "where that file is, or would be).",
+            field="my_skills",
+        )
+    if my_experience_years is None:
+        my_experience_years = snapshot.candidate.years_experience
     client = get_client()
     result = client.search(
         skills=skills,
@@ -396,6 +416,7 @@ def instahyre_rank_jobs(
             profile_years=my_experience_years,
             job_location=(job.get("locations") or [None])[0],
             profile_location=my_location,
+            **scoring_args,
         )
         entry = {
             "id": job.get("id"),
@@ -415,7 +436,9 @@ def instahyre_rank_jobs(
         "scored": len(ranked),
         "total_matching": result.get("total_matching"),
         "scoring_engine": scoring.ENGINE,
+        "scored_against_skills": list(my_skills),
         "note": "Ranked locally -- the API's own sort parameter is accepted but ignored.",
+        **policy.summary(snapshot),
     }
 
 
@@ -548,6 +571,8 @@ def instahyre_server_info() -> dict:
         "requests_this_process": client.http.request_count,
         "min_seconds_between_requests": client.http.min_interval,
         "scoring_engine": scoring.ENGINE,
+        "scoring_engine_version": scoring.ENGINE_VERSION,
+        "config": policy.summary(),
         "index": client.store.index_stats(),
         "state_dir": str(default_db_path().parent),
         "not_available_on_this_platform": {
@@ -583,6 +608,41 @@ def instahyre_server_info() -> dict:
         "opportunity_page_size": C.OPP_DEFAULT_LIMIT,
     }
 
+
+@mcp.tool()
+@handled
+def instahyre_config(section: Optional[str] = None) -> dict:
+    """The scoring policy this server is using, and where it came from.
+
+    Read-only, and free -- it opens one small JSON file. Call it when a fit
+    score looks wrong, when two rankings disagree, or before trusting a
+    comparison against the Naukri or Uplers servers: all three read the SAME
+    ``jobhunt.json``, so a score means the same thing on all three only when
+    the ``policy_hash`` matches.
+
+    ``source: null`` means no config file was found and the built-in defaults
+    are in force -- which is the shipped behaviour, not a fault. ``searched``
+    then lists every path that was tried, so "why is my file not being read"
+    is answerable without guessing.
+
+    Worth knowing about what this file CANNOT do. ``tier_c_refusals`` names
+    any key the loader refused to take from the file at all: agent enablement,
+    agent mode and apply thresholds live in Python and are not loadable, on
+    any server in this family. This server additionally has no agent, no
+    scheduler and no unattended apply path -- ``instahyre_apply`` needs
+    ``confirm=True`` from a human every time, and no config value changes that.
+
+    Writes are deliberately absent here. Edit the file, or use the Naukri
+    server's write tool; this server reads.
+
+    Args:
+        section: Narrow to "candidate", "scoring", "server" or "provenance".
+            Omit for everything.
+    """
+    try:
+        return policy.report(section)
+    except ValueError as exc:
+        raise InvalidFilter(str(exc), field="section") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -638,16 +698,20 @@ def instahyre_inbound_digest(rank_against_my_profile: bool = True, top_n: int = 
     if rank_against_my_profile and top:
         my_skills = inbound.profile_skills()
         if my_skills:
+            snapshot = policy.current()
+            scoring_args = policy.scoring_args(snapshot)
             digest["scored_against_skills"] = my_skills
             for entry in top:
                 verdict = scoring.score_job(
                     job_skills=entry.get("skills") or [],
                     profile_skills=my_skills,
                     profile_years=None,
+                    **scoring_args,
                 )
                 entry["fit_score"] = verdict.get("overall_score")
                 entry["matched_skills"] = (verdict.get("skill_match") or {}).get("matched")
             digest["scoring_engine"] = scoring.ENGINE
+            digest.update(policy.summary(snapshot))
         else:
             digest["scoring_note"] = (
                 "No skills on the Instahyre profile, so nothing to score against. "

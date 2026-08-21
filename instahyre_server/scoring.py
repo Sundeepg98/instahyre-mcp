@@ -1,73 +1,119 @@
 """The seam to the shared scoring engine.
 
-``jobcore`` is the platform-agnostic scorer extracted from the Naukri server.
-If it is importable we use it; if it is not, a deliberately small local
-fallback keeps the tool working and says plainly which engine produced the
-number. Nothing here re-implements skill aliasing -- that is jobcore's job.
+``jobcore`` is the platform-agnostic scorer this server shares with the Naukri
+and Uplers servers. It is a REQUIRED dependency, imported normally -- no
+``sys.path`` hack reaching at a sibling checkout, and no local fallback.
+
+WHY THE LOCAL FALLBACK WAS DELETED
+----------------------------------
+This module used to carry an ~30-line scorer that ran whenever ``import
+jobcore`` failed, reporting ``ENGINE = "local-fallback"``. It is gone, and the
+reason is not tidiness:
+
+* **Its numbers were never comparable, and looked like they were.** It did no
+  skill aliasing at all, so ``"Node.js"`` on a job and ``"nodejs"`` on the
+  profile simply did not match; every score it produced was systematically
+  lower than jobcore's on the same inputs, under the same ``fit_score`` key.
+  It also carried its own ``0.6/0.4`` split and its own ``70/45`` verdict
+  bands, which had already drifted from jobcore's four-band table.
+* **It was the second engine, and now the numbers are configurable.** With
+  weights, bands and vocabulary living in ``jobhunt.json``, a fallback that
+  cannot read them is an unconfigurable engine silently shadowing the
+  configurable one. Teaching it to read the same policy would not fix it --
+  it would still disagree, because the disagreement is the taxonomy.
+* **It was reachable only by accident.** Every documented install path now
+  puts jobcore in the environment (``pip install -e ../jobcore`` locally,
+  ``requirements-ci.txt`` for a sibling-free clone or CI). A branch nothing
+  documented, nothing tested and nothing wanted is dead code that produces
+  wrong-looking-right numbers on the one day it runs.
+
+A missing jobcore is now an ImportError naming the fix. That is strictly better
+than a silent second opinion.
+
+POLICY IS INJECTED, NEVER READ HERE
+-----------------------------------
+Nothing in this module opens a file. The caller binds one snapshot at tool
+entry (see :mod:`instahyre_server.policy`) and passes it down, so every job in
+one ranking is scored under the same policy even if the file changes mid-call.
+Called with no policy, this scores under jobcore's shipped defaults -- which
+are exactly the literals it used before any of this existed.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Iterable, Optional
 
-_JOBCORE_SRC = Path(__file__).resolve().parent.parent.parent / "jobcore" / "src"
+try:
+    import jobcore
+    from jobcore import DEFAULT_TAXONOMY, CandidatePolicy, ScoringEngine, ScoringPolicy
+except ImportError as exc:  # pragma: no cover - exercised by a subprocess test
+    raise ImportError(
+        "instahyre-mcp requires jobcore, the shared scoring engine. It is not "
+        "on PyPI. Install it one of these two ways:\n"
+        "    pip install -e ../jobcore          # with the sibling checkout\n"
+        "    pip install -r requirements-ci.txt # no sibling: pinned, from git\n"
+        "There is deliberately no local fallback scorer: one that cannot read "
+        "the shared skill taxonomy or the configured weights would quietly "
+        "produce numbers that are not comparable with any other board."
+    ) from exc
 
-try:  # installed, or importable from the sibling checkout
-    from jobcore import compute_fit_score, parse_skills  # type: ignore
+__all__ = [
+    "ENGINE",
+    "ENGINE_VERSION",
+    "engine_for",
+    "score_job",
+    "parse_experience_range",
+]
 
-    ENGINE = "jobcore"
-except ImportError:  # pragma: no cover - exercised only when jobcore is absent
-    if _JOBCORE_SRC.is_dir() and str(_JOBCORE_SRC) not in sys.path:
-        sys.path.insert(0, str(_JOBCORE_SRC))
-    try:
-        from jobcore import compute_fit_score, parse_skills  # type: ignore
+#: Which engine produced a number. One value now, and it stays in the tool
+#: output: a caller comparing a score across boards should not have to know
+#: which repo it came from to know what it means.
+ENGINE = "jobcore"
 
-        ENGINE = "jobcore"
-    except ImportError:
-        compute_fit_score = None  # type: ignore
-        parse_skills = None  # type: ignore
-        ENGINE = "local-fallback"
+#: The engine's version, reported beside :data:`ENGINE`. A score is only
+#: comparable with another score from the same engine AND the same policy;
+#: this names the first half, ``policy_hash`` names the second.
+ENGINE_VERSION = jobcore.__version__
 
-
-def _fallback_parse(raw: Any) -> set[str]:
-    if raw is None:
-        return set()
-    if isinstance(raw, str):
-        raw = [part for part in raw.replace(";", ",").split(",")]
-    return {str(item).strip().casefold() for item in raw if str(item).strip()}
+#: Built engines, keyed by the (policy, candidate) pair they are bound to.
+#: Both are frozen, hashable dataclasses. Rebuilding the taxonomy for every job
+#: in a 35-job ranking would be wasteful; keeping an unbounded map of them
+#: would be a leak, so it is cleared once it grows past a handful -- policies
+#: change when a human edits a file, not per request.
+_ENGINES: dict[tuple, ScoringEngine] = {}
+_ENGINE_CACHE_MAX = 8
 
 
-def _fallback_score(
-    job_skills: set[str],
-    profile_skills: set[str],
-    experience_min: Optional[int],
-    experience_max: Optional[int],
-    profile_years: Optional[float],
-) -> dict:
-    """Jaccard-ish skill overlap plus a band check. Honest, and clearly labelled."""
-    matched = sorted(job_skills & profile_skills)
-    skill_pct = round(100 * len(matched) / len(job_skills)) if job_skills else 0
-    if profile_years is None or (experience_min is None and experience_max is None):
-        exp_pct = 50
-    elif (experience_min is None or profile_years >= experience_min) and (
-        experience_max is None or profile_years <= experience_max
-    ):
-        exp_pct = 100
-    else:
-        gap = min(
-            abs(profile_years - (experience_min or profile_years)),
-            abs(profile_years - (experience_max or profile_years)),
-        )
-        exp_pct = max(0, 100 - int(gap * 20))
-    overall = round(0.6 * skill_pct + 0.4 * exp_pct)
-    return {
-        "overall_score": overall,
-        "skill_match": {"matched": matched, "percent": skill_pct},
-        "experience_match": exp_pct,
-        "recommendation": "strong" if overall >= 70 else "possible" if overall >= 45 else "weak",
-    }
+def engine_for(
+    policy: Optional[ScoringPolicy] = None,
+    candidate: Optional[CandidatePolicy] = None,
+) -> ScoringEngine:
+    """A :class:`~jobcore.scoring.ScoringEngine` bound to *policy*.
+
+    Both arguments may be ``None``, which means jobcore's shipped defaults --
+    the same numbers ``DEFAULT_ENGINE`` carries, so behaviour with no config
+    file present is unchanged.
+
+    ``scoring.skills.extra_skills`` is applied here: a vocabulary addition in
+    the config file has to reach the TAXONOMY, not just the weights, or a skill
+    he taught the system would still fail to match the job that asks for it.
+    """
+    key = (policy, candidate)
+    hit = _ENGINES.get(key)
+    if hit is not None:
+        return hit
+
+    taxonomy = DEFAULT_TAXONOMY
+    if policy is not None:
+        extension = policy.skills.taxonomy_extension()
+        if extension:
+            taxonomy = DEFAULT_TAXONOMY.extended(extension)
+
+    engine = ScoringEngine(taxonomy=taxonomy, policy=policy, candidate=candidate)
+    if len(_ENGINES) >= _ENGINE_CACHE_MAX:
+        _ENGINES.clear()
+    _ENGINES[key] = engine
+    return engine
 
 
 def score_job(
@@ -79,31 +125,35 @@ def score_job(
     profile_years: Optional[float] = None,
     job_location: Optional[str] = None,
     profile_location: Optional[str] = None,
+    policy: Optional[ScoringPolicy] = None,
+    candidate: Optional[CandidatePolicy] = None,
+    policy_rev: Optional[int] = None,
 ) -> dict:
-    """Score one job against a profile. Returns a flat dict plus ``engine``."""
-    if ENGINE == "jobcore":
-        job_set = parse_skills(list(job_skills))
-        profile_set = parse_skills(list(profile_skills))
-        exp_str = _range_str(experience_min, experience_max) or ""
-        result = compute_fit_score(
-            job_skills=job_set,
-            profile_skills=profile_set,
-            job_exp_str=exp_str,
+    """Score one job against a profile. Returns a flat dict plus ``engine``.
+
+    Args:
+        policy: the configured :class:`~jobcore.policy.ScoringPolicy`. Pass
+            ``**instahyre_server.policy.scoring_args(snapshot)`` rather than
+            building this by hand.
+        candidate: his canonical self-description; supplies fallback locations
+            and the work-mode preference order.
+        policy_rev: stamped into the result when the policy is not the shipped
+            default, so a number that came out of a non-default policy says so.
+    """
+    engine = engine_for(policy, candidate)
+    result = dict(
+        engine.compute_fit_score(
+            job_skills=engine.parse_skills(list(job_skills)),
+            profile_skills=engine.parse_skills(list(profile_skills)),
+            job_exp_str=_range_str(experience_min, experience_max) or "",
             profile_exp=profile_years,
             job_location=job_location,
             profile_location=profile_location,
             experience_min=experience_min,
             experience_max=experience_max,
+            policy_rev=policy_rev,
         )
-    else:
-        result = _fallback_score(
-            _fallback_parse(list(job_skills)),
-            _fallback_parse(list(profile_skills)),
-            experience_min,
-            experience_max,
-            profile_years,
-        )
-    result = dict(result)
+    )
     result["engine"] = ENGINE
     # Instahyre publishes no salary, so no salary component can ever contribute.
     result["salary_component"] = None

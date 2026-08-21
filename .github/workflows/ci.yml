@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        # requirements-ci.txt is requirements.txt PLUS jobcore pinned to an
+        # exact commit from git. The runner has no ../jobcore checkout, so the
+        # editable step a developer runs is not available here; locally that
+        # same git line would CLOBBER the editable install, which is why the two
+        # are separate files (see requirements-ci.txt).
+        #
+        # No `playwright install`: the playwright PACKAGE has to import (auth.py
+        # imports it lazily, inside the browser login function), but the suite
+        # is pure httpx.MockTransport over golden fixtures and never launches a
+        # browser or touches the network.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      - name: The resolve this run actually got
+        # Printed, not asserted. A local venv is a cache of a past resolve; this
+        # is the only place that shows what a resolve TODAY picks, which is the
+        # exact gap that hid a completely broken clean install in the sibling
+        # naukri repo for a full day.
+        run: pip list --format=freeze
+
+      - name: Prove the scoring engine resolved
+        # scoring.py raises ImportError when jobcore is missing rather than
+        # falling back to a second scorer, so this line failing means the
+        # dependency step above failed quietly.
+        run: |
+          python -c "import instahyre_server.scoring as s; print('engine', s.ENGINE, s.ENGINE_VERSION)"
+
+      - name: Run the offline suite
+        # Every HTTP call goes through httpx.MockTransport and an autouse
+        # fixture makes the real transports raise, so nothing here reaches
+        # Instahyre. JOBHUNT_CONFIG=:none: additionally pins the scoring policy
+        # to jobcore's built-in defaults, so the runner cannot pick up a config
+        # file and score differently from a developer box.
+        env:
+          JOBHUNT_CONFIG: ":none:"
+        run: pytest

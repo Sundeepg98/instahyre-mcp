@@ -1,0 +1,372 @@
+{
+  "digest_shape_skills_only": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "",
+      "score": 50,
+      "your_experience": null
+    },
+    "overall_score": 56,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Partial match \u2014 review missing skills before applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "amazon web services",
+        "node.js",
+        "typescript"
+      ],
+      "missing": [
+        "docker",
+        "kubernetes"
+      ],
+      "score": 60
+    }
+  },
+  "everything_matches": {
+    "bonuses": {
+      "agent_eligible": 0,
+      "location": 5,
+      "salary": 0,
+      "total": 5,
+      "work_mode": 0
+    },
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "1-20 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 100,
+    "reasons": [],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "exact_band": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "4-8 years",
+      "score": 100,
+      "your_experience": 6.0
+    },
+    "overall_score": 100,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "django",
+        "python"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "location_exact": {
+    "bonuses": {
+      "agent_eligible": 0,
+      "location": 5,
+      "salary": 0,
+      "total": 5,
+      "work_mode": 0
+    },
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "3-7 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 75,
+    "reasons": [],
+    "recommendation": "Good match \u2014 worth applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js",
+        "react"
+      ],
+      "missing": [
+        "amazon web services",
+        "docker"
+      ],
+      "score": 50
+    }
+  },
+  "location_miss": {
+    "bonuses": {
+      "agent_eligible": 0,
+      "location": 0,
+      "salary": 0,
+      "total": 0,
+      "work_mode": 0
+    },
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "3-7 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 100,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js",
+        "react"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "location_spelling_variant": {
+    "bonuses": {
+      "agent_eligible": 0,
+      "location": 0,
+      "salary": 0,
+      "total": 0,
+      "work_mode": 0
+    },
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "3-7 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 100,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js",
+        "react"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "no_experience_at_all": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "",
+      "score": 50,
+      "your_experience": null
+    },
+    "overall_score": 50,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Partial match \u2014 review missing skills before applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js"
+      ],
+      "missing": [
+        "graphql"
+      ],
+      "score": 50
+    }
+  },
+  "no_job_skills": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "",
+      "score": 50,
+      "your_experience": 5.0
+    },
+    "overall_score": 50,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Partial match \u2014 review missing skills before applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [],
+      "missing": [],
+      "score": 50
+    }
+  },
+  "no_profile_skills": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "",
+      "score": 50,
+      "your_experience": 5.0
+    },
+    "overall_score": 20,
+    "reasons": [
+      "Skill gap: missing java, spring boot",
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Weak match \u2014 consider upskilling first",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [],
+      "missing": [
+        "java",
+        "spring boot"
+      ],
+      "score": 0
+    }
+  },
+  "open_ended_low": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "5+ years",
+      "score": 50,
+      "your_experience": 7.0
+    },
+    "overall_score": 80,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "over_band": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "1-2 years",
+      "score": 60,
+      "your_experience": 9.0
+    },
+    "overall_score": 84,
+    "reasons": [
+      "Over-experienced: 9yr vs 1-2yr range",
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "golang",
+        "kubernetes"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "plain_overlap": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "3-6 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 70,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Good match \u2014 worth applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js",
+        "react"
+      ],
+      "missing": [
+        "amazon web services",
+        "mongodb"
+      ],
+      "score": 50
+    }
+  },
+  "remote_job": {
+    "bonuses": {
+      "agent_eligible": 0,
+      "location": 5,
+      "salary": 0,
+      "total": 5,
+      "work_mode": 0
+    },
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "3-7 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 100,
+    "reasons": [],
+    "recommendation": "Strong match \u2014 apply confidently",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "node.js",
+        "react"
+      ],
+      "missing": [],
+      "score": 100
+    }
+  },
+  "single_year_band": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "5-5 years",
+      "score": 100,
+      "your_experience": 5.0
+    },
+    "overall_score": 70,
+    "reasons": [
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Good match \u2014 worth applying",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "react"
+      ],
+      "missing": [
+        "redux"
+      ],
+      "score": 50
+    }
+  },
+  "under_band": {
+    "engine": "jobcore",
+    "experience_match": {
+      "required": "8-12 years",
+      "score": 0,
+      "your_experience": 2.0
+    },
+    "overall_score": 30,
+    "reasons": [
+      "Under-experienced: 2yr vs 8-12yr required",
+      "No location/salary/work-mode bonuses"
+    ],
+    "recommendation": "Weak match \u2014 consider upskilling first",
+    "salary_component": null,
+    "skill_match": {
+      "matched": [
+        "python"
+      ],
+      "missing": [
+        "django"
+      ],
+      "score": 50
+    }
+  }
+}

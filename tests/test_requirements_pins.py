@@ -28,13 +28,16 @@ itself is checked by scripts/clean_install_check.py, which throws the cached
 resolve away and starts from scratch.
 """
 
+import ast
 import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 REQUIREMENTS = REPO / "requirements.txt"
+REQUIREMENTS_CI = REPO / "requirements-ci.txt"
 PYPROJECT = REPO / "pyproject.toml"
 README = REPO / "README.md"
+CI_WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 
 # The major the suite is actually measured green on. Bumping this line is a
 # claim that the suite has been RUN on the newer major, not a formality.
@@ -178,11 +181,128 @@ def test_jobcore_is_not_a_requirement_line():
     Successfully uninstalled" and the "Editable project location" line vanished
     from `pip show`. pip prints no "already satisfied" line for a direct-URL
     requirement, so the clobber is invisible unless you go looking.
+
+    It lives in requirements-ci.txt instead -- see the tests below, which hold
+    the other half of the arrangement: absent HERE, present THERE, pinned.
     """
     for line in _requirement_lines(REQUIREMENTS):
         assert _name_of(line) != "jobcore", (
             "jobcore stays a documented sibling step, not a requirement: %r" % line
         )
+
+
+# ---------------------------------------------------------------------------
+# jobcore: absent from requirements.txt, and therefore REQUIRED to be somewhere
+# ---------------------------------------------------------------------------
+#
+# The test above is only half a rule. Keeping jobcore out of requirements.txt
+# protects the editable install; on its own it also means a sibling-free clone
+# gets no jobcore at all -- which used to be survivable, because scoring.py fell
+# back to a second scorer, and is not any more. These three tests are the other
+# half: the dependency has to exist, from git, pinned to a commit.
+
+
+def test_requirements_ci_exists_and_includes_the_base_file():
+    assert REQUIREMENTS_CI.is_file(), (
+        "requirements-ci.txt is the only recipe a checkout WITHOUT ../jobcore "
+        "has; without it a fresh clone cannot import instahyre_server.scoring"
+    )
+    text = REQUIREMENTS_CI.read_text(encoding="utf-8")
+    assert "-r requirements.txt" in text, (
+        "requirements-ci.txt must layer ON TOP of requirements.txt, or the two "
+        "drift and CI stops testing what a developer installs"
+    )
+
+
+def test_requirements_ci_pins_jobcore_to_an_exact_commit():
+    """`@master` would let a commit in another repo turn this repo's CI red.
+
+    A 40-hex sha, not a branch and not a tag: tags move, branches move, and
+    tests/test_scoring_policy.py asserts behaviour that arrived in a specific
+    jobcore commit. Bumping this line is the visible way to adopt a change.
+    """
+    lines = [ln for ln in _requirement_lines(REQUIREMENTS_CI)
+             if _name_of(ln) == "jobcore"]
+    assert lines, "requirements-ci.txt no longer installs jobcore"
+    for line in lines:
+        assert "git+https://github.com/Sundeepg98/jobcore@" in line, line
+        ref = line.split("jobcore@", 1)[1].strip()
+        assert re.fullmatch(r"[0-9a-f]{40}", ref), (
+            "pin jobcore to a full commit sha, not %r -- a moving ref makes "
+            "this repo's CI depend on another repo's HEAD" % ref
+        )
+
+
+def test_ci_installs_from_the_ci_file_not_the_bare_requirements():
+    """A runner has no ../jobcore, so `pip install -r requirements.txt` alone
+    would give it a server whose scoring module raises on import."""
+    assert CI_WORKFLOW.is_file(), "this repo has no CI workflow"
+    text = CI_WORKFLOW.read_text(encoding="utf-8")
+    assert "requirements-ci.txt" in text
+    assert not re.search(r"pip install -r requirements\.txt\s*$", text, re.M), (
+        "CI must install requirements-ci.txt; the bare file omits jobcore"
+    )
+
+
+def test_the_readme_documents_both_ways_to_get_jobcore():
+    """One recipe for a developer with the sibling, one for everyone else.
+
+    Publishing only the editable line strands every fresh clone; publishing
+    only the git line teaches developers to clobber their own editable install.
+    """
+    readme = README.read_text(encoding="utf-8")
+    assert "pip install -e ../jobcore" in readme
+    assert "requirements-ci.txt" in readme
+
+
+def _touches_sys_path(path):
+    """Does this module actually TOUCH ``sys.path``? Parsed, not grepped.
+
+    The text version of this check was written first and immediately went red
+    on ``scoring.py`` -- whose docstring explains that the ``sys.path`` hack was
+    removed. A checker that cannot tell code from the prose describing its
+    absence would force the explanation to be deleted to stay green, which is
+    the wrong direction. The AST does not see docstring prose at all.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "path"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "sys"
+        ):
+            return True
+    return False
+
+
+def test_no_module_still_reaches_jobcore_through_a_sys_path_hack():
+    """scoring.py used to insert ``../../jobcore/src`` into sys.path.
+
+    That import works and installs nothing, so `importlib.metadata` cannot see
+    it, nothing pins its version, and CI and a developer box silently run
+    different scorers. Taking the dependency properly is the fix; this stops it
+    coming back the next time an import fails on someone's machine.
+    """
+    offenders = [p.name for p in (REPO / "instahyre_server").rglob("*.py")
+                 if _touches_sys_path(p)]
+    assert offenders == [], (
+        "%s reaches jobcore by path rather than by dependency" % offenders
+    )
+
+
+def test_the_sys_path_scan_trips_on_the_hack_it_replaced__CONTROL(tmp_path):
+    """Fed the exact shape the old scoring.py had, the scanner must say yes."""
+    decoy = tmp_path / "old_scoring.py"
+    decoy.write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "_JOBCORE_SRC = Path(__file__).resolve().parent.parent.parent / 'jobcore' / 'src'\n"
+        "if _JOBCORE_SRC.is_dir() and str(_JOBCORE_SRC) not in sys.path:\n"
+        "    sys.path.insert(0, str(_JOBCORE_SRC))\n",
+        encoding="utf-8",
+    )
+    assert _touches_sys_path(decoy) is True
 
 
 def test_every_requirement_declares_a_floor():
