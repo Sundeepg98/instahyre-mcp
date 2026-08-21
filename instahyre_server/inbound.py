@@ -26,6 +26,7 @@ endpoint.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any, Iterable, Optional
@@ -45,12 +46,6 @@ _ID_TTL = 30 * 24 * 3600
 
 _CANDIDATE_URI_RE = re.compile(r"/candidate_misc/profile/candidate/(\d+)")
 
-
-#: profile_update_preview arg name -> the key shape_profile emits it under.
-_PREVIEW_FIELD_MAP = {
-    "total_experience": "total_experience_years",
-    "notice_period_days": "notice_period_days",
-}
 
 
 class CandidateIdUnavailable(InstahyreError):
@@ -576,47 +571,6 @@ class Inbound:
             )
         return shape.shape_settings(raw)
 
-    def profile_update_preview(self, **fields: Any) -> dict:
-        """Build the profile PATCH that a write tool would send. Sends nothing.
-
-        Stopping here is a decision, not an omission. The profile write contract
-        cannot be verified without writing to his live profile, and that profile
-        is what generates the entire match queue -- a wrong field shape could
-        blank a field, or return 200 having changed nothing. This package treats
-        a silent no-op as a bug, so it declines to ship one.
-        """
-        cid = self.candidate_id()
-        body = {k: v for k, v in fields.items() if v is not None}
-        if not body:
-            raise InvalidFilter(
-                "Nothing to preview -- pass at least one field to change.", field="fields"
-            )
-        current = self.profile()
-        return {
-            "would_send": {
-                "method": "PATCH",
-                "url": C.API_BASE + C.EP_PROFILE.format(candidate_id=cid),
-                "json_body": body,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "<from the csrftoken cookie>",
-                },
-            },
-            "current_values": {
-                key: current.get(_PREVIEW_FIELD_MAP.get(key, key)) for key in body
-            },
-            "executed": False,
-            "why_not": (
-                "The profile write contract is UNVERIFIED. The read shape is known exactly, "
-                "but whether a PATCH is sufficient -- or whether Instahyre's 'submit/' "
-                "sub-action must follow it -- was never tested, because testing it means "
-                "writing to a live profile that drives every future match. A 200 that "
-                "silently changes nothing is indistinguishable from success, which is the "
-                "one failure mode this server refuses to ship."
-            ),
-            "do_this_instead": C.SITE_BASE + "/candidate/profile/",
-        }
-
     def profile_skills(self) -> list[str]:
         """His own skills, for scoring, so a caller never has to retype them."""
         try:
@@ -639,25 +593,21 @@ class Inbound:
         """
         raw = self.find_opportunity(opportunity_id)
         record = shape.shape_opportunity(raw)
-        body: dict[str, Any] = {"is_interested": is_interested}
-        if raw.get("id") is not None:
-            body["id"] = raw["id"]
-        job_id = (raw.get("job") or {}).get("id")
-        if job_id is not None:
-            body["job_id"] = job_id
+        path, body = build_apply_request(raw, is_interested=is_interested)
 
         already = C.INTERVIEW_STATUS_NAMES.get(raw.get("interview_status"), "unknown")
         return {
             "would_send": {
                 "method": "POST",
-                "url": C.API_BASE + C.EP_APPLY,
+                "url": C.API_BASE + path,
                 "json_body": body,
                 "headers": {
                     "Content-Type": "application/json",
-                    "X-CSRFToken": "<from the csrftoken cookie>",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
                     "Referer": C.SITE_BASE + "/",
                 },
             },
+            "curl_equivalent": _curl_for(path, body),
             "action": "APPLY" if is_interested else "DECLINE",
             "opportunity": {
                 "id": record.get("id"),
@@ -675,8 +625,28 @@ class Inbound:
                 "been sent. To go through with it, call again with confirm=True."
             ),
             "contract_provenance": (
-                "Request shape read from Instahyre's shipped frontend dispatcher. It has "
-                "never been executed by this server, so the response shape is unknown."
+                "Request shape read from Instahyre's shipped frontend dispatcher, then "
+                "RE-READ INDEPENDENTLY on 2026-08-21 -- which corrected it twice. The "
+                "first reading paired the ES body with the non-ES URL (a combination the "
+                "frontend never produces, because the same flag switches the service as "
+                "well as the body) and omitted is_activity_page_job entirely. Both are "
+                "fixed above. It has still never been executed by this server, so the "
+                "RESPONSE shape remains unknown; the frontend's success handler reads "
+                "opp_id, applied_on and is_visible_on_list_page, and there is no success "
+                "flag to check."
+            ),
+            "branch": "ES (candidate_matching)" if C.APPLY_BRANCH_ES else "legacy (candidate_opportunity)",
+            "branch_evidence": (
+                "Measured, not assumed: this account's opportunities page fetches "
+                "/candidate_matching and /candidate_matching/fetch_filter_counts, and "
+                "only the ES service builds that second URL. Re-check any time with "
+                "instahyre_verify_apply_target."
+            ),
+            "no_client_side_brake_upstream": (
+                "Worth knowing before trusting the website as a safety net: Instahyre's "
+                "own UI has NO confirmation dialog on this action. Every modal in that "
+                "flow fires AFTER the POST has already been accepted. The confirm=True "
+                "gate here is a stricter guard than the site's."
             ),
         }
 
@@ -717,17 +687,30 @@ class Inbound:
                 current_state=raw_status,
             )
 
-        # A LIVE guard: it reads the VALUE of the endpoint about to be used, so
-        # it fires if EP_APPLY is ever edited to point somewhere it should not.
+        # A LIVE guard on the path ACTUALLY about to be requested -- the one the
+        # builder produced for this specific opportunity, not a constant read
+        # again. That distinction is what makes it a check rather than a
+        # decoration: it fires on an edited constant, on a hand-built path, and
+        # on a branch that resolves somewhere unexpected.
+        #
         # The version this replaces compared two distinct constants and was
-        # False by construction -- a check that cannot fail is worse than none,
-        # because it reads like protection. The call below still names the
-        # constant literally, so the suite's static scan can prove that this
-        # package has exactly two POST targets in total.
-        if C.EP_APPLY in C.FORBIDDEN_ENDPOINTS or "bulk" in C.EP_APPLY:
+        # False by construction. It also guarded only ONE of the two bulk URLs,
+        # and the one it missed -- candidate_matching/apply_bulk/ -- is the one
+        # this account's branch resolves to.
+        target = preview["would_send"]["url"]
+        path = target[len(C.API_BASE) :] if target.startswith(C.API_BASE) else target
+        if path in C.FORBIDDEN_ENDPOINTS or any(
+            marker in path.lower() for marker in C.MUTATING_PATH_MARKERS
+        ):
             raise InstahyreError(
-                f"Refusing to POST to {C.EP_APPLY}: it is on the forbidden list. Bulk apply "
-                "is permanently out of scope for this server.",
+                f"Refusing to POST to {path}: it is on the forbidden list. Bulk apply is "
+                "permanently out of scope for this server -- one call there is an "
+                "irreversible mass-apply across a whole queue.",
+            )
+        if path not in (C.EP_APPLY_ES, C.EP_APPLY_LEGACY):
+            raise InstahyreError(
+                f"Refusing to POST to {path}: it is not one of the two known apply "
+                "endpoints. This server has exactly two POST targets and this is neither.",
             )
 
         # An unsigned write would be rejected by Django and surface as an
@@ -742,10 +725,25 @@ class Inbound:
                 action=preview["action"],
             )
 
+        # Post exactly what the preview displayed. Rebuilding the body here
+        # would let the shown request and the sent request drift apart, which on
+        # an irreversible action is the worst possible place for a divergence.
         body = preview["would_send"]["json_body"]
-        response = self.http.post(
-            C.EP_APPLY, json_body=body, extra_headers={"Origin": C.SITE_BASE}
-        )
+
+        # The branch is spelled out as two literal call sites rather than one
+        # call on a computed path. That is deliberate and it is not redundancy:
+        # the suite statically scans every write in this package and requires
+        # each to name its endpoint as a bare constant, so "which endpoints can
+        # this package POST to" stays a question answerable without running it.
+        # The guard above has already proved `path` is one of these two.
+        if path == C.EP_APPLY_ES:
+            response = self.http.post(
+                C.EP_APPLY_ES, json_body=body, extra_headers={"Origin": C.SITE_BASE}
+            )
+        else:
+            response = self.http.post(
+                C.EP_APPLY_LEGACY, json_body=body, extra_headers={"Origin": C.SITE_BASE}
+            )
         log.warning(
             "irreversible action sent: %s on opportunity %s",
             preview["action"],
@@ -758,6 +756,75 @@ class Inbound:
             "irreversible": True,
             "response": response if isinstance(response, dict) else {"raw": str(response)[:200]},
         }
+
+
+def build_apply_request(raw: dict, *, is_interested: bool) -> tuple[str, dict]:
+    """The exact (path, body) the frontend would send for this opportunity.
+
+    Split out of the preview so that the preview and the send cannot drift
+    apart: there is one builder, and ``submit_interest`` posts what the preview
+    displayed rather than reassembling it.
+
+    The branch is the whole story here. ``enableCandidateESOpps`` switches the
+    ``$resource`` service, so the URL and the body's id key move TOGETHER:
+
+    * ES     -> ``candidate_matching/apply/``   with ``job_id``
+    * legacy -> ``candidate_opportunity/apply/`` with ``id``
+
+    Mixing them, which is what this package did until the contract was re-read,
+    produces a request the site never makes.
+    """
+    body: dict[str, Any] = {"is_interested": is_interested}
+    job_id = (raw.get("job") or {}).get("id")
+    opp_id = raw.get("id")
+
+    if C.APPLY_BRANCH_ES:
+        path = C.EP_APPLY_ES
+        if job_id is None:
+            raise ApiError(
+                "This opportunity has no job.id, which the ES apply body is built from. "
+                "Refusing to guess a body for an irreversible action.",
+                path=path,
+            )
+        body["job_id"] = job_id
+    else:
+        path = C.EP_APPLY_LEGACY
+        body["id"] = opp_id if opp_id is not None else None
+        # The frontend re-adds job_id only when it has no opportunity id (or is
+        # acting on a searched job). Sending it unconditionally, as this package
+        # used to, is not what the site does.
+        if opp_id is None:
+            if job_id is None:
+                raise ApiError(
+                    "This record has neither an opportunity id nor a job id; there is no "
+                    "apply body to build.",
+                    path=path,
+                )
+            body["job_id"] = job_id
+
+    # Set unconditionally by the frontend on every call, on both branches. It is
+    # true only for a deep link from the activity page carrying matching
+    # ?opp_id and ?job_id query params, which is never how this server applies.
+    body["is_activity_page_job"] = False
+    return path, body
+
+
+def _curl_for(path: str, body: dict) -> str:
+    """The request as a copy-pasteable curl, so a human can eyeball it.
+
+    Included because "show the operator the exact request" is only true if the
+    thing shown is legible. A nested JSON dict in a tool result is a shape; a
+    curl line is the request.
+    """
+    payload = json.dumps(body, sort_keys=True)
+    return (
+        f"curl -X POST '{C.API_BASE}{path}' "
+        f"-H 'Content-Type: application/json' "
+        f"-H '{C.APPLY_CSRF_HEADER}: <csrftoken cookie>' "
+        f"-H 'Referer: {C.SITE_BASE}/' "
+        f"--cookie 'sessionid=<yours>; csrftoken=<yours>' "
+        f"-d '{payload}'"
+    )
 
 
 def _next_offset(meta: dict, returned: int) -> Optional[int]:

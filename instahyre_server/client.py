@@ -42,6 +42,18 @@ class InstahyreClient:
 
         self.inbound = Inbound(self.http, self.store, self)
 
+        # The inbox reads conversations and message bodies. Same jar, same
+        # rules, and no browser: /inbox_page/* is an ordinary API route.
+        from .inbox import Inbox
+
+        self.inbox = Inbox(self.http, self.store, self)
+
+        # The only tier that can change his account. It leans on inbound for
+        # the candidate id rather than recovering it a second way.
+        from .profile_write import ProfileWriter
+
+        self.profile_writer = ProfileWriter(self.http, self.store, self.inbound)
+
     def close(self) -> None:
         self.http.close()
         self.store.close()

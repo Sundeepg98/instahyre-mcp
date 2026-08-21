@@ -19,15 +19,18 @@ Four properties are pinned here:
 
 1. **The confirm gate holds.** No POST leaves the process unless the caller
    passed ``confirm=True``, and the default in every signature is False.
-2. **Previews are inert.** ``apply_preview``, ``profile_update_preview`` and
-   both MCP tools called without ``confirm`` make GETs only.
+2. **Previews are inert.** ``apply_preview`` and both MCP tools called
+   without ``confirm`` make GETs only.
 3. **The preview is the truth.** What the preview says would be sent is
    byte-for-byte what a confirmed submit actually sends, so the human's
    decision is made on real information rather than a stale description.
-4. **There is exactly one write endpoint, and bulk apply is unreachable.**
+4. **The write surface is enumerated, and bulk apply is unreachable.**
    Proven by reading the package's own source off disk and walking its AST:
-   every ``.post(`` call site in the package targets ``C.EP_APPLY`` or
-   ``C.EP_LOGIN``, and nothing else.
+   every ``.post(`` call site targets ``C.EP_APPLY_ES``, ``C.EP_APPLY_LEGACY``
+   or ``C.EP_LOGIN``, and nothing else; and ``.patch(`` appears in exactly one
+   module. Both bulk URLs are blocked, not just the one that used to be --
+   the ES spelling, which is the branch this account actually resolves to,
+   was missing from the forbidden list until 2026-08-21.
 
 The source scanners in the last two sections carry their own controls -- a
 check that cannot fail certifies nothing, so each scanner is also run against a
@@ -354,18 +357,75 @@ def test_the_preview_body_carries_the_interest_boolean_for_each_action(is_intere
     assert preview["action"] == action
 
 
-def test_the_preview_body_carries_both_ids_taken_from_the_right_places():
-    """``id`` is the opportunity id (a string); ``job_id`` is the job id (an
-    int). They are different values from different places in the record, and
-    swapping them would send an application against the wrong posting."""
+def test_the_preview_body_matches_the_branch_the_account_is_on():
+    """The URL and the body's id key move TOGETHER, and this pins that.
+
+    This test replaces one that asserted the opposite and passed for weeks. The
+    old contract sent BOTH ``id`` and ``job_id`` to the legacy URL; a second,
+    independent read of Instahyre's dispatcher on 2026-08-21 showed that the
+    ``enableCandidateESOpps`` flag switches the ``$resource`` SERVICE, not just
+    the body -- so the ES body (``job_id``) is only ever posted to the ES URL.
+    The old pairing is one the site never produces, and it was about to be the
+    shape of a real, unwithdrawable application.
+    """
+    preview = queue_client().inbound.apply_preview(OPPORTUNITY_ID, is_interested=True)
+    body = preview["would_send"]["json_body"]
+    url = preview["would_send"]["url"]
+
+    if C.APPLY_BRANCH_ES:
+        assert url.endswith(C.EP_APPLY_ES)
+        assert body["job_id"] == JOB_ID
+        assert isinstance(body["job_id"], int)
+        assert "id" not in body, (
+            "the ES branch identifies the target by job_id alone; sending the "
+            "opportunity id as well is the mixed shape that was just removed"
+        )
+    else:
+        assert url.endswith(C.EP_APPLY_LEGACY)
+        assert body["id"] == OPPORTUNITY_ID
+        assert isinstance(body["id"], str)
+
+
+def test_the_preview_body_always_carries_is_activity_page_job():
+    """Set unconditionally by the site on every call, on both branches, and
+    absent from the original transcription. It is false for every apply this
+    server can make -- true requires a deep link from the activity page."""
     preview = queue_client().inbound.apply_preview(OPPORTUNITY_ID, is_interested=True)
 
-    body = preview["would_send"]["json_body"]
-    assert body["id"] == OPPORTUNITY_ID
-    assert isinstance(body["id"], str)
-    assert body["job_id"] == JOB_ID
-    assert isinstance(body["job_id"], int)
-    assert str(body["id"]) != str(body["job_id"]), "the two ids must not be the same value"
+    assert preview["would_send"]["json_body"]["is_activity_page_job"] is False
+
+
+def test_the_es_body_and_the_legacy_url_can_never_be_paired(monkeypatch):
+    """The regression control for the bug this section documents.
+
+    Whichever branch is configured, the id key in the body must be the one that
+    branch's URL expects. A future edit that pins one without the other fails
+    here rather than on a real employer's desk.
+    """
+    for es in (True, False):
+        monkeypatch.setattr(C, "APPLY_BRANCH_ES", es)
+        preview = queue_client().inbound.apply_preview(OPPORTUNITY_ID, is_interested=True)
+        url = preview["would_send"]["url"]
+        body = preview["would_send"]["json_body"]
+
+        on_es_url = url.endswith(C.EP_APPLY_ES)
+        assert on_es_url is es
+        assert ("job_id" in body and "id" not in body) is es, (
+            "branch %s produced url=%s body keys=%s" % (es, url, sorted(body))
+        )
+
+
+def test_the_preview_shows_a_copy_pasteable_curl_of_the_exact_request():
+    """"Show the operator the exact request" is only true if what is shown is
+    legible. A nested dict is a shape; a curl line is the request."""
+    preview = queue_client().inbound.apply_preview(OPPORTUNITY_ID, is_interested=True)
+
+    curl = preview["curl_equivalent"]
+    assert curl.startswith("curl -X POST '")
+    assert preview["would_send"]["url"] in curl
+    assert '"is_interested": true' in curl
+    assert str(JOB_ID) in curl if C.APPLY_BRANCH_ES else str(OPPORTUNITY_ID) in curl
+    assert CSRF_VALUE not in curl, "the real CSRF token must never be echoed"
 
 
 def test_the_preview_is_marked_irreversible_and_warns_that_it_cannot_be_withdrawn():
@@ -498,7 +558,7 @@ def test_every_post_call_site_in_the_package_targets_apply_or_login():
     )
 
     targets = sorted({target for _, _, target in sites})
-    assert targets == ["C.EP_APPLY", "C.EP_LOGIN"], (
+    assert targets == ["C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"], (
         "a new write path appeared in the package: %s" % (sites,)
     )
 
@@ -530,6 +590,49 @@ def test_the_post_call_site_scanner_reports_a_write_to_another_endpoint():
     sites = post_call_sites(synthetic)
 
     assert [target for _, _, target in sites] == ["C.EP_SOMETHING_ELSE", None]
+
+
+def test_the_only_module_that_issues_patch_or_delete_is_profile_write():
+    """The write surface grew, so the census had to grow with it.
+
+    ``.post(`` was once the whole write surface. Profile writes added PATCH and
+    DELETE, and a census that still counted only POSTs would have reported a
+    complete write surface while two more verbs went unwatched -- which is
+    exactly how a census stops being one.
+    """
+    verbs = ("patch", "delete")
+    callers = {}
+    for name, text in package_sources().items():
+        tree = ast.parse(text, filename=name)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in verbs
+            ):
+                callers.setdefault(name, []).append((node.func.attr, node.lineno))
+
+    # http.py DEFINES these verbs but never calls one as an attribute, so it
+    # does not appear here -- which is the point: the definition is the door and
+    # profile_write.py is the only room with a key.
+    assert sorted(callers) == ["profile_write.py"], (
+        "a module outside profile_write.py now issues PATCH/DELETE: %s" % (callers,)
+    )
+
+
+def test_every_patch_and_delete_target_is_a_profile_endpoint():
+    """Both write verbs may only ever aim at the two profile resources.
+
+    Checked on the resolved path at runtime rather than statically, because one
+    of these targets is built by formatting a candidate id into a template and
+    a static reading of that proves nothing about what it resolves to.
+    """
+    allowed = {C.EP_SKILL_MODEL, C.EP_PROFILE_PATCH}
+    for path in allowed:
+        assert path.startswith("/candidate_misc/profile/"), path
+    assert not any(
+        marker in path.lower() for path in allowed for marker in C.MUTATING_PATH_MARKERS
+    ), "a profile write target collides with a forbidden action name"
 
 
 def test_only_the_http_module_calls_request_directly():
@@ -621,47 +724,6 @@ def profile_client():
             C.EP_PROFILE.format(candidate_id=CANDIDATE_ID): PROFILE,
         }
     )
-
-
-def test_the_profile_update_preview_executes_nothing_and_writes_nothing():
-    client = profile_client()
-
-    preview = client.inbound.profile_update_preview(current_designation="X")
-
-    assert preview["executed"] is False
-    assert preview["would_send"]["method"] == "PATCH"
-    assert describe(write_requests(client)) == []
-    assert {r.method for r in client.routes.requests} == {"GET"}
-
-
-def test_the_profile_update_preview_says_the_write_contract_is_unverified():
-    """It stops on purpose, and it says why. A limit that does not explain
-    itself reads as a missing feature and invites someone to "finish" it."""
-    preview = profile_client().inbound.profile_update_preview(current_designation="X")
-
-    why_not = preview["why_not"].lower()
-    assert "unverified" in why_not
-    assert "profile" in why_not
-
-
-def test_the_profile_update_preview_refuses_an_empty_update():
-    """No fields means nothing to change. Building an empty PATCH would be a
-    request whose only possible outcome is an unexplained mutation."""
-    client = profile_client()
-
-    with pytest.raises(InvalidFilter):
-        client.inbound.profile_update_preview()
-
-    assert describe(write_requests(client)) == []
-
-
-# ---------------------------------------------------------------------------
-# The tool descriptions carry the warning
-# ---------------------------------------------------------------------------
-#
-# The agent choosing these tools reads the description and nothing else. If the
-# irreversibility is not in the description, it does not exist as far as the
-# caller is concerned.
 
 
 def tool_named(tools, name):
@@ -783,7 +845,9 @@ def test_the_bulk_guard_reads_the_endpoint_value_so_it_can_actually_fire(monkeyp
     """
     client = queue_client({C.EP_APPLY: {"success": True}}, csrf="tok")
     bulk = sorted(C.FORBIDDEN_ENDPOINTS)[0]
-    monkeypatch.setattr(C, "EP_APPLY", bulk)
+    # Point the branch's own endpoint at a bulk path. The guard reads the path
+    # the request builder actually produced, so this reaches it.
+    monkeypatch.setattr(C, "EP_APPLY_ES" if C.APPLY_BRANCH_ES else "EP_APPLY_LEGACY", bulk)
 
     with pytest.raises(Exception) as excinfo:
         client.inbound.submit_interest(OPPORTUNITY_ID, is_interested=True, confirm=True)

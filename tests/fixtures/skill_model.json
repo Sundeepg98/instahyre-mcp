@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "offset": 0,
+    "limit": 200,
+    "total_count": 4,
+    "previous": null,
+    "next": null
+  },
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880003",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/1234567",
+      "id": 88880003,
+      "name": "RabbitMQ"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880001",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/1234567",
+      "id": 88880001,
+      "name": "Scala"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880004",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/1234567",
+      "id": 88880004,
+      "name": "Svelte"
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/88880002",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/1234567",
+      "id": 88880002,
+      "name": "Kotlin"
+    }
+  ]
+}

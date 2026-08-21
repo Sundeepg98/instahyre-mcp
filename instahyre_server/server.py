@@ -565,10 +565,17 @@ def instahyre_server_info() -> dict:
                 "Instahyre's API has it. It is a one-way door across a whole queue at once and "
                 "is permanently out of scope."
             ),
-            "profile_writes": (
-                "The read shape is verified; the WRITE contract is not, and verifying it means "
-                "writing to the live profile that generates every match. "
-                "instahyre_preview_profile_update shows the request instead."
+            "profile_writes_beyond_skills_and_three_scalars": (
+                "Skills and three candidate-level scalars are writable and verified. "
+                "Everything on the job-search-profile sub-object (notice period, salary, "
+                "preferred locations, job-search status) is NOT: those need the whole "
+                "object PUT back, a contract this server has not verified, so it refuses "
+                "them by name rather than guessing."
+            ),
+            "inbox_writes": (
+                "Sending, replying, starring and marking read all exist on the API and "
+                "none is reachable here -- every inbox request is checked against a list "
+                "of mutating path fragments first."
             ),
         },
         "irreversible_tools": ["instahyre_apply", "instahyre_decline_opportunity"],
@@ -889,43 +896,229 @@ def instahyre_decline_opportunity(opportunity_id: str, confirm: bool = False) ->
     return inbound.submit_interest(opportunity_id, is_interested=False, confirm=True)
 
 
+# ---------------------------------------------------------------------------
+# TIER 3 -- the inbox. Read-only, plain HTTP, no browser.
+# ---------------------------------------------------------------------------
+
+
 @mcp.tool()
 @handled
-def instahyre_preview_profile_update(
+def instahyre_list_conversations(
+    status: Optional[str] = None,
+    unread_only: bool = False,
+    starred_only: bool = False,
+    query: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+    include_job: bool = True,
+) -> dict:
+    """Recruiter conversation threads in his Instahyre inbox.
+
+    READ-ONLY. This sends nothing, replies to nothing, and stars nothing. It
+    also cannot: every request is checked against a list of mutating paths
+    first, which matters more than it sounds -- Instahyre's "mark all read" is a
+    GET sharing this endpoint's prefix, so an ordinary-looking exploration of
+    the resource would wipe his unread flags.
+
+    A conversation record carries no company or recruiter name; the site joins
+    those in from the job. This does the same when ``include_job`` is on, at one
+    cached request per distinct job. Turn it off for a fast, bare list.
+
+    An empty result always comes with a diagnosis saying whether filters emptied
+    it or the inbox is genuinely bare -- and a dead session raises rather than
+    returning an innocent empty list. NO BROWSER: this is plain HTTP.
+
+    Args:
+        status: "in_process" or "closed_by_recruiter". Omit for all threads --
+            the site sends no status key at all for "All", so this does not either.
+        unread_only: Only threads whose latest message is unread.
+        starred_only: Only starred threads. Mutually exclusive with unread_only.
+        query: Free-text search across conversations.
+        limit: Threads per page. The site's own default is 10.
+        offset: Paging offset.
+        include_job: Join company, role and locations in from the job endpoint.
+    """
+    return get_client().inbox.list_conversations(
+        status=status,
+        unread_only=unread_only,
+        starred_only=starred_only,
+        query=query,
+        limit=limit,
+        offset=offset,
+        include_job=include_job,
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_read_conversation(
+    conv_id: int, body_chars: int = 1500, include_gated: bool = False
+) -> dict:
+    """Every message in one thread, as text, oldest first.
+
+    READ-ONLY in the sense that it sends no data and asks for no change. But be
+    straight about the side effect, because it has NOT been ruled out: the site
+    marks a thread read WITHOUT calling any mark-read endpoint -- it just
+    decrements the badge locally -- which is only coherent if the server marks
+    it read when the messages are fetched. So **fetching a thread may mark it
+    read on Instahyre's side.** That could not be tested: his inbox has no
+    conversations to test against. Treat it as probable.
+
+    Bodies arrive as HTML and are returned as plain text. Direction is reported
+    as ``from_me``, and automated Instahyre messages are flagged separately from
+    real recruiters -- an InstaBot message is not inbound interest.
+
+    Args:
+        conv_id: The ``id`` from instahyre_list_conversations.
+        body_chars: Truncate each body to this many characters.
+        include_gated: Include messages the site's own renderer withholds. The
+            site stops at the first one and discards the rest; this mirrors that
+            by default and always reports how many were withheld.
+    """
+    return get_client().inbox.read_conversation(
+        conv_id, body_chars=body_chars, include_gated=include_gated
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_inbox_counts() -> dict:
+    """Unread, starred and starred-unread totals for the inbox. One request."""
+    return get_client().inbox.conversation_counts()
+
+
+# ---------------------------------------------------------------------------
+# TIER 4 -- profile writes. These CHANGE his account.
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+@handled
+def instahyre_update_skills(add: list[str], confirm: bool = False) -> dict:
+    """Add skills to his live Instahyre profile. This is the highest-leverage write.
+
+    Instahyre is a reverse marketplace: employers search for candidates, so the
+    skill list is the surface he is found ON. A short list throttles every
+    future match cycle rather than one application.
+
+    ADD-ONLY, and deliberately so. Existing skills are echoed back exactly as
+    the server returned them and nothing is ever removed. That makes the result
+    identical whether Instahyre treats the payload as a full replacement set or
+    as an ordinary additive patch -- an ambiguity in their contract that this
+    designs around instead of testing on his live profile.
+
+    With ``confirm=False`` (the default) nothing is sent: it returns the exact
+    request, what would be added, and what was skipped. A snapshot is written to
+    disk before any write, and instahyre_restore_profile puts it back.
+
+    The platform caps skills at 20 and each name at 50 characters. Anything over
+    the cap is dropped from the request and reported, not silently truncated.
+
+    The write verifies itself by re-reading the profile afterwards -- a 200 is
+    not treated as success.
+
+    Args:
+        add: Skill names to add, e.g. ["Express.js", "MongoDB", "Docker"].
+        confirm: Must be True to actually write. False returns a preview.
+    """
+    return get_client().profile_writer.update_skills(add, confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_update_profile(
     current_designation: Optional[str] = None,
     current_company: Optional[str] = None,
     total_experience: Optional[int] = None,
-    notice_period_days: Optional[int] = None,
+    confirm: bool = False,
 ) -> dict:
-    """Build the profile update that WOULD be sent -- and stop there, on purpose.
+    """Update candidate-level profile fields. Writes when confirm=True.
 
-    This tool never writes. That is a deliberate limit, not an oversight, and
-    the reason is worth stating plainly: the write contract for the profile
-    could not be verified without performing a real write on his live profile,
-    and the profile is what generates his entire match queue. A PATCH with a
-    field shape guessed slightly wrong could blank a field or return 200 while
-    changing nothing -- and a silent no-op is the exact failure class this
-    server exists to refuse.
+    Only these three fields are writable here, and the limit is deliberate.
+    They are scalars on the candidate record, which is the only shape the sparse
+    PATCH is verified for -- Instahyre's own frontend does exactly this, one key
+    at a time, in four independent places.
 
-    So it returns the request an update tool would issue, and the update itself
-    stays a two-second job on the website where it is visible and correctable.
+    Notice period, salary, preferred locations and job-search status are NOT
+    writable and are refused by name with the reason: they live on a sub-object
+    that has to be sent back whole, which is a wider contract than anything
+    verified. Change those on the website.
 
-    What IS known: the profile GET shape (every field, verified live) and the
-    detail route. What is NOT known: whether a PATCH suffices or whether the
-    ``submit/`` sub-action must follow it, and which fields are writable.
+    Snapshots first, verifies after.
 
     Args:
-        current_designation: Job title to set.
-        current_company: Employer to set.
-        total_experience: Years of experience to set.
-        notice_period_days: Notice period in days.
+        current_designation: Job title.
+        current_company: Employer name.
+        total_experience: Years of experience.
+        confirm: Must be True to actually write.
     """
-    return get_client().inbound.profile_update_preview(
+    return get_client().profile_writer.update_fields(
+        confirm=confirm,
         current_designation=current_designation,
         current_company=current_company,
         total_experience=total_experience,
-        notice_period_days=notice_period_days,
     )
+
+
+@mcp.tool()
+@handled
+def instahyre_restore_profile(snapshot_id: Optional[str] = None, confirm: bool = False) -> dict:
+    """Put his skill list back to a snapshot taken before a write.
+
+    Restoring is the one operation that must REMOVE rows, so it runs in two
+    stages: the snapshot's rows are written back, then anything present that the
+    snapshot does not contain is deleted individually by id. That delete is
+    bounded hard -- it can only ever touch an id absent from the snapshot, so a
+    restore cannot remove a skill that predates this server.
+
+    Args:
+        snapshot_id: From instahyre_list_profile_snapshots. Defaults to the newest.
+        confirm: Must be True to actually restore.
+    """
+    return get_client().profile_writer.restore_skills(snapshot_id, confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_list_profile_snapshots() -> dict:
+    """Restore points taken before profile writes. Local files, no request."""
+    snapshots = get_client().profile_writer.list_snapshots()
+    return {
+        "snapshots": snapshots,
+        "count": len(snapshots),
+        "note": (
+            "Written automatically before every write. An empty list means this server "
+            "has never written to the profile."
+        ),
+    }
+
+
+@mcp.tool()
+@handled
+def instahyre_verify_apply_target() -> dict:
+    """Re-measure which endpoint an application would be posted to. Opens a browser.
+
+    THIS IS THE ONE DATA-PATH TOOL THAT USES A BROWSER, and it is worth saying
+    why, because everything else here is plain HTTP by design.
+
+    Instahyre has two apply endpoints, and a server-injected page flag decides
+    which one an account uses -- it switches the URL and the request body
+    together. No API endpoint exposes that flag; it lives in a server-rendered
+    HTML page, and those pages are Cloudflare-gated (a plain client gets 403,
+    headless Chromium gets a challenge). Since applications cannot be withdrawn,
+    the target endpoint is worth a browser rather than an assumption.
+
+    A visible window opens on the opportunities page, reads the flags, and
+    closes. Every non-GET request is aborted at the router, so it physically
+    cannot apply to anything. Nothing is clicked.
+
+    Reports agreement or MISMATCH against the branch this server is configured
+    for. It never changes that configuration on its own.
+    """
+    from .browser import read_page_flags
+
+    return read_page_flags()
+
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)

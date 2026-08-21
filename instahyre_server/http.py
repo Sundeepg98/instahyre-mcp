@@ -196,6 +196,20 @@ class InstahyreHTTP:
     def post(self, path: str, **kwargs: Any) -> Any:
         return self.request("POST", path, **kwargs)
 
+    # PATCH exists so that every write in the package goes out through a named
+    # verb on this class. ``request`` stays private to this module, and the
+    # suite's write-surface census scans for these verbs -- so a new write path
+    # anywhere in the package is a test failure rather than a discovery made
+    # later.
+    #
+    # There is deliberately NO delete(). One existed briefly, for a restore path
+    # that removed skill rows individually; DELETE on that resource answers 405
+    # (Allow: GET,PATCH), so the verb was unreachable and the path was removed.
+    # It is not kept "in case" -- an unused write verb on a client that can
+    # touch a live account is a door with no room behind it.
+    def patch(self, path: str, **kwargs: Any) -> Any:
+        return self.request("PATCH", path, **kwargs)
+
     # -- response interpretation ------------------------------------------
 
     def _interpret(self, response: httpx.Response, path: str) -> Any:

@@ -1,0 +1,56 @@
+{
+  "_synthetic": "HAND-BUILT, NOT CAPTURED. The live account's inbox holds zero conversations, so no real thread exists to golden. The envelope and every message field name come from the frontend contract -- content_html as the only body field, is_owner as the direction flag, and show_message as the hard render gate the site breaks on. All companies, people, addresses and message text are invented.",
+  "objects": [
+    {
+      "show_message": true,
+      "content_html": "<div dir=\"ltr\"><p>Hi Alex,</p><p>I am Priya, hiring for the Senior Backend Engineer opening at <b>Northwind Analytics</b>. Your Node.js and TypeScript background lines up well with what the platform R&amp;D team is building this quarter.</p><ul><li>Stack: Node.js, TypeScript, PostgreSQL</li><li>Team size: eight engineers</li><li>Mode: hybrid, two days on site</li></ul><p>Would a thirty minute call on Thursday afternoon work for you?</p><p>Regards,<br>Priya</p></div>",
+      "is_owner": false,
+      "is_automated_message": false,
+      "from_user": {"first_name": "Priya", "id": 880011},
+      "to_user": {"full_name": "Alex Candidate", "id": 990022},
+      "non_instahyre_to_user": null,
+      "cc_emails": [],
+      "created_at_date_time": "2026-08-18T09:14:02+00:00",
+      "conversation_id": 5101
+    },
+    {
+      "show_message": true,
+      "content_html": "<p>Thursday after 4pm works. Sending over my availability now.</p>",
+      "is_owner": true,
+      "is_automated_message": false,
+      "from_user": {"first_name": "Alex", "id": 990022},
+      "to_user": {"full_name": "Priya Recruiter", "id": 880011},
+      "non_instahyre_to_user": null,
+      "cc_emails": ["recruiting@example.com"],
+      "created_at_date_time": "2026-08-18T11:40:55+00:00",
+      "conversation_id": 5101
+    },
+    {
+      "show_message": true,
+      "content_html": "<p>This candidate has viewed the opportunity. Reply within 48 hours to keep the thread active.</p>",
+      "is_owner": false,
+      "is_automated_message": true,
+      "from_user": {"first_name": "InstaBot", "id": 1},
+      "to_user": null,
+      "non_instahyre_to_user": {"full_name": "Hiring Panel"},
+      "cc_emails": [],
+      "created_at_date_time": "2026-08-19T03:00:00+00:00",
+      "conversation_id": 5101
+    },
+    {
+      "show_message": false,
+      "content_html": "<p>Gated by the site's own render loop. Anything from here on is discarded by the UI, and this server mirrors that rather than inventing a view the candidate has never seen.</p>",
+      "is_owner": false,
+      "is_automated_message": false,
+      "from_user": {"first_name": "Priya", "id": 880011},
+      "to_user": {"full_name": "Alex Candidate", "id": 990022},
+      "non_instahyre_to_user": null,
+      "cc_emails": [],
+      "created_at_date_time": "2026-08-20T07:22:31+00:00",
+      "conversation_id": 5101
+    }
+  ],
+  "unsent_messages": [],
+  "recipients": "Priya (Northwind Analytics)",
+  "starred": false
+}

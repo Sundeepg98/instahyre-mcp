@@ -1,0 +1,42 @@
+{
+  "_synthetic": "HAND-BUILT, NOT CAPTURED. The live account's inbox holds zero conversations (see conversations_empty.json, captured 2026-08-21), so there is no real populated payload to golden. Every field name and type here comes from the frontend contract transcribed in constants.CONV_FIELDS -- the eight properties the inbox controller reads off a conversation record -- and nothing else. All companies, people and message text are invented.",
+  "meta": {
+    "offset": 0,
+    "limit": 10,
+    "total_count": null,
+    "previous": null,
+    "next": null
+  },
+  "objects": [
+    {
+      "id": 5101,
+      "resource_uri": "/api/v1/inbox_page/candidate_conversation/5101",
+      "job_id": 601001,
+      "opportunity_id": 7101,
+      "is_latest_msg_read": false,
+      "is_starred": false,
+      "latest_message": "Priya from Northwind here. Are you open to a call about the backend role this week?",
+      "latest_msg_at": "21 Aug"
+    },
+    {
+      "id": 5102,
+      "resource_uri": "/api/v1/inbox_page/candidate_conversation/5102",
+      "job_id": 601002,
+      "opportunity_id": 7102,
+      "is_latest_msg_read": true,
+      "is_starred": true,
+      "latest_message": "Thanks for the update, we will confirm the panel by Friday.",
+      "latest_msg_at": "19 Aug"
+    },
+    {
+      "id": 5103,
+      "resource_uri": "/api/v1/inbox_page/candidate_conversation/5103",
+      "job_id": 601003,
+      "opportunity_id": 7103,
+      "is_latest_msg_read": true,
+      "is_starred": false,
+      "latest_message": "This role has been closed by the employer.",
+      "latest_msg_at": "02 Aug"
+    }
+  ]
+}

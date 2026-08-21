@@ -246,13 +246,108 @@ JOB_SEARCH_STATUS_KNOWN = {0: "actively looking (default)"}
 
 # --- Messages --------------------------------------------------------------
 #
-# The site has an INBOX. Only its unread COUNT is reachable: the message list
-# demands a "conv_id" and NO endpoint enumerates conversations (both
-# /resume_modal/emails/conversation and .../conversations are 404).
 EP_MESSAGE_COUNT = "/resume_modal/emails/message/message_count"
 # VERIFIED: this path answers only WITH the unread flag. Without it, Cloudflare
 # returns an HTML 403 -- which the client correctly raises as ChallengeDetected.
 MESSAGE_COUNT_PARAMS = {"unread": 1}
+
+# THE CONVERSATION LIST EXISTS. An earlier build of this server concluded that
+# "no endpoint enumerates conversations" and shipped the unread count as the
+# only inbox signal. That conclusion was WRONG, and the way it was reached is
+# worth recording: it searched the /resume_modal/emails/ namespace (where the
+# message resource lives) for a sibling conversation resource, found
+# .../conversation and .../conversations both 404, and generalised from two
+# misses to "the platform cannot do this".
+#
+# The resource is in a DIFFERENT namespace entirely. Found 2026-08-21 by
+# opening the inbox in the authenticated browser and recording its XHRs -- the
+# page cannot render without it, so it had to exist somewhere.
+#
+# VERIFIED live over plain httpx on the same day: 200, tastypie {meta, objects}.
+# It is an /api/v1/* path, so it is Cloudflare-exempt like the rest of the API
+# and needs NO browser. The browser found it; the browser is not needed to use
+# it.
+EP_CONVERSATIONS = "/inbox_page/candidate_conversation"
+EP_CONVERSATION_COUNT = "/inbox_page/candidate_conversation/count"
+
+# The thread body endpoint. VERIFIED live: a bare GET returns HTTP 400
+# {"conv_id": ["This field is required."]} -- the endpoint names its own
+# contract. conv_id is the ONLY parameter the frontend ever sends; the whole
+# thread comes back in one call, unpaginated.
+EP_MESSAGES = "/resume_modal/emails/message"
+
+# Transcribed from the inbox controller's buildFilters(). Four filters exist
+# besides limit/offset, and the EMISSION RULES matter as much as the names:
+#
+#   status   -- 1 or 2 ONLY. "All conversations" is 0, which is falsy, so the
+#               app never sends status=0; it omits the key. We do the same,
+#               because a value the frontend never emits is a value nobody has
+#               ever seen the server handle.
+#   unread   -- literal true ONLY. Never sent as false; the key is omitted.
+#   starred  -- literal true ONLY. Same rule. Mutually exclusive with unread
+#               in the UI, though the desktop branch shows the server accepts
+#               either alongside status.
+#   query    -- free text search.
+CONV_STATUS = {"in_process": 1, "closed_by_recruiter": 2}
+CONV_STATUS_NAMES = {1: "in process", 2: "closed by recruiter"}
+CONV_PARAMS = frozenset({"status", "unread", "starred", "query", "limit", "offset"})
+CONV_DEFAULT_LIMIT = 10
+
+# A conversation record carries NO company, recruiter or subject field -- the
+# site joins those in from GET /employer_public_jobs/{job_id}. Verified by
+# enumerating every property access on conv/selectedConv across all eight
+# frontend bundles: 11 distinct names, none of them a company or a person.
+CONV_FIELDS = frozenset(
+    {
+        "id",
+        "resource_uri",
+        "job_id",
+        "opportunity_id",
+        "is_latest_msg_read",
+        "is_starred",
+        "latest_message",
+        "latest_msg_at",
+    }
+)
+
+# The message record's direction flag is `is_owner`, NOT `is_from_candidate`.
+# `content_html` is the body. `show_message` is a HARD GATE: the site's render
+# loop `break`s on the first falsy one and discards it and everything after,
+# so the API can return more than the UI shows.
+MSG_BODY_FIELD = "content_html"
+MSG_DIRECTION_FIELD = "is_owner"
+
+# ===========================================================================
+# THE READ-ONLY INBOX CONTRACT
+# ===========================================================================
+#
+# Four inbox endpoints MUTATE. None of them is ever constructed by this
+# package, and _guard_read_only() below refuses any path that names one.
+#
+# mark_all_read is the trap, and it is worth spelling out: it is a **GET** that
+# bulk-clears unread state, and it sits on the SAME resource prefix as the list
+# call. A "just GET everything under this resource and see what it does" probe
+# -- an entirely reasonable-looking way to explore an API -- would silently
+# wipe his unread flags with no request body and no warning.
+MUTATING_INBOX_PATHS = frozenset(
+    {
+        "/inbox_page/candidate_conversation/mark_all_read",
+        "/resume_modal/emails/message/send_message/",
+        "/resume_modal/emails/message/star_conversation",
+        "/resume_modal/emails/message/toggle_message_read",
+    }
+)
+
+#: Substrings that may never appear in any path this package requests. Checked
+#: as a substring test, not equality, so a query string or a trailing slash
+#: cannot smuggle one past.
+MUTATING_PATH_MARKERS = (
+    "mark_all_read",
+    "send_message",
+    "star_conversation",
+    "toggle_message_read",
+    "apply_bulk",
+)
 
 # --- The one-way door ------------------------------------------------------
 #
@@ -260,22 +355,131 @@ MESSAGE_COUNT_PARAMS = {"unread": 1}
 # it cannot be withdrawn". Declining is equally final. Both actions POST here.
 EP_APPLY = "/candidate_opportunities/candidate_opportunity/apply/"
 
-# Transcribed from the shipped frontend dispatcher, which builds ONE body for
-# both actions and switches on a single boolean:
+# A SECOND, INDEPENDENT READING OF THE DISPATCHER CORRECTED THIS. 2026-08-21.
+#
+# The previous transcription was:
 #
 #   var data={"is_interested":choice}
 #   if($scope.enableCandidateESOpps){data.job_id=opp.job.id;}
 #   else{data.id=opp.id||null; if($scope.showSearchedJobs||!opp.id){data.job_id=opp.job.id;}}
 #
-# Sending both keys is what the legacy branch does when it has both, so that is
-# what we would send. NOTHING in this package has ever executed this request:
-# the shape comes from reading their code, never from watching a response.
+# posted to /candidate_opportunities/candidate_opportunity/apply/. Two errors,
+# both of which would have gone out on the first real application:
+#
+# 1. THE URL IS NOT CONSTANT. enableCandidateESOpps switches the SERVICE, not
+#    just the body. The frontend has two $resource factories and the flag picks
+#    between them, so the ES body (job_id) is only ever posted to the ES URL:
+#
+#      flag false -> candidateOpportunitiesService -> .../candidate_opportunity/apply/
+#      flag true  -> candidateMatchingService      -> .../candidate_matching/apply/
+#
+#    The old constant pinned the non-ES URL while the old body builder emitted
+#    the ES shape. That pairing is one the frontend never produces.
+#
+# 2. A BODY KEY WAS MISSING. data.is_activity_page_job is set unconditionally
+#    on every call, on both branches, immediately before the POST. It is true
+#    only when the page was opened deep-linked from the activity page with
+#    matching ?opp_id and ?job_id, so for every apply this server would make it
+#    is false.
+#
+# WHICH BRANCH IS HIS ACCOUNT ON? ES. That is measured, not assumed: the
+# opportunities page for this account fetches /candidate_matching and
+# /candidate_matching/fetch_filter_counts, and those two URLs are built only by
+# candidateMatchingService -- candidateOpportunitiesService spells the second
+# one /candidate_opportunity/{id}/fetch_filter_counts, which is not what the
+# wire showed. The queue this server reads (EP_OPPORTUNITIES) is the same
+# candidate_matching resource, which is the same fact from the other side.
+EP_APPLY_ES = "/candidate_opportunities/candidate_matching/apply/"
+EP_APPLY_LEGACY = "/candidate_opportunities/candidate_opportunity/apply/"
+
+#: The branch this account is on. instahyre_verify_apply_target re-measures it
+#: from the live page and says so if it ever disagrees with this default.
+APPLY_BRANCH_ES = True
+
+#: Kept as the legacy alias so nothing that imported it breaks, and pointed at
+#: the branch actually in force.
+EP_APPLY = EP_APPLY_ES
+
 APPLY_IS_INTERESTED_APPLY = True
 APPLY_IS_INTERESTED_DECLINE = False
 
-# apply_bulk/ exists on the API. It is permanently out of scope and no code
-# path in this package may construct it.
-FORBIDDEN_ENDPOINTS = frozenset({"/candidate_opportunities/candidate_opportunity/apply_bulk/"})
+# VERIFIED from the frontend's global $http config, not guessed:
+#   $httpProvider.defaults.xsrfHeaderName="X-CSRFToken"
+#   $httpProvider.defaults.xsrfCookieName='csrftoken'
+#   defaults.headers.post["Content-Type"]="application/json;"
+# Note the literal trailing semicolon on the content type. We send the ordinary
+# "application/json" instead -- deviating here is safe (the semicolon is an
+# empty parameter list, which is what Angular emits by accident) and matching
+# it exactly would be cargo-culting a bug.
+APPLY_CSRF_HEADER = "X-CSRFToken"
+
+# BOTH bulk endpoints, not one. The ES/non-ES split applies here too, and the
+# earlier list held only the non-ES spelling -- so the ES bulk URL, which is
+# the one this account's branch would actually resolve, was NOT blocked.
+# Bulk has no is_interested key: it is apply-only, and one call is an
+# irreversible mass-apply across a whole queue.
+FORBIDDEN_ENDPOINTS = frozenset(
+    {
+        "/candidate_opportunities/candidate_opportunity/apply_bulk/",
+        "/candidate_opportunities/candidate_matching/apply_bulk/",
+    }
+)
+
+# --- Profile writes --------------------------------------------------------
+#
+# Skills do NOT ride the profile PATCH. They have their own resource, and the
+# naming is a trap: `candidate_skills` does NOT carry the skills (it carries
+# the job-search-profile object), while `candidate_skill_model` does.
+#
+# The site's skills editor fires TWO requests -- PATCH candidate_skill_model
+# with the whole array, then, in a .finally(), PUT candidate_skills/{jsp_id}
+# with the entire jsp object. THIS PACKAGE SENDS ONLY THE FIRST. The second
+# carries no skills; it re-PUTs the job-search profile, and on the way its
+# saveCareerBreakFields() NULLs career_break_start_date and career_break_reason
+# whenever career stage is not CAREER_BREAK. Skipping it is a deviation from
+# browser behaviour in the SAFE direction: strictly fewer fields touched.
+EP_SKILL_MODEL = "/candidate_misc/profile/candidate_skill_model"
+
+# VERIFIED live 2026-08-21: GET answers 200 both with and without the trailing
+# slash, and this client does not follow redirects, so neither spelling is
+# hiding a 301.
+#
+# TWO SEMANTICS MEASURED ON THE SAME DAY, both by adding one canary skill and
+# watching what happened to it:
+#
+#   PATCH {"objects": [...]} IS A FULL REPLACEMENT SET. A row omitted from the
+#   list is DELETED. This was previously derived-but-unproven, and it is the
+#   reason every write in profile_write.py echoes the existing rows back
+#   verbatim: a partial list is a deletion instruction.
+#
+#   DELETE on a detail route answers 405 with `Allow: GET,PATCH`. The verb does
+#   not exist on this resource. A restore path that tried to delete rows
+#   individually was removed once this was known -- it could never have worked.
+SKILL_MODEL_IS_REPLACEMENT_SET = True
+SKILL_MODEL_ALLOWED_METHODS = ("GET", "PATCH")
+#
+# A server-returned skill element has exactly four keys:
+#   {"resource_uri": ".../candidate_skill_model/<id>",
+#    "candidate": ".../candidate/<candidate_id>", "id": <int>, "name": "RabbitMQ"}
+# A newly-added one, as the frontend builds it, has no id and no resource_uri:
+#   {"candidate": ".../candidate/<candidate_id>", "name": "Redis"}
+SKILL_ELEMENT_KEYS = frozenset({"resource_uri", "candidate", "id", "name"})
+
+# READ from the bundle: constant("CANDIDATE_MAX_SKILLS_COUNT",20), enforced
+# client-side in two places with the message "You cannot add more than 20
+# skills", and maxTagLength:50 on the widget. This is a platform ceiling, not
+# our choice -- a resume with 32 skills does not fit and must be prioritised.
+MAX_SKILLS = 20
+MAX_SKILL_NAME_CHARS = 50
+
+# The sparse-PATCH route for scalar profile fields. VERIFIED as genuinely
+# sparse: four independent frontend call sites PATCH a single key and read the
+# same key back, with no other field disturbed. All four are scalars, so
+# "PATCH is sparse" is proven for scalars and merely assumed for collections --
+# which is one more reason skills go through their own resource instead.
+EP_PROFILE_PATCH = "/candidate_misc/profile/candidate/{candidate_id}"
+
+TTL_CONVERSATIONS = 2 * 60
 
 TTL_ACTIVITY = 5 * 60
 TTL_PROFILE = 15 * 60

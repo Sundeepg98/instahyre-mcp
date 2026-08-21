@@ -49,7 +49,16 @@ EXPECTED_TOOLS = {
     "instahyre_account_settings",
     "instahyre_apply",
     "instahyre_decline_opportunity",
-    "instahyre_preview_profile_update",
+    # Tier 3 -- the inbox. Read-only, plain HTTP, no browser.
+    "instahyre_list_conversations",
+    "instahyre_read_conversation",
+    "instahyre_inbox_counts",
+    # Tier 4 -- profile writes. These change his account.
+    "instahyre_update_skills",
+    "instahyre_update_profile",
+    "instahyre_restore_profile",
+    "instahyre_list_profile_snapshots",
+    "instahyre_verify_apply_target",
 }
 
 
@@ -149,8 +158,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_twenty_five_tools(tools):
-    assert len(tools) == 25
+def test_the_server_registers_exactly_thirty_two_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 32
 
 
 def test_every_tool_name_is_namespaced(tools):
