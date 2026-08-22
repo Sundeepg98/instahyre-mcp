@@ -473,9 +473,23 @@ def _probe_import(block: bool) -> str:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO)
     env["JOBHUNT_CONFIG"] = ":none:"
+    # NEVER `text=True`. It decodes with the PLATFORM's preferred encoding --
+    # cp1252 on this box -- and the decode runs on a reader THREAD, so a byte
+    # it has no character for does not raise: the thread dies and `stdout`
+    # comes back None with returncode 0. `None + None` would then raise
+    # TypeError on the assert BELOW, destroying the diagnostic at the exact
+    # moment it is needed. The traceback this captures echoes jobcore source
+    # lines, and jobcore/skills.py carries 0x90 and 0x9D.
+    #
+    # `replace` rather than `strict` here, unlike tests/test_jobcore_pin.py:
+    # that one PARSES pinned source, where a replacement character would let
+    # corrupt text pass as almost-right. This one is a human-readable failure
+    # message, where seeing it with one odd character beaten out is strictly
+    # better than not seeing it at all.
     proc = subprocess.run(
         [sys.executable, "-c", BLOCK_JOBCORE % {"block": block}],
-        cwd=str(REPO), capture_output=True, text=True, timeout=120, env=env,
+        cwd=str(REPO), capture_output=True,
+        encoding="utf-8", errors="replace", timeout=120, env=env,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return proc.stdout.strip()
