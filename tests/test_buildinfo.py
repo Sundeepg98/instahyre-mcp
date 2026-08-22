@@ -38,14 +38,7 @@ scores just as silently, so it is stamped separately rather than folded in.
 
 from __future__ import annotations
 
-import pytest
-
 from instahyre_server import server as server_module
-
-#: Every test here calls ``instahyre_server_info()``, which builds the
-#: process-wide client as a side effect of being called and leaves it in a
-#: module global. See the fixture's own docstring in conftest.
-pytestmark = pytest.mark.usefixtures("restore_server_globals")
 
 
 class TestTheBuildBlockIsPresentAndFrozen:
@@ -144,3 +137,108 @@ class TestTheDocstringSaysWhatToDoWithIt:
         assert "git rev-parse HEAD" in doc
         assert "stale" in doc.lower()
         assert "restart" in doc.lower()
+
+
+# ---------------------------------------------------------------------------
+# The diagnostic must be inert
+# ---------------------------------------------------------------------------
+#
+# A tool reached for when the server is ALREADY suspect must not change the
+# server while answering. ``instahyre_server_info()`` used to call
+# ``get_client()``, which assigns the process-wide client to a module global,
+# opens the sqlite store and creates the state directory -- as a side effect of
+# being asked WHAT CODE IT IS RUNNING.
+#
+# That is not theoretical. It escaped this file and broke
+# ``test_server.py::test_listing_tools_makes_no_request_and_builds_no_client``,
+# a test in another file with nothing to do with build stamps, and the first fix
+# was a conftest fixture that put the global back afterwards -- papering over the
+# side effect instead of removing it. The fixture is gone; the tool no longer
+# builds anything.
+
+
+class TestTheDiagnosticIsInert:
+
+    def test_it_builds_no_client(self, monkeypatch):
+        """Asking what code is running must not construct a network client."""
+        monkeypatch.setattr(server_module, "_client", None)
+        monkeypatch.setattr(server_module, "_sessions", None)
+
+        server_module.instahyre_server_info()
+
+        assert server_module._client is None, (
+            "instahyre_server_info() built the process-wide client as a side "
+            "effect of being called"
+        )
+        assert server_module._sessions is None
+
+    def test_it_still_answers_the_staleness_question_with_no_client(self, monkeypatch):
+        """Inert must not mean useless.
+
+        The three things a suspect server is interrogated for -- which code,
+        which config, since when -- are exactly the three that do not need a
+        client, so refusing to build one costs the diagnostic nothing.
+        """
+        monkeypatch.setattr(server_module, "_client", None)
+
+        info = server_module.instahyre_server_info()
+
+        assert info["build"]["code"]["commit"]
+        assert info["build"]["jobcore"]["commit"]
+        assert info["build"]["process"]["pid"]
+        assert info["config"]["scoring_hash"]
+        assert info["server"] == "instahyre"
+
+    def test_the_index_says_absent_rather_than_reporting_an_empty_one(
+        self, monkeypatch
+    ):
+        """"Nothing indexed" and "not read" are different answers.
+
+        Reporting zeros for an index nobody opened would be a number that means
+        something else -- it reads as a measurement of an empty index, and
+        "your index is empty" sends a reader somewhere completely different
+        from "this tool did not look".
+        """
+        monkeypatch.setattr(server_module, "_client", None)
+
+        index = server_module.instahyre_server_info()["index"]
+
+        assert "jobs_indexed" not in index, (
+            "an index that was never opened is being reported as measured"
+        )
+        assert any("not read" in str(v) for v in index.values()), index
+
+    def test_it_makes_no_request_even_when_a_client_does_exist__PIN(
+        self, monkeypatch
+    ):
+        """A pin, not a red-first guard: this already held before the change.
+
+        It is here because the change above moved the client from "built on
+        demand" to "used if present", and the property that actually matters --
+        this tool costs zero requests -- must survive that move. The CONTROL
+        below shows the instrument can move, so this is a measurement rather
+        than a check that cannot fail.
+        """
+        from conftest import make_client
+
+        client = make_client({}, with_taxonomy=False)
+        monkeypatch.setattr(server_module, "_client", client)
+
+        server_module.instahyre_server_info()
+
+        assert client.routes.count() == 0
+
+    def test_the_request_counter_moves_for_a_tool_that_does_fetch__CONTROL(
+        self, monkeypatch
+    ):
+        """The instrument above, shown capable of a non-zero reading."""
+        from conftest import make_client
+
+        from instahyre_server import constants as C
+
+        client = make_client({C.EP_JOB_FUNCTION: {"objects": []}}, with_taxonomy=False)
+        monkeypatch.setattr(server_module, "_client", client)
+
+        server_module.instahyre_list_job_functions()
+
+        assert client.routes.count() > 0

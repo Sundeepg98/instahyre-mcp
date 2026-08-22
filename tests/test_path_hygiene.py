@@ -31,13 +31,35 @@ strictly worse than saying nothing -- the list stops distinguishing the four
 places that were tried. ``test_two_different_searched_paths_do_not_collapse``
 exists to fail against that shortcut specifically.
 
+TWO DETECTORS, AND WHICH ONE IS PRIMARY
+---------------------------------------
+``payload_contains`` -- does the exact path the fixture created appear anywhere
+in the payload -- is the PRIMARY assertion. ``absolute_paths_in``, the
+drive-letter regex, is a second opinion.
+
+That order was not the original design; it is a correction. A drive-letter
+regex CAN ONLY FIRE ON WINDOWS, and instahyre's CI runs ubuntu, where a leaked
+path is ``/tmp/pytest-of-runner/...`` and carries no drive letter. jobcore's CI
+caught the identical shape on 2026-08-22: every leak assertion passed on the
+Linux half of the matrix while detecting nothing at all. This file was written
+on a Windows box and would have been green-and-blind on the runner.
+
+The fixture geometry is part of the instrument. ``production_geometry`` builds
+``<tmp>/mcp-servers/instahyre`` with the config two levels up at
+``<tmp>/config/jobhunt.json`` and rebinds the anchor to it, mirroring the live
+layout. Without that, an exact-string check would FALSE-POSITIVE on Linux:
+``/tmp/x`` relativised against ``/home/runner/work/r/r`` is
+``../../../../tmp/x``, which contains ``/tmp/x``. Measured before relying on it.
+
 EVERY SCANNER HERE HAS A CONTROL
 --------------------------------
 This file follows the rule ``test_scoring_policy.py`` is built on: a guard that
 has never been shown failing is a claim, not a measurement, and six bugs in
-this family last week were checks that could not fail. The payload walker is
-therefore pointed at a payload that DOES carry a drive letter, in
-``test_the_scanner_trips_on_an_absolute_path__CONTROL``, and asserted to trip.
+this family last week were checks that could not fail. Both detectors are
+pointed at input they must trip on, and -- because a control that can only fail
+on Windows is not a control on the runner -- one of them
+(``..._sees_a_posix_leak_the_regex_cannot__CONTROL``) is written in POSIX shape
+and asserts the two detectors DISAGREE exactly where the blindness lives.
 """
 
 from __future__ import annotations
@@ -47,10 +69,9 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-
-from conftest import fixture_json, make_client
+from conftest import fixture_json, json_response, make_client
 from instahyre_server import constants as C
+from instahyre_server import paths as paths_module
 from instahyre_server import policy
 from instahyre_server import server as server_module
 
@@ -69,12 +90,6 @@ from instahyre_server import server as server_module
 ABSOLUTE_LOCAL = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-#: ``instahyre_server_info()`` builds the process-wide client as a side effect
-#: of being called, so every test here would otherwise leave one behind for a
-#: later file to trip over. See the fixture's own docstring in conftest.
-pytestmark = pytest.mark.usefixtures("restore_server_globals")
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +122,94 @@ def absolute_paths_in(payload, _trail="") -> list[str]:
         if ABSOLUTE_LOCAL.search(payload):
             found.append("%s = %r" % (_trail or "<root>", payload))
     return found
+
+
+def payload_contains(payload, needle: str, _trail: str = "") -> list[str]:
+    """Every place the EXACT string ``needle`` appears anywhere in ``payload``.
+
+    THIS IS THE PRIMARY LEAK DETECTOR. :func:`absolute_paths_in` is a second
+    opinion, and the reason is a defect CI found on 2026-08-22 in this exact
+    kind of scanner: **a drive-letter regex can only fire on Windows.** On the
+    ubuntu runner the leaked path is ``/tmp/pytest-of-runner/...``, which
+    carries no drive letter, so every regex-based leak assertion passed while
+    detecting absolutely nothing -- green, and certifying nothing. instahyre's
+    CI runs ubuntu, so the strongest instrument in this file was blind exactly
+    where it runs.
+
+    Searching for the path the fixture actually created is platform-independent
+    and strictly stronger: it fails on a real leak on either OS, and it cannot
+    pass by being unable to see.
+
+    THE FIXTURE GEOMETRY IS PART OF THE INSTRUMENT -- see
+    :func:`production_geometry`. A bare substring search is only exact if a
+    CORRECT rendering cannot contain the needle, and against the real checkout
+    on a Linux runner it can: ``/tmp/x`` relativised against
+    ``/home/runner/work/r/r`` is ``../../../../tmp/x``, which contains
+    ``/tmp/x``. Measured, not assumed. So the leak tests anchor on a
+    constructed checkout where the correct answer is ``../../config/jobhunt
+    .json`` and the needle cannot appear in it by accident.
+    """
+    found: list[str] = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            here = "%s.%s" % (_trail, key)
+            if isinstance(key, str) and needle in key:
+                found.append("%s (KEY)" % here)
+            found.extend(payload_contains(value, needle, here))
+    elif isinstance(payload, (list, tuple)):
+        for index, value in enumerate(payload):
+            found.extend(payload_contains(value, needle, "%s[%d]" % (_trail, index)))
+    elif isinstance(payload, str) and needle in payload:
+        found.append("%s = %r" % (_trail or "<root>", payload))
+    return found
+
+
+def production_geometry(tmp_path, monkeypatch, *, content: str):
+    """A temp checkout laid out exactly like the real one, with a config beside it.
+
+    Mirrors production: ``<root>/mcp-servers/instahyre`` with the shared config
+    at ``<root>/config/jobhunt.json``, two levels up. That is the geometry the
+    live leak was found in, and it is the one where a correct rendering is the
+    literal string ``../../config/jobhunt.json`` -- on every OS, with no
+    component of the absolute path left in it.
+
+    Rebinding ``paths.CHECKOUT_ROOT`` is what makes that possible. It is read
+    at CALL time by ``display_path``, including through ``policy``'s
+    import-by-name, so one ``setattr`` moves every render site at once and
+    ``monkeypatch`` puts it back.
+
+    Returns ``(checkout, config_path)``.
+    """
+    checkout = tmp_path / "mcp-servers" / "instahyre"
+    checkout.mkdir(parents=True, exist_ok=True)
+    config = tmp_path / "config" / "jobhunt.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(content, encoding="utf-8")
+
+    monkeypatch.setattr(paths_module, "CHECKOUT_ROOT", checkout)
+    monkeypatch.setenv("JOBHUNT_CONFIG", str(config))
+    policy.invalidate_cache()
+    return checkout, config
+
+
+def assert_no_leak(payloads: dict, config) -> None:
+    """Both detectors over every payload, the exact-string one first.
+
+    Reported together so a failure says which instrument saw it: if the needle
+    check fires and the regex does not, the payload is leaking on a platform
+    the regex cannot see -- which is the whole reason there are two.
+    """
+    leaks: list[str] = []
+    for call, payload in payloads.items():
+        for needle in (str(config), str(config.parent)):
+            for hit in payload_contains(payload, needle):
+                leaks.append("%s -> [exact %r] %s" % (call, needle, hit))
+        for hit in absolute_paths_in(payload):
+            leaks.append("%s -> [drive-letter] %s" % (call, hit))
+    assert not leaks, (
+        "%d absolute local path(s) reached a tool result:\n  %s"
+        % (len(leaks), "\n  ".join(leaks))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -161,18 +264,33 @@ def offline_tool_payloads(monkeypatch) -> dict:
 
     Keyed by the call that produced it, so a failure names the tool rather than
     an index into a list.
+
+    ``instahyre_rank_jobs`` is in here for a reason that is easy to miss: it
+    renders no path of its own and mentions no file anywhere in its source. It
+    is on this list because it spreads ``policy.summary()`` into its result,
+    and so does ``instahyre_inbound_digest``. A leak that enters through that
+    shared block surfaces in a SCORING tool, which is the last place a reader
+    would think to look for the machine's directory layout.
     """
     payloads = {
         "instahyre_config()": server_module.instahyre_config(),
-        "instahyre_server_info()": server_module.instahyre_server_info(),
     }
     for section in policy.SECTIONS:
         payloads["instahyre_config(section=%r)" % section] = (
             server_module.instahyre_config(section=section)
         )
 
-    client = writer_client()
-    monkeypatch.setattr(server_module, "_client", client)
+    ranker = make_client(
+        {C.EP_JOB_SEARCH: json_response(fixture_json("search_backend_blr.json"))}
+    )
+    monkeypatch.setattr(server_module, "_client", ranker)
+    payloads["instahyre_rank_jobs()"] = server_module.instahyre_rank_jobs(
+        my_skills=["Java"], top_n=3
+    )
+    payloads["instahyre_server_info()"] = server_module.instahyre_server_info()
+
+    writer = writer_client()
+    monkeypatch.setattr(server_module, "_client", writer)
     payloads["instahyre_update_skills(confirm=False)"] = (
         server_module.instahyre_update_skills(["Express.js"], confirm=False)
     )
@@ -198,29 +316,20 @@ class TestNoToolResultCarriesAnAbsoluteLocalPath:
         This walks every string in every payload, so a path added to a new tool
         next month is caught by a test written today.
 
-        The config is pointed at a real file first, because the interesting
-        branch is the one that FOUND something: with no file, ``source`` is
-        ``None`` and the leak has nothing to leak.
+        Run on the production geometry with a config that FOUND something,
+        because the interesting branch is the one that found it: with no file,
+        ``source`` is ``None`` and the leak has nothing to leak.
         """
-        config = tmp_path / "config" / "jobhunt.json"
-        config.parent.mkdir(parents=True, exist_ok=True)
-        config.write_text(
-            json.dumps({"config_version": 1, "revision": 1,
-                        "scoring": {"weights": {"skills": 0.7, "experience": 0.3}}}),
-            encoding="utf-8",
+        _, config = production_geometry(
+            tmp_path,
+            monkeypatch,
+            content=json.dumps(
+                {"config_version": 1, "revision": 1,
+                 "scoring": {"weights": {"skills": 0.7, "experience": 0.3}}}
+            ),
         )
-        monkeypatch.setenv("JOBHUNT_CONFIG", str(config))
-        policy.invalidate_cache()
 
-        leaks: list[str] = []
-        for call, payload in offline_tool_payloads(monkeypatch).items():
-            for hit in absolute_paths_in(payload):
-                leaks.append("%s -> %s" % (call, hit))
-
-        assert not leaks, (
-            "%d absolute local path(s) reached a tool result:\n  %s"
-            % (len(leaks), "\n  ".join(leaks))
-        )
+        assert_no_leak(offline_tool_payloads(monkeypatch), config)
 
     def test_the_scanner_trips_on_an_absolute_path__CONTROL(self):
         """The guard above, shown failing. Without this it is a claim.
@@ -236,6 +345,44 @@ class TestNoToolResultCarriesAnAbsoluteLocalPath:
         assert not absolute_paths_in({"source": "~/.jobhunt/jobhunt.json"})
         assert not absolute_paths_in({"source": ".../pytest-944/config/jobhunt.json"})
         assert not absolute_paths_in({"source": None, "searched": []})
+
+    def test_the_exact_string_detector_sees_a_posix_leak_the_regex_cannot__CONTROL(
+        self,
+    ):
+        """The two detectors, shown disagreeing exactly where it matters.
+
+        This is the whole reason the primary detector exists, written as a
+        measurement instead of an argument. A POSIX leak carries no drive
+        letter, so the regex returns clean on it -- on the ubuntu runner that
+        silence WAS the bug: every leak assertion in this file passed while
+        seeing nothing.
+        """
+        posix_leak = {
+            "config_error": "/tmp/pytest-of-runner/pytest-0/config/jobhunt.json"
+                            " is not valid JSON: line 1 column 61"
+        }
+        needle = "/tmp/pytest-of-runner/pytest-0/config/jobhunt.json"
+
+        assert payload_contains(posix_leak, needle), (
+            "the primary detector cannot see a POSIX leak"
+        )
+        assert not absolute_paths_in(posix_leak), (
+            "the drive-letter regex has started matching POSIX paths; if that "
+            "is intentional this control needs rewriting, and if it is not, it "
+            "is now firing on every absolute URL path in every payload"
+        )
+
+    def test_the_exact_string_detector_ignores_a_correct_rendering__CONTROL(self):
+        """It must stay silent on the ANSWER, or it would fail every fix.
+
+        The production geometry is what makes this true: rendered against a
+        checkout two levels below the config, the correct answer shares no
+        substring with the absolute path.
+        """
+        rendered = {"source": "../../config/jobhunt.json"}
+
+        assert not payload_contains(rendered, "/tmp/x/config/jobhunt.json")
+        assert not payload_contains(rendered, r"D:\Sundeep\config\jobhunt.json")
 
     def test_the_scanner_does_not_trip_on_a_url__CONTROL(self):
         """The false positive this scanner really produced, pinned as a case.
@@ -290,20 +437,27 @@ class TestTheRenderedPathIsStillAnAnswer:
         Deleting the field would also pass a leak scanner. It would not tell a
         reader which file is in force, which is the documented reason the field
         is there.
+
+        Both detectors, exact-string first, so this holds on the ubuntu runner
+        as well as here.
         """
-        config = tmp_path / "config" / "jobhunt.json"
-        config.parent.mkdir(parents=True, exist_ok=True)
-        config.write_text(
-            json.dumps({"config_version": 1, "revision": 1}), encoding="utf-8"
+        _, config = production_geometry(
+            tmp_path,
+            monkeypatch,
+            content=json.dumps({"config_version": 1, "revision": 1}),
         )
-        monkeypatch.setenv("JOBHUNT_CONFIG", str(config))
-        policy.invalidate_cache()
 
         report = server_module.instahyre_config()
 
         assert report["source"], "the source was emptied rather than relativised"
         assert report["source"].endswith("jobhunt.json")
+        assert not payload_contains(report, str(config))
+        assert not payload_contains(report, str(config.parent))
         assert not ABSOLUTE_LOCAL.search(report["source"])
+        assert report["source"] == "../../config/jobhunt.json", (
+            "the production geometry must render exactly as the live one does; "
+            "got %r" % (report["source"],)
+        )
         assert report["source"] in report["config_status"], (
             "config_status carries a different path from source -- it is built "
             "from the raw value and was not relativised with it"
@@ -359,3 +513,138 @@ class TestTheAnchorIsDefinedOnce:
 
         assert paths.CHECKOUT_ROOT == REPO_ROOT
         assert (paths.CHECKOUT_ROOT / "instahyre_server" / "server.py").exists()
+
+
+# ---------------------------------------------------------------------------
+# 4. The ERROR path -- where the leak survived both path fields being clean
+# ---------------------------------------------------------------------------
+#
+# Relativising the path FIELDS was not enough, and the gap is not obvious from
+# reading the fields. jobcore's loader COMPOSES its messages with the absolute
+# path already baked into the sentence --
+#
+#     f"{path} is not valid JSON: {exc}"
+#     f"cannot read {path}: {exc}"
+#     f"could not append to {ledger}: {exc}"
+#
+# -- and those strings reach a caller through ``config_error``, which is then
+# interpolated into ``config_status``. So the healthy path rendered
+# "../../config/jobhunt.json" while ONE unparseable file put the whole machine
+# layout back on the wire.
+#
+# Worse, ``policy.summary()`` surfaces ``config_error`` verbatim, and that block
+# is spread into ``instahyre_rank_jobs`` and ``instahyre_inbound_digest``. The
+# leak therefore reappears in tools that mention no file anywhere in their
+# source, which is exactly where nobody would look for it.
+#
+# The fix passes ``display`` DOWN into jobcore rather than post-processing more
+# fields here, so there is one place a path is rendered and no list of fields to
+# keep in sync.
+
+
+#: Not JSON, and unmistakably so. The parse error jobcore reports for this
+#: names a line and column, which is content the fix must NOT destroy.
+BROKEN_JSON = '{"config_version": 1, "scoring": {"weights": {"skills": 0.7,,,}}'
+
+
+def point_at_broken_config(tmp_path, monkeypatch):
+    """Aim the loader at an unparseable file and return its path."""
+    path = tmp_path / "config" / "jobhunt.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(BROKEN_JSON, encoding="utf-8")
+    monkeypatch.setenv("JOBHUNT_CONFIG", str(path))
+    policy.invalidate_cache()
+    return path
+
+
+class TestTheErrorPathCarriesNoPathEither:
+
+    def test_the_broken_config_really_does_produce_an_error__CONTROL(
+        self, tmp_path, monkeypatch
+    ):
+        """Without this, the guard below could pass by testing nothing.
+
+        If ``BROKEN_JSON`` ever became parseable -- a typo, a jobcore change
+        that tolerates trailing commas -- then ``config_error`` would be None,
+        there would be no prose to leak, and a scan of the payload would come
+        back clean while proving absolutely nothing. So the precondition is
+        asserted as its own test rather than assumed.
+
+        This control is platform-independent on purpose. A control that can
+        only fail on Windows is not a control on an ubuntu runner, which is the
+        defect that made this whole retrofit necessary.
+        """
+        _, config = production_geometry(tmp_path, monkeypatch, content=BROKEN_JSON)
+        loaded = policy.current()
+
+        assert loaded.config_error, "the fixture parsed cleanly; it is not a fixture"
+        assert str(config) in loaded.config_error, (
+            "jobcore no longer bakes the absolute path into the message, so "
+            "this whole test class is testing a defect that no longer exists"
+        )
+        assert payload_contains({"e": loaded.config_error}, str(config)), (
+            "the exact-string detector cannot see the very leak it exists for"
+        )
+
+    def test_an_unparseable_config_leaks_no_absolute_path_through_prose(
+        self, tmp_path, monkeypatch
+    ):
+        """The same walkers as the healthy path, pointed at the error path."""
+        _, config = production_geometry(tmp_path, monkeypatch, content=BROKEN_JSON)
+
+        assert_no_leak(offline_tool_payloads(monkeypatch), config)
+
+    def test_the_error_is_still_an_answer(self, tmp_path, monkeypatch):
+        """Scrubbed into uselessness is the same defect class, not a fix.
+
+        Three things must survive: the file must still be NAMED, the message
+        must still say what went WRONG, and it must still carry the parser's
+        own detail. An error that says only "config error" cannot be acted on,
+        and swapping a leak for that is not an improvement.
+        """
+        _, config = production_geometry(tmp_path, monkeypatch, content=BROKEN_JSON)
+
+        report = server_module.instahyre_config()
+        error = report["config_error"]
+
+        assert error, "the error was emptied rather than relativised"
+        assert not payload_contains({"e": error}, str(config))
+        assert not ABSOLUTE_LOCAL.search(error)
+        assert "jobhunt.json" in error, "the message no longer names the file"
+        assert "not valid JSON" in error, "the message no longer says what went wrong"
+        assert any(char.isdigit() for char in error), (
+            "the parser's own detail (line/column) was scrubbed out with the path"
+        )
+
+        status = report["config_status"]
+        assert not payload_contains({"s": status}, str(config))
+        assert not ABSOLUTE_LOCAL.search(status)
+        assert "jobhunt.json" in status
+
+    def test_the_scoring_tools_do_not_leak_it_through_the_shared_summary(
+        self, tmp_path, monkeypatch
+    ):
+        """``policy.summary()`` is spread into tools that render no path.
+
+        Named separately from the walker above because the mechanism is
+        different and worth pinning on its own: this is not a path FIELD that
+        somebody forgot to render, it is a whole error SENTENCE riding into a
+        scoring result on a shared provenance block.
+        """
+        _, config = production_geometry(tmp_path, monkeypatch, content=BROKEN_JSON)
+        client = make_client(
+            {C.EP_JOB_SEARCH: json_response(fixture_json("search_backend_blr.json"))}
+        )
+        monkeypatch.setattr(server_module, "_client", client)
+
+        ranked = server_module.instahyre_rank_jobs(my_skills=["Java"], top_n=3)
+
+        assert ranked["config_error"], (
+            "rank_jobs stopped reporting the config error at all -- silence is "
+            "not the fix; a wrong score with no explanation is worse than a leak"
+        )
+        assert not payload_contains(ranked, str(config)), payload_contains(
+            ranked, str(config)
+        )
+        assert not absolute_paths_in(ranked), absolute_paths_in(ranked)
+        assert "jobhunt.json" in ranked["config_error"]

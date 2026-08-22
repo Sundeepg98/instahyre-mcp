@@ -39,6 +39,7 @@ from typing import Any, Optional
 
 from jobcore import config as _jobcore_config
 from jobcore.config import Loaded
+from jobcore.paths import relativise_known
 
 from .paths import display_path
 
@@ -123,8 +124,16 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
     }
     # Only surfaced when there is something to say. A quiet field that is
     # always ``null`` trains a reader to stop looking at it.
+    #
+    # RENDERED THROUGH ``_prose``, and this is the field that made the first
+    # pass of this fix incomplete. ``config_error`` is not a path, it is a
+    # SENTENCE jobcore composed with the path already inside it -- and this
+    # block is spread into ``instahyre_rank_jobs`` and
+    # ``instahyre_inbound_digest``, so one unparseable config file put the
+    # machine's layout into two SCORING results that name no file anywhere in
+    # their own source.
     if loaded.config_error:
-        out["config_error"] = loaded.config_error
+        out["config_error"] = _prose(loaded, loaded.config_error)
     if loaded.tier_c_refusals:
         out["tier_c_refusals"] = list(loaded.tier_c_refusals)
     if loaded.external_edit:
@@ -132,33 +141,21 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
     return out
 
 
-def _relativised(out: dict) -> dict:
-    """Render every path in a jobcore config report against this checkout.
+def _prose(loaded: Loaded, text: Any) -> Any:
+    """Render any absolute path that jobcore BAKED INTO a composed message.
 
-    THREE FIELDS, NOT ONE, and the third is the one that gets forgotten.
-    ``config_status`` is a jobcore ``@property`` that INTERPOLATES the raw
-    source into a sentence -- ``"loaded from <path>"``, or the whole
-    ``searched`` list joined when nothing was found. Relativising ``source``
-    and ``searched`` and leaving that sentence alone would fix two fields and
-    leave the full absolute path sitting in the third, which is why it is
-    REBUILT here from the already-rendered values rather than copied.
+    Renaming a path field does not reach a path that was never in a field.
+    jobcore's loader composes ``f"{path} is not valid JSON: {exc}"``,
+    ``f"cannot read {path}: {exc}"`` and ``f"could not append to {ledger}:
+    {exc}"``, so the leak survives in prose after every path FIELD is clean.
+    Measured on 2026-08-22: one unparseable ``jobhunt.json`` and the full
+    machine layout was back in four places at once.
 
-    The error branch is deliberately left untouched: when ``config_error`` is
-    set jobcore's status is ``"error: <message>"``, which carries the parser's
-    own words about a malformed file and no interpolated path of ours to
-    correct.
+    Substitution is EXACT -- only strings the snapshot already knows it holds
+    are replaced, never a regex hunt for path-shaped text, which would
+    eventually eat a URL or a quoted API route.
     """
-    out["source"] = display_path(out.get("source"))
-    out["searched"] = [display_path(entry) for entry in out.get("searched") or ()]
-    if not out.get("config_error"):
-        if out["source"] is None:
-            out["config_status"] = (
-                "no file found; built-in defaults in use. searched: "
-                + (", ".join(out["searched"]) if out["searched"] else "(nothing)")
-            )
-        else:
-            out["config_status"] = "loaded from %s" % out["source"]
-    return out
+    return relativise_known(text, known=loaded.known_paths, render=display_path)
 
 
 def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> dict:
@@ -170,7 +167,13 @@ def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> di
     """
     if loaded is None:
         loaded = current()
-    full: dict[str, Any] = _relativised(loaded.report(server=SERVER))
+    # ``display`` is handed DOWN rather than the result post-processed here.
+    # jobcore then renders ``source``, ``searched`` AND the prose of
+    # ``config_status`` / ``config_error`` / ``ledger_error`` in one place,
+    # using the anchor this server supplies. The hand-maintained version of
+    # this that lived here rendered three fields and missed the other three,
+    # because a list of fields to keep in sync is a list that falls behind.
+    full: dict[str, Any] = loaded.report(server=SERVER, display=display_path)
     if section is None:
         return full
     key = str(section).strip().lower()

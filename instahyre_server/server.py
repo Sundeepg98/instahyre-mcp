@@ -682,7 +682,38 @@ def instahyre_server_info() -> dict:
     Also reports the local index size, request count this process, and the
     known-absent data fields. Costs no request.
     """
-    client = get_client()
+    # DELIBERATELY NOT get_client(). This tool is reached for when the server is
+    # already suspect, and building the client would open the sqlite store,
+    # restore the session cookies and install a process-wide global -- changing
+    # the thing under investigation in order to describe it. It reads the client
+    # if one exists and reports honestly when one does not.
+    #
+    # NOT a claim of total inertness, and the difference is worth stating rather
+    # than glossing: default_db_path() below still mkdirs the state directory.
+    # That is pre-existing, idempotent, and creates no file; what is removed
+    # here is the client, the sqlite connection and the global.
+    client = _client
+    if client is None:
+        live = {
+            "requests_this_process": 0,
+            "min_seconds_between_requests": C.DEFAULT_MIN_INTERVAL_S,
+            # NOT zeros. An index nobody opened is not an empty index, and
+            # reporting {"jobs_indexed": 0} would send a reader hunting for a
+            # sync problem that does not exist.
+            "index": {
+                "status": "not read -- no client exists in this process yet",
+                "why": (
+                    "this tool does not build one; call any data tool first, "
+                    "or instahyre_sync_index to populate the index"
+                ),
+            },
+        }
+    else:
+        live = {
+            "requests_this_process": client.http.request_count,
+            "min_seconds_between_requests": client.http.min_interval,
+            "index": client.store.index_stats(),
+        }
     return {
         "server": "instahyre",
         "tier": "public tools always live; authenticated tools need instahyre_login",
@@ -690,13 +721,11 @@ def instahyre_server_info() -> dict:
         # would make a stale process report the commit sitting on disk, which
         # reads as confirmation that the fix is loaded and is false.
         "build": buildinfo.build_block(),
-        "requests_this_process": client.http.request_count,
-        "min_seconds_between_requests": client.http.min_interval,
         "scoring_engine": scoring.ENGINE,
         "scoring_engine_version": scoring.ENGINE_VERSION,
         "config": policy.summary(),
-        "index": client.store.index_stats(),
         "state_dir": display_path(str(default_db_path().parent)),
+        **live,
         "not_available_on_this_platform": {
             "salary": "0% of jobs disclose pay; no structured field exists",
             "posting_date": "no date field on any endpoint; use instahyre_sync_index instead",

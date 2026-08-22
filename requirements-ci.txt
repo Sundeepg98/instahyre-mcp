@@ -40,4 +40,35 @@
 # exactly what the sibling naukri repo got wrong today -- it shipped a
 # `from jobcore.policy import ...` while pinned to the commit before that module
 # existed, and CI was red for three pushes.
-jobcore @ git+https://github.com/Sundeepg98/jobcore@16ae934bca8aeff409674f6b89153d781868360e
+#
+# BUMPED 2026-08-22 to d1720c3, and this one is worth reading because the
+# paragraph above did not prevent it. Commit 4bfd986 in THIS repo added
+# `instahyre_server/buildinfo.py` (imports `jobcore.buildinfo`) and
+# `instahyre_server/paths.py` (imports `jobcore.paths`) and left this line on
+# 16ae934 -- a commit whose `src/jobcore/` contains seven files and NEITHER of
+# those modules. Every local run stayed green, because a local venv installs
+# jobcore EDITABLE from ../jobcore and therefore always has whatever is newest
+# on disk; CI installs from this pin and dies at COLLECTION with
+# `ModuleNotFoundError: No module named 'jobcore.buildinfo'`. That asymmetry is
+# the whole trap: the local suite cannot fail this way, so nothing on a
+# developer box will ever tell you the pin is stale. The follow-up commit needs
+# 0f557eb specifically anyway -- `Loaded.report(display=...)`,
+# `Loaded.status_for`, `Loaded.known_paths` and `jobcore.paths.relativise_known`
+# all arrived there. The pin is d1720c3 rather than 0f557eb because 0f557eb's
+# own CI was red; pinning a red commit is how a green CI here stops meaning
+# anything. d1720c3 is jobcore master, CI green, and 0f557eb is its ancestor.
+#
+# This was not a prediction. CI on 4bfd986 was RED on Python 3.10 and 3.11,
+# every collection, with:
+#     ImportError: cannot import name 'paths' from 'jobcore'
+#     ImportError: cannot import name 'buildinfo' from 'jobcore'
+# Note the SHAPE. This repo writes `from jobcore import buildinfo`, so a stale
+# pin reads as `ImportError: cannot import name`; the sibling naukri repo writes
+# `import jobcore.paths` and the identical root cause reads as
+# `ModuleNotFoundError`. Two messages, one bug -- worth knowing before deciding
+# you are looking at two.
+#
+# THE CHECK, before pushing anything that adds a `from jobcore...` import:
+#     git -C ../jobcore ls-tree --name-only <this pin> src/jobcore/
+# If the module you just imported is not in that listing, CI is already red.
+jobcore @ git+https://github.com/Sundeepg98/jobcore@d1720c3b5709adf082ff5be26d23c76d8647d599
