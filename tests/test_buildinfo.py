@@ -38,7 +38,44 @@ scores just as silently, so it is stamped separately rather than folded in.
 
 from __future__ import annotations
 
+from jobcore.buildinfo import BuildStamp as _BuildStamp
+
+from instahyre_server import buildinfo as buildinfo_module
 from instahyre_server import server as server_module
+
+#: What CI actually gets. pip installs jobcore from a git URL into
+#: site-packages, which is NOT a work tree, so there is no commit to report --
+#: only the released version. Built by hand rather than by uninstalling
+#: jobcore, so the property assertions below are exercised against the CI shape
+#: on a developer box, where every one of them would otherwise be trivially
+#: satisfied by the editable install's commit.
+PACKAGE_SHAPED = _BuildStamp(
+    version="0.2.0",
+    resolved_at="2026-08-22T00:00:00+00:00",
+    source="package",
+    detail="not inside a git work tree; reporting the installed jobcore version instead",
+)
+
+#: No work tree AND no installed distribution: the echo has gone silent. This
+#: is the state the assertions must still REJECT -- see the control.
+SILENT = _BuildStamp(
+    resolved_at="2026-08-22T00:00:00+00:00",
+    source="unknown",
+    detail="not inside a git work tree",
+)
+
+
+def identifies_the_code(stamp: dict) -> bool:
+    """The PROPERTY the old ``== "git"`` assertion was reaching for.
+
+    A stamp is useful when it names the code by SOME handle -- a commit from a
+    work tree, or a released version from a package install. Which handle
+    depends on how the dependency was installed, and asserting one of them
+    asserts an environment rather than a property.
+    """
+    return stamp["source"] in ("git", "package") and bool(
+        stamp.get("commit") or stamp.get("version")
+    )
 
 
 class TestTheBuildBlockIsPresentAndFrozen:
@@ -92,22 +129,32 @@ class TestTheBuildBlockIsPresentAndFrozen:
         assert code["resolved_at"]
 
     def test_jobcore_is_stamped_separately_from_instahyre(self):
-        """Two checkouts, two commits, one payload.
+        """Two checkouts, two identities, one payload.
 
-        The scoring arithmetic lives in jobcore and is installed editable from
-        a sibling checkout, so it moves independently. Folding both into one
-        stamp would make a stale jobcore invisible -- the server's own commit
-        would match disk and the numbers would still be wrong.
+        The scoring arithmetic lives in jobcore and moves independently, so
+        folding both into one stamp would make a stale jobcore invisible --
+        this server's own commit would match disk and the numbers would still
+        be wrong.
+
+        REWRITTEN 2026-08-22. This asserted ``core["source"] == "git"``, which
+        was not wrong-headed but WAS environment-specific: it is true only
+        where jobcore is an editable install from a sibling checkout. On CI pip
+        installs it from a git URL into site-packages, which is not a work tree,
+        so the stamp correctly said ``unknown`` and the test failed with
+        ``assert 'unknown' == 'git'``. The property it was really reaching for
+        is "the stamp identifies the code", and a package install identifies it
+        by VERSION rather than by commit.
         """
         info = server_module.instahyre_server_info()
 
         code = info["build"]["code"]
         core = info["build"]["jobcore"]
-        assert core["source"] == "git"
-        assert core["commit"], "jobcore was not stamped"
-        assert core["commit"] != code["commit"], (
-            "instahyre and jobcore reported the same commit, which means one "
-            "stamp is standing in for both and a stale jobcore would be invisible"
+        assert identifies_the_code(core), (
+            "jobcore's stamp names neither a commit nor a version: %r" % (core,)
+        )
+        assert core != code, (
+            "instahyre and jobcore returned the same stamp, which means one is "
+            "standing in for both and a stale jobcore would be invisible"
         )
 
     def test_the_process_block_reports_this_pid_and_a_moving_uptime(self):
@@ -178,16 +225,24 @@ class TestTheDiagnosticIsInert:
         The three things a suspect server is interrogated for -- which code,
         which config, since when -- are exactly the three that do not need a
         client, so refusing to build one costs the diagnostic nothing.
+
+        REWRITTEN 2026-08-22, same cause as
+        ``test_jobcore_is_stamped_separately_from_instahyre``: this asserted
+        ``info["build"]["jobcore"]["commit"]`` outright and failed on CI with a
+        bare ``assert None``, because a package install has no commit. It now
+        asserts that jobcore is IDENTIFIED, by whichever handle that install
+        has. THIS SERVER's own commit is still asserted directly: instahyre is
+        a checkout in every environment it runs in, including CI, so there is
+        no second shape to allow for.
         """
         monkeypatch.setattr(server_module, "_client", None)
 
         info = server_module.instahyre_server_info()
 
         assert info["build"]["code"]["commit"]
-        assert info["build"]["jobcore"]["commit"]
+        assert identifies_the_code(info["build"]["jobcore"])
         assert info["build"]["process"]["pid"]
         assert info["config"]["scoring_hash"]
-        assert info["server"] == "instahyre"
 
     def test_the_index_says_absent_rather_than_reporting_an_empty_one(
         self, monkeypatch
@@ -242,3 +297,80 @@ class TestTheDiagnosticIsInert:
         server_module.instahyre_list_job_functions()
 
         assert client.routes.count() > 0
+
+
+# ---------------------------------------------------------------------------
+# The relaxed assertion must still have teeth
+# ---------------------------------------------------------------------------
+#
+# `source in ("git", "package")` is weaker than `source == "git"`, and a
+# weakened assertion that nobody proved still bites is how a test quietly stops
+# testing. The original was pointing at something true -- a version echo that
+# goes silent is useless -- so the replacement has to REJECT silence just as
+# firmly, and be shown doing it.
+#
+# These run the real tool against a hand-built jobcore stamp, so both install
+# shapes are exercised on a developer box where only one of them exists.
+
+
+class TestBothInstallShapesAreCovered:
+
+    def test_a_package_install_still_satisfies_the_property(self, monkeypatch):
+        """The CI shape, asserted here rather than only discovered on a runner.
+
+        This is the exact stamp the ubuntu job produces: no work tree, so no
+        commit, but a real installed version. The rewritten assertion must
+        accept it -- that is the whole point of the rewrite -- and the payload
+        must still name jobcore by SOMETHING.
+        """
+        monkeypatch.setattr(buildinfo_module, "JOBCORE_BUILD", PACKAGE_SHAPED)
+
+        core = server_module.instahyre_server_info()["build"]["jobcore"]
+
+        assert identifies_the_code(core)
+        assert core["source"] == "package"
+        assert core["version"] == "0.2.0"
+        assert core["commit"] is None, (
+            "a package install has no commit; inventing one would be the "
+            "plausible-looking hash this whole module exists to prevent"
+        )
+
+    def test_a_silent_stamp_is_still_rejected__CONTROL(self, monkeypatch):
+        """The teeth. Without this the relaxation is unmeasured.
+
+        ``unknown`` with no version is a stamp that identifies nothing, which
+        is precisely the failure the original ``== "git"`` assertion would have
+        caught. If this ever passes, the property check has been loosened into
+        something that cannot fail and the version echo can go silent unnoticed.
+        """
+        monkeypatch.setattr(buildinfo_module, "JOBCORE_BUILD", SILENT)
+
+        core = server_module.instahyre_server_info()["build"]["jobcore"]
+
+        assert not identifies_the_code(core), (
+            "the property check accepted a stamp naming neither commit nor "
+            "version -- it can no longer detect a silent version echo"
+        )
+
+    def test_the_version_does_not_appear_by_magic__CONTROL(self):
+        """A distribution that is not installed reports nothing, not a guess.
+
+        Pinned here as well as upstream because this server is what would
+        display the invented value, and a version nobody measured is worse than
+        an honest ``unknown``.
+        """
+        import tempfile
+        from pathlib import Path
+
+        from jobcore import buildinfo as jobcore_buildinfo
+
+        outside = Path(tempfile.mkdtemp()) / "notarepo" / "__init__.py"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("", encoding="utf-8")
+
+        real = jobcore_buildinfo.resolve(outside, "jobcore")
+        assert real.source == "package" and real.version
+
+        fake = jobcore_buildinfo.resolve(outside, "not-a-real-distribution-xyz")
+        assert fake.source == "unknown"
+        assert fake.version is None

@@ -29,13 +29,23 @@ guard, and it is built so it cannot pass against a re-resolving build: it makes
 ``subprocess.run`` raise, so an implementation that shells out on the request
 path dies rather than quietly returning a fresh answer.
 
-TWO REPOSITORIES, TWO STAMPS
-----------------------------
-This server's scoring arithmetic is jobcore's, installed editable from a
-sibling checkout, so the two move independently. A stale jobcore is exactly as
-invisible as a stale server and shifts every fit score just as silently -- with
-this server's own commit matching disk the whole time. Folding them into one
-stamp would hide precisely that case, so jobcore is stamped separately.
+TWO REPOSITORIES, TWO STAMPS -- AND TWO WAYS TO BE INSTALLED
+------------------------------------------------------------
+This server's scoring arithmetic is jobcore's, so the two move independently. A
+stale jobcore is exactly as invisible as a stale server and shifts every fit
+score just as silently -- with this server's own commit matching disk the whole
+time. Folding them into one stamp would hide precisely that case, so jobcore is
+stamped separately.
+
+The two are also installed differently depending on where this runs, and the
+stamp has to survive both. On the operator's box jobcore is an EDITABLE install
+from a sibling checkout, so it has a work tree and a commit. On CI, and on any
+deployment, pip installs it from a git URL into site-packages, which is not a
+work tree: there is no commit to report and asking for one yields ``unknown``.
+``self_stamp()`` reports the commit where one exists and the installed VERSION
+where one does not, so the echo stays useful in the environment where nobody
+can just run ``git log``. Its ``source`` field says which answer you are
+looking at: ``"git"``, ``"package"``, or ``"unknown"``.
 
 NOTHING HERE MAY BREAK SERVER IMPORT. Every git call inside jobcore is bounded
 by a timeout and every failure degrades to a ``source="unknown"`` stamp that
@@ -45,7 +55,6 @@ hash nobody measured is the defect this module exists to prevent.
 
 from __future__ import annotations
 
-import jobcore
 from jobcore import buildinfo as _jobcore_buildinfo
 
 from .paths import CHECKOUT_ROOT
@@ -57,12 +66,19 @@ __all__ = ["BUILD", "JOBCORE_BUILD", "CLOCK", "build_block"]
 #: a reader is asking.
 BUILD = _jobcore_buildinfo.stamp(CHECKOUT_ROOT)
 
-#: The commit the installed jobcore was at when this process imported it.
-#: Stamped from ``jobcore.__file__`` rather than a guessed sibling directory,
-#: so it follows the editable install wherever it actually points -- and
-#: honestly reports ``unknown`` under a normal wheel, where there is no work
-#: tree to read and no true answer to give.
-JOBCORE_BUILD = _jobcore_buildinfo.stamp(jobcore.__file__)
+#: What the installed jobcore IS -- commit where there is a work tree, released
+#: version where there is not.
+#:
+#: ``self_stamp()``, not ``stamp(jobcore.__file__)``, and CI is what taught the
+#: difference. The old call answered correctly on this box, where jobcore is an
+#: editable install from a sibling checkout, and answered ``unknown`` on the
+#: runner, where pip installs it from a git URL into site-packages -- which is
+#: not a work tree, so "which commit" genuinely has no answer there. A version
+#: echo that goes silent on a DEPLOYED server is silent in exactly the
+#: environment where nobody can run ``git log``, which is the one place it was
+#: built for. jobcore now answers the question that DOES have an answer there:
+#: ``source="package"`` and the installed version.
+JOBCORE_BUILD = _jobcore_buildinfo.self_stamp()
 
 #: When this process came up. Deliberately NOT part of the frozen stamps:
 #: uptime is derived fresh on every call, because a cached uptime is a lie that
