@@ -68,7 +68,28 @@
 # `ModuleNotFoundError`. Two messages, one bug -- worth knowing before deciding
 # you are looking at two.
 #
-# THE CHECK, before pushing anything that adds a `from jobcore...` import:
+# BUMPED AGAIN 2026-08-22 to 998baf1 (third bump in one day). jobcore now
+# reports a pip-installed dependency by VERSION where there is no work tree to
+# read a commit from, via `buildinfo.self_stamp()`, which instahyre_server/
+# buildinfo.py calls. d1720c3 has the buildinfo MODULE but not that FUNCTION,
+# so the stale-pin failure that time was:
+#     AttributeError: module 'jobcore.buildinfo' has no attribute 'self_stamp'
+#
+# THE RULE, learned the same way three times: a `from jobcore...` import and a
+# pin bump are ONE change, never two. Local green says nothing about it -- the
+# local venv is editable from ../jobcore and always has the newest code, so the
+# local suite CANNOT fail this way.
+#
+# THIS IS NOW CHECKED MECHANICALLY. tests/test_jobcore_pin.py reads this pin,
+# reads jobcore's source AT THAT COMMIT out of the ../jobcore clone (offline,
+# no fetch, never imported), and asserts every jobcore MODULE and every NAME
+# and ATTRIBUTE this repo uses exists there. It caught this very bump before
+# it was pushed. It skips cleanly when the sibling clone is absent, so it is a
+# local pre-push guard, not a CI check -- which is the right place for it,
+# because CI is the round trip it exists to save.
+#
+# The manual version, still useful for a quick look:
 #     git -C ../jobcore ls-tree --name-only <this pin> src/jobcore/
-# If the module you just imported is not in that listing, CI is already red.
-jobcore @ git+https://github.com/Sundeepg98/jobcore@d1720c3b5709adf082ff5be26d23c76d8647d599
+# If the module you just imported is not in that listing, CI is already red --
+# and note that a listing CANNOT show you a missing attribute.
+jobcore @ git+https://github.com/Sundeepg98/jobcore@998baf12aa1095fae8cc8cdb7de4b44fe469019f
