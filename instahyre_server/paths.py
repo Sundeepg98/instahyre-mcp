@@ -132,6 +132,15 @@ def relativise_prose(text: Any, known) -> Any:
     than by un-escaping the needle: collapsing ``\\`` to ``\`` would corrupt a
     UNC path, whose leading ``\\`` is not an escape at all.
 
+    NOT REDUNDANT ONCE THE PIN CARRIES jobcore 6acc7e6, which closes the same
+    class upstream. It will read as dead weight to the next person here, and it
+    is not: unlike the sibling servers this repo has NO server-wide boundary
+    scrubber over tool results, so this function is the ONLY thing between a
+    composed error message and the wire. jobcore fixing its own pass narrows
+    what reaches here; it does not cover the sites jobcore never sees, which is
+    why ``profile_write.load_snapshot`` needed this too. Retire it only if a
+    boundary scrubber is added, and then deliberately.
+
     Args:
         text: any value; non-strings are returned untouched.
         known: the path strings this caller knows it may have emitted.

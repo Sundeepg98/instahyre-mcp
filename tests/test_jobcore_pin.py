@@ -49,6 +49,7 @@ this locally, BEFORE the push, which is the round trip that costs the time.
 from __future__ import annotations
 
 import ast
+import locale
 import re
 import subprocess
 from pathlib import Path
@@ -80,8 +81,23 @@ def pinned_sha() -> str:
 
 
 def _git(*args: str):
+    """One git call against the sibling clone, decoded as UTF-8. Never `text=True`.
+
+    `text=True` decodes with the PLATFORM's preferred encoding, and that is not
+    a property of the data -- jobcore's sources are UTF-8 on every box. On a
+    cp1252 machine `src/jobcore/skills.py` (bytes 0x90, 0x9D) kills the reader
+    THREAD, and because the death is on a thread it does not propagate:
+    subprocess.run returns returncode 0 with stdout None, which this function
+    would then hand back as a successful empty read. See the guard and control
+    at the bottom of this file for the measurement.
+
+    `errors="strict"` on purpose. A replacement-character fallback would let a
+    genuinely corrupt source through as almost-right text, and this file exists
+    to stop checks that silently measure the wrong thing.
+    """
     result = subprocess.run(
-        ["git", "-C", str(JOBCORE_CLONE), *args], capture_output=True, text=True
+        ["git", "-C", str(JOBCORE_CLONE), *args],
+        capture_output=True, encoding="utf-8", errors="strict",
     )
     return result.stdout if result.returncode == 0 else None
 
@@ -346,3 +362,120 @@ def test_a_pin_missing_the_module_is_caught():
             "the check did not catch missing jobcore.%s; it reported %r"
             % (module, problems)
         )
+
+
+# ---------------------------------------------------------------------------
+# The reader that can silently measure nothing
+# ---------------------------------------------------------------------------
+#
+# `subprocess.run(..., text=True)` decodes with the PLATFORM's preferred
+# encoding. On this box that is cp1252, and jobcore's sources are UTF-8:
+# `src/jobcore/skills.py` contains bytes 0x90 and 0x9D, which are UNDEFINED in
+# cp1252. The decode happens on a reader THREAD, so it does not propagate --
+# the thread dies, its traceback goes to stderr, and `subprocess.run` returns
+#
+#     returncode = 0        stdout = None
+#
+# Measured, not inferred. Note `None`, not `""`: the scanner's `_git()` maps a
+# zero returncode straight to `result.stdout`, so a caller receives `None` from
+# what looks like a successful call.
+#
+# BOTH FAILURE DIRECTIONS ARE REAL, and one of them is silent:
+#
+#   * `modules_at()` does `_git(...) or ""` -> empty listing -> EVERY module
+#     reported MODULE MISSING. Loud, wrong, and at least visible.
+#   * `source_at()` -> None -> `names_of()` returns None -> the
+#     `present is not None` branch is skipped -> every NAME in that module is
+#     accepted without being checked. Silent, and it passes.
+#
+# The second is the failure class this whole wave exists to close: a check that
+# cannot fail because it can no longer see. It is dormant here only because
+# nothing in this repo imports from `jobcore.skills` today -- `DEFAULT_TAXONOMY`
+# arrives through the package's re-export, so `skills.py` is never read. One
+# `from jobcore.skills import ...` makes it live, and it would make the pin
+# check quietly stop checking rather than fail.
+#
+# Found by the naukri slice in its own copy of this file and flagged across.
+
+
+def _decoded_with(encoding: str):
+    """One `git show` of a known non-ASCII module, decoded with `encoding`.
+
+    Returns the subprocess result. Used to pin the MECHANISM rather than argue
+    about it, and deterministic on every platform because the encoding is
+    passed explicitly instead of inherited from the box.
+    """
+    return subprocess.run(
+        ["git", "-C", str(JOBCORE_CLONE), "show",
+         "%s:src/jobcore/%s.py" % (pinned_sha(), NON_ASCII_MODULE)],
+        capture_output=True, encoding=encoding, errors="strict",
+    )
+
+
+#: A jobcore module that really does carry bytes cp1252 cannot represent.
+#: Named as a constant so that if jobcore ever sanitises it, the control below
+#: fails loudly and says so rather than quietly testing nothing.
+NON_ASCII_MODULE = "skills"
+
+
+def test_every_module_at_the_pin_reads_back_non_empty():
+    """The guard. A source that reads back empty means the reader failed silently.
+
+    This is the assertion that was missing: the scanner trusted a zero
+    returncode and never checked that anything actually came back. Every module
+    present at the pinned commit is read, and a file cannot legitimately be
+    empty -- jobcore has no zero-byte modules -- so empty means the decode died.
+    """
+    sha = pinned_sha()
+    _require_clone(sha)
+
+    empty = []
+    for module in sorted(modules_at(sha)):
+        source = source_at(sha, module)
+        if not source:
+            empty.append("%s (got %r)" % (module, source))
+
+    assert not empty, (
+        "these modules read back empty from the pinned commit, which means the "
+        "reader failed and the scanner would measure NOTHING for them:\n  %s\n"
+        "This box decodes subprocess output as %r. jobcore's sources are UTF-8, "
+        "so a non-UTF-8 preferred encoding kills the reader thread while "
+        "subprocess.run still reports returncode 0."
+        % ("\n  ".join(empty), locale.getpreferredencoding(False))
+    )
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_the_platform_decoder_loses_the_source_and_utf8_keeps_it__CONTROL():
+    """The mechanism, pinned. Deterministic on Windows AND on the runner.
+
+    Both encodings are passed EXPLICITLY rather than inherited, so this asserts
+    the same thing on a cp1252 box and on a UTF-8 one: cp1252 cannot represent
+    these bytes, loses the whole payload, and still reports success; UTF-8
+    returns the file.
+
+    If jobcore ever removes the non-ASCII bytes from that module this fails,
+    which is correct -- the control would otherwise be silently testing an
+    empty claim.
+    """
+    _require_clone(pinned_sha())
+
+    lossy = _decoded_with("cp1252")
+    good = _decoded_with("utf-8")
+
+    assert good.returncode == 0 and good.stdout, (
+        "utf-8 could not read jobcore/%s.py; this control's premise is gone"
+        % NON_ASCII_MODULE
+    )
+    assert any(ord(ch) > 127 for ch in good.stdout), (
+        "jobcore/%s.py no longer contains non-ASCII bytes, so this control no "
+        "longer exercises anything -- retire it deliberately" % NON_ASCII_MODULE
+    )
+    assert lossy.returncode == 0, (
+        "the lossy decode changed the RETURNCODE; the silent-success shape this "
+        "guards against is gone and the guard can be simplified"
+    )
+    assert not lossy.stdout, (
+        "cp1252 decoded jobcore/%s.py after all, so the failure this pins does "
+        "not happen on this platform: %r" % (NON_ASCII_MODULE, lossy.stdout[:80])
+    )

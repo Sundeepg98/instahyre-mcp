@@ -88,8 +88,44 @@
 # local pre-push guard, not a CI check -- which is the right place for it,
 # because CI is the round trip it exists to save.
 #
-# The manual version, still useful for a quick look:
+# BUMPED AGAIN 2026-08-22 to 6acc7e6 (fourth bump in one day), and this one is
+# a different KIND of bump from the three above it. Those adopted new jobcore
+# NAMES and would have broken the import if forgotten. This one adopts changed
+# BEHAVIOUR behind names that already existed: 6acc7e6 teaches
+# jobcore.paths.relativise_known that a path has a second spelling, because
+# OSError.__str__ renders its filename through repr() and doubles the
+# separators on Windows.
+#
+# WHAT THAT MEANS FOR THE MECHANICAL CHECK, and it is worth stating because the
+# check reads as more protective than it is. tests/test_jobcore_pin.py verifies
+# that every jobcore module, name and attribute this repo uses EXISTS at the
+# pinned commit. It says nothing about how any of them BEHAVES. Measured, both
+# commits, same scanner:
+#
+#     998baf1   unsatisfied: NOTHING -- passes
+#     6acc7e6   unsatisfied: NOTHING -- passes
+#
+# So this bump is invisible to it, by construction. Names existing is not names
+# behaving, and no signature changed here. A behaviour bump has to be adopted
+# deliberately, by a human reading the upstream commit -- there is no check that
+# will remind you.
+#
+# WHY BUMP AT ALL, since instahyre does not need it: instahyre_server/paths.py
+# passes BOTH spellings of every needle to relativise_known itself, so the
+# repr-separator leak is already closed here at 998baf1. The reason is fleet
+# consistency -- naukri is on 6acc7e6, and one jobcore across the family for a
+# stated reason beats two by accident.
+#
+# DO NOT DELETE instahyre_server/paths.relativise_prose AS REDUNDANT once this
+# pin is in. It looks redundant now that jobcore handles the second spelling
+# upstream, and it is not: unlike the sibling servers this repo has NO
+# server-wide boundary scrubber over tool results, so relativise_prose is the
+# only boundary between a composed error message and the wire. It stays
+# load-bearing regardless of what jobcore does.
+#
+# THE CHECK, before pushing anything that adds a `from jobcore...` import:
 #     git -C ../jobcore ls-tree --name-only <this pin> src/jobcore/
 # If the module you just imported is not in that listing, CI is already red --
-# and note that a listing CANNOT show you a missing attribute.
-jobcore @ git+https://github.com/Sundeepg98/jobcore@998baf12aa1095fae8cc8cdb7de4b44fe469019f
+# and note that a listing CANNOT show you a missing attribute, and neither a
+# listing nor the automated check can show you a changed behaviour.
+jobcore @ git+https://github.com/Sundeepg98/jobcore@6acc7e6c6949676863a4e22e68bcfeae479f5026
