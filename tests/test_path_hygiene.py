@@ -66,14 +66,19 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+
+import pytest
 
 from conftest import fixture_json, json_response, make_client
 from instahyre_server import constants as C
 from instahyre_server import paths as paths_module
 from instahyre_server import policy
+from instahyre_server import profile_write
 from instahyre_server import server as server_module
+from instahyre_server.paths import repr_spelling
 
 #: A Windows absolute path: a drive letter, a colon, a separator. This is the
 #: exact shape the live sweep found, and the one a downstream reader would
@@ -88,6 +93,27 @@ from instahyre_server import server as server_module
 #: deleted within a day, so it is made exact instead: the character before the
 #: drive letter must not itself be a letter.
 ABSOLUTE_LOCAL = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]")
+
+# THE PATTERN, ASSERTED AT IMPORT -- because a detector that cannot fire is
+# worse than no detector, and this one has a known way of silently losing half
+# its character class. Measured on 2026-08-22: a bash heredoc through an agent
+# harness collapsed ``\\`` to ``\`` in the file it wrote, turning ``[\\/]``
+# into ``[\/]`` -- forward slash ONLY. The suite stayed green and the drive
+# letter detector reported CLEAN on a genuine Windows leak. A mangled copy of
+# this file must now raise at collection rather than certify nothing.
+#
+# Behavioural, not a string comparison: what matters is that both branches
+# still match and the URL lookbehind still holds, whatever the source looks
+# like.
+assert ABSOLUTE_LOCAL.search("C:" + chr(92) + "Users"), (
+    "the BACKSLASH branch of ABSOLUTE_LOCAL is dead -- this file was written "
+    "by something that collapsed its escapes, and every Windows leak "
+    "assertion below is now blind"
+)
+assert ABSOLUTE_LOCAL.search("C:/Users"), "the forward-slash branch is dead"
+assert not ABSOLUTE_LOCAL.search("https://www.instahyre.com/api"), (
+    "the lookbehind is gone and every URL is about to be reported as a leak"
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -192,18 +218,58 @@ def production_geometry(tmp_path, monkeypatch, *, content: str):
     return checkout, config
 
 
+def needles_for(config) -> list[tuple[str, str]]:
+    r"""Every SPELLING of the fixture's own paths, not just the filesystem one.
+
+    A path has more than one correct spelling, and a scrubber that knows only
+    the filesystem one is blind to the rest. ``OSError.__str__`` renders its
+    ``filename`` through ``repr()``, so an unreadable ``jobhunt.json`` reaches
+    a tool result spelled ``C:\\Users\\...`` -- the same path, doubled
+    separators -- and an exact-substring search for ``C:\Users\...`` finds
+    nothing in it and returns CLEAN.
+
+    Measured on 2026-08-22 against ``instahyre_config()``: ONE sentence
+    carrying a correctly relativised ``../../config/jobhunt.json`` and this
+    machine's full absolute layout at the same time, because the second half
+    came from ``{exc}``. The primary detector said CLEAN; only the
+    drive-letter second opinion fired -- and that is the instrument that
+    cannot fire at all on the ubuntu runner.
+
+    Adding the spelling HERE rather than at each call site is the point: every
+    existing ``assert_no_leak`` caller inherits it, including the suite-wide
+    walker, so a repr leak in a tool added next month is caught by a needle
+    written today.
+
+    Returns ``[(label, needle)]``; the label is what a failure prints, so a
+    reader can tell which spelling saw it. On POSIX the two spellings of an
+    ordinary path are identical and the second is deduplicated away, which is
+    why this costs nothing there.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for raw in (str(config), str(config.parent)):
+        for label, needle in (("exact", raw), ("exact-repr", repr_spelling(raw))):
+            if needle and needle not in seen:
+                seen.add(needle)
+                out.append((label, needle))
+    return out
+
+
 def assert_no_leak(payloads: dict, config) -> None:
     """Both detectors over every payload, the exact-string one first.
 
     Reported together so a failure says which instrument saw it: if the needle
     check fires and the regex does not, the payload is leaking on a platform
     the regex cannot see -- which is the whole reason there are two.
+
+    The exact-string detector is run once per SPELLING -- see
+    :func:`needles_for`.
     """
     leaks: list[str] = []
     for call, payload in payloads.items():
-        for needle in (str(config), str(config.parent)):
+        for label, needle in needles_for(config):
             for hit in payload_contains(payload, needle):
-                leaks.append("%s -> [exact %r] %s" % (call, needle, hit))
+                leaks.append("%s -> [%s %r] %s" % (call, label, needle, hit))
         for hit in absolute_paths_in(payload):
             leaks.append("%s -> [drive-letter] %s" % (call, hit))
     assert not leaks, (
@@ -648,3 +714,340 @@ class TestTheErrorPathCarriesNoPathEither:
         )
         assert not absolute_paths_in(ranked), absolute_paths_in(ranked)
         assert "jobhunt.json" in ranked["config_error"]
+
+
+# ---------------------------------------------------------------------------
+# 5. The REPR spelling -- one path, two spellings, and the scrubber knew one
+# ---------------------------------------------------------------------------
+#
+# Section 4 fixed the leak that survived in PROSE. This is the leak that
+# survived the fix for section 4, and the mechanism is one line of CPython:
+# ``OSError.__str__`` renders its ``filename`` through ``%R``, i.e. ``repr()``.
+# So a Windows path arrives in the message with every separator DOUBLED, and
+# the exact-substring pass -- ours and jobcore's alike -- looks for the
+# single-separator form, finds nothing, and passes the payload through clean.
+#
+# Measured on 2026-08-22, on the production geometry, with a config file that
+# existed but could not be read::
+#
+#     "config_status": "error: cannot read ../../config/jobhunt.json:
+#                       [Errno 13] Permission denied:
+#                       'C:\\Users\\Dell\\...\\config\\jobhunt.json'"
+#
+# ONE sentence, two halves, opposite verdicts. The ``{path}`` half is
+# correctly relativised -- the substitution machinery ran and worked. The
+# ``{exc}`` half is the SAME path in the other spelling, untouched.
+#
+# WHAT THIS IS NOT: a second renderer, and not the hand post-processing that
+# was deleted on 2026-08-22 for rendering three fields and missing three.
+# There is still exactly one rendering rule (``display_path``) and the
+# substitution is still exact. One more SPELLING of the same needle, offered
+# to the same primitive -- substituting only what jobcore's own pass
+# structurally could not see, because ``Loaded.known_paths`` holds the path as
+# the filesystem spells it.
+#
+# WHERE IT BITES, MEASURED RATHER THAN ASSUMED. On POSIX ``repr()`` of an
+# ordinary path is the identity, so jobcore's existing single-spelling pass
+# already scrubs ``config_status`` clean on the ubuntu runner and this class
+# does not occur there at all. The config leak is WINDOWS-ONLY, and on Windows
+# only the drive-letter second opinion caught it. ``load_snapshot`` below is
+# the opposite case: nothing scrubs its ``{exc}`` on any platform, so that one
+# leaks on the runner too.
+
+
+def deny_reads_of(monkeypatch, target) -> None:
+    """Make one file unreadable, the way a lock-holding editor makes it unreadable.
+
+    A real ``PermissionError`` built from the ``(errno, strerror, filename)``
+    triple the OS supplies -- which is exactly the object CPython constructs,
+    and the reason its ``__str__`` renders the filename through ``repr``. The
+    live condition it stands in for was produced on 2026-08-22 with a second
+    handle opened ``CreateFileW(..., dwShareMode=0)``; that is not portable to
+    the runner and the exception object is identical either way.
+
+    Scoped to ONE path on purpose. A blanket failure would break the fixture
+    reads in the payload walk as well, and the test would then pass by having
+    destroyed its own subject.
+    """
+    real_read_bytes = Path.read_bytes
+    wanted = str(target)
+
+    def denied(self):
+        if str(self) == wanted:
+            raise PermissionError(13, "Permission denied", wanted)
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", denied)
+
+
+class TestTheReprSpellingIsTheSamePath:
+
+    def test_an_oserror_spells_its_filename_with_doubled_backslashes(self, tmp_path):
+        r"""The mechanism, pinned against an exception CPython actually built.
+
+        Everything in this section rests on one behaviour: ``OSError.__str__``
+        renders ``filename`` through ``%R``. This is the only test here that
+        checks that claim against a REAL exception rather than against
+        :func:`instahyre_server.paths.repr_spelling` -- which the fix and the
+        detector both use, so if that helper and reality ever disagreed every
+        other test in this section would agree with the helper and miss it.
+
+        The doubling half is guarded on the separator, per the brief: on POSIX
+        the two spellings of an ordinary path are byte-identical and there is
+        nothing to double. If a future Python stops repr-ing the filename, the
+        FIRST assertion fails loudly on every platform, and the extra needles
+        here and in ``instahyre_server.paths`` can then be retired KNOWINGLY
+        rather than left in as cargo nobody dares touch.
+
+        This one passes on the day it is written. It is a mechanism pin, not a
+        red-first guard, and saying so is cheaper than letting a later reader
+        assume it ever caught anything.
+        """
+        raw = str(tmp_path / "config" / "jobhunt.json")
+        message = str(OSError(13, "Permission denied", raw))
+
+        assert repr_spelling(raw) in message, (
+            "OSError no longer renders its filename through repr(). The repr "
+            "needle in needles_for() and the second spelling in "
+            "instahyre_server.paths.relativise_prose are now dead weight and "
+            "can be retired -- deliberately, now that this has been noticed. "
+            "Got: %r" % (message,)
+        )
+
+        if os.sep == chr(92):
+            assert raw not in message, (
+                "the single-separator spelling is in the message after all, "
+                "so the blindness this whole section exists for is gone"
+            )
+            assert repr_spelling(raw) != raw
+            assert chr(92) + chr(92) in repr_spelling(raw), (
+                "the separators are no longer doubled: %r" % (repr_spelling(raw),)
+            )
+        else:
+            assert repr_spelling(raw) == raw, (
+                "repr() has started escaping an ordinary POSIX path, so the "
+                "second spelling is no longer a free no-op on this platform "
+                "and needs its own coverage: %r" % (repr_spelling(raw),)
+            )
+
+    def test_the_two_detectors_disagree_on_a_repr_leak__CONTROL(self):
+        r"""The opposite number of the POSIX control, and the PAIR is the finding.
+
+        ``..._sees_a_posix_leak_the_regex_cannot__CONTROL`` shows the primary
+        detector catching what the regex cannot. This shows the reverse: on a
+        repr-spelled Windows path the PRIMARY is blind and only the second
+        opinion fires. Two blind spots facing opposite directions is what
+        makes "there are two detectors" a measurement rather than a slogan,
+        and it is why neither may be dropped for being redundant.
+
+        Literal strings and no fixture, so it measures the same thing on the
+        ubuntu runner as it does here.
+        """
+        single = r"C:\Users\Dell\config\jobhunt.json"
+        doubled = repr_spelling(single)
+        payload = {
+            "config_error": "cannot read ../../config/jobhunt.json: "
+                            "[Errno 13] Permission denied: '%s'" % (doubled,)
+        }
+
+        assert doubled != single, "the fixture is not a repr leak"
+        assert not payload_contains(payload, single), (
+            "the primary detector has started seeing the repr spelling on its "
+            "own; if that is intentional, needles_for() is now redundant"
+        )
+        assert payload_contains(payload, doubled), (
+            "the repr spelling is not in the payload -- the fixture is wrong, "
+            "not the detector"
+        )
+        assert absolute_paths_in(payload), (
+            "the drive-letter regex cannot see a repr-spelled Windows path "
+            "either, which would leave this class with NO detector at all on "
+            "any platform"
+        )
+
+    def test_assert_no_leak_catches_a_repr_leak_the_regex_cannot__CONTROL(self):
+        r"""The new needle, shown catching something NOTHING ELSE could catch.
+
+        The planted path is a UNC path and that choice is the whole control:
+        ``\\fileserver\share\...`` carries no drive letter, so
+        ``absolute_paths_in`` is silent on it and the only instrument that can
+        possibly fire is the repr needle. Planted against a ``C:\`` path this
+        would pass on the strength of the second opinion and prove nothing
+        about the thing it is named for.
+
+        ``PureWindowsPath`` rather than ``Path`` so the shape is identical on
+        the runner, where ``Path`` would read the whole string as a single
+        filename and hand back ``.`` as its parent -- a needle that appears in
+        ``jobhunt.json`` and would make this pass for the wrong reason.
+        """
+        config = PureWindowsPath(r"\\fileserver\share\config\jobhunt.json")
+        doubled = repr_spelling(str(config))
+        leaking = {
+            "config_error": "cannot read ../../config/jobhunt.json: "
+                            "[Errno 13] Permission denied: '%s'" % (doubled,)
+        }
+        payloads = {"instahyre_config()": leaking}
+
+        assert not absolute_paths_in(leaking), (
+            "the planted path has a drive letter after all, so the second "
+            "opinion could carry this control and it would measure nothing"
+        )
+        assert not payload_contains(leaking, str(config)), (
+            "the filesystem spelling is present too, so the primary detector "
+            "could carry this control on its own"
+        )
+
+        with pytest.raises(AssertionError) as caught:
+            assert_no_leak(payloads, config)
+
+        assert "exact-repr" in str(caught.value), (
+            "assert_no_leak failed for some reason other than the repr "
+            "needle: %s" % (caught.value,)
+        )
+
+
+class TestAnUnreadableFileLeaksNoReprSpelledPath:
+
+    def test_an_unreadable_config_leaks_no_repr_spelled_path(
+        self, tmp_path, monkeypatch
+    ):
+        """The end-to-end case: a real OSError, all the way to a tool result.
+
+        Asserted with all three instruments by name, because the point of this
+        section is that they do NOT agree with each other -- reporting only
+        the aggregate would hide which one was carrying the assertion.
+        """
+        _, config = production_geometry(
+            tmp_path,
+            monkeypatch,
+            content=json.dumps({"config_version": 1, "revision": 1}),
+        )
+        deny_reads_of(monkeypatch, config)
+        policy.invalidate_cache()
+
+        payloads = offline_tool_payloads(monkeypatch)
+        report = payloads["instahyre_config()"]
+
+        assert report["config_error"], (
+            "the unreadable branch was not taken, so there is no prose to "
+            "leak and this test proves nothing"
+        )
+        assert "cannot read" in report["config_error"], (
+            "a different error branch was taken: %r" % (report["config_error"],)
+        )
+
+        single = str(config)
+        doubled = repr_spelling(single)
+        assert not payload_contains(report, single), payload_contains(report, single)
+        assert not payload_contains(report, doubled), payload_contains(report, doubled)
+        assert not ABSOLUTE_LOCAL.search(report["config_error"]), (
+            "config_error still carries an absolute local path: %r"
+            % (report["config_error"],)
+        )
+        assert not ABSOLUTE_LOCAL.search(report["config_status"]), (
+            "config_status still carries an absolute local path: %r"
+            % (report["config_status"],)
+        )
+
+        # The whole offline surface, because summary() is spread into the
+        # scoring tools and this error rides along with it.
+        assert_no_leak(payloads, config)
+
+        # Still an answer. Scrubbing the errno out with the path would swap
+        # this defect for the one section 4 already ruled against.
+        assert "jobhunt.json" in report["config_error"], (
+            "the message no longer names the file"
+        )
+        assert "Errno" in report["config_error"], (
+            "the operating system's own reason was scrubbed out with the path"
+        )
+
+    def test_an_unreadable_snapshot_leaks_no_repr_spelled_path(
+        self, tmp_path, monkeypatch, isolated_state_home
+    ):
+        r"""``load_snapshot``'s ``({exc})`` -- the site with no scrubber at all.
+
+        Different from the config site in a way worth stating rather than
+        leaving for a reader to work out. jobcore DOES scrub ``config_status``;
+        it simply cannot see the repr spelling, so that leak is Windows-only.
+        Here NOTHING scrubs the exception, so the absolute snapshot path ships
+        on every platform -- this test is red on the ubuntu runner too.
+
+        No mock and no live tool. A DIRECTORY named like a snapshot file makes
+        ``read_text`` raise a genuine ``OSError`` carrying the full path, and
+        ``load_snapshot`` refuses before anything is sent anywhere: the
+        irreversible surface of this server is never approached.
+        """
+        client = writer_client()
+        snapshots = profile_write.snapshots_dir()
+        bad = snapshots / "1755780000-not-a-file.json"
+        bad.mkdir(parents=True, exist_ok=True)
+
+        with pytest.raises(profile_write.WriteRefused) as caught:
+            client.profile_writer.load_snapshot("1755780000-not-a-file")
+
+        message = str(caught.value)
+        payload = {"error": message}
+
+        assert "could not be read as JSON" in message, (
+            "the OSError branch was not the one taken, so there is no "
+            "exception text to leak: %r" % (message,)
+        )
+        for label, needle in needles_for(bad):
+            assert not payload_contains(payload, needle), (
+                "[%s %r] %s" % (label, needle, payload_contains(payload, needle))
+            )
+        assert not absolute_paths_in(payload), absolute_paths_in(payload)
+
+        assert bad.name in message, "the message no longer names the snapshot"
+
+
+class TestAnUnparseableConfigIsNeverReportedAsLoaded:
+
+    def test_an_unparseable_config_does_not_report_as_loaded__PIN(
+        self, tmp_path, monkeypatch
+    ):
+        """Four failure branches, and none of them claims success.
+
+        A PIN, not a bug fix. The sibling naukri server was measured on
+        2026-08-22 reporting a config it could not parse as ``loaded from
+        ...``; instahyre was checked for the same defect and found HONEST on
+        every branch. Nothing pinned that, and the healthy-case assertion in
+        ``test_the_config_source_still_names_jobhunt_json`` structurally
+        cannot: it only ever exercises a file that parsed.
+
+        It passes on the day it is written, which is stated rather than
+        hidden. What it CAN catch is a later change that composes
+        ``config_status`` from ``source`` without consulting ``config_error``
+        -- which is the exact shape the sibling had.
+        """
+        branches = [
+            ("malformed json", BROKEN_JSON),
+            ("json but not an object", "[1, 2, 3]"),
+            ("not json at all", "weights: skills 0.7"),
+            ("undecodable bytes", b'{"config_version": 1, "note": "caf\xe9"}'),
+        ]
+
+        for label, content in branches:
+            root = tmp_path / label.replace(" ", "-")
+            _, config = production_geometry(root, monkeypatch, content="{}")
+            if isinstance(content, bytes):
+                config.write_bytes(content)
+            else:
+                config.write_text(content, encoding="utf-8")
+            policy.invalidate_cache()
+
+            report = server_module.instahyre_config()
+            status = report["config_status"]
+
+            assert report["config_error"], (
+                "[%s] parsed cleanly, so this is not a failure branch and the "
+                "assertions below would pass vacuously" % (label,)
+            )
+            assert status.startswith("error:"), (
+                "[%s] an unparseable config reports as %r" % (label, status)
+            )
+            assert "loaded from" not in status, (
+                "[%s] an unparseable config reports itself LOADED: %r"
+                % (label, status)
+            )

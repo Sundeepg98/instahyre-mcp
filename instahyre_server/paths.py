@@ -46,7 +46,19 @@ from typing import Any, Optional
 
 from jobcore import paths as _jobcore_paths
 
-__all__ = ["CHECKOUT_ROOT", "display_path"]
+# DIRECT, not read off the alias above, and the difference is not cosmetic.
+# ``tests/test_jobcore_pin.py`` decides what this repo needs from jobcore by
+# parsing these import statements, and only the dotted form
+# ``from jobcore.paths import ...`` declares a dependency on the SUBMODULE.
+# ``from jobcore import paths as _jobcore_paths`` registers a name on the
+# PACKAGE instead, and the attribute reads off that alias are then skipped
+# when the submodule is absent at the pinned commit. Until 2026-08-22 this
+# declaration lived in ``policy.py``; when the leak fix moved that call in
+# here it had to come with it, or the pin check would have quietly stopped
+# reporting ``jobcore.paths`` as a missing MODULE.
+from jobcore.paths import relativise_known
+
+__all__ = ["CHECKOUT_ROOT", "display_path", "repr_spelling", "relativise_prose"]
 
 #: This checkout's root -- the anchor every displayed path is measured against.
 #: ``instahyre_server/paths.py`` -> ``instahyre_server`` -> the repository, so
@@ -75,3 +87,73 @@ def display_path(raw: Any) -> Optional[str]:
     ``jobcore.paths`` for the CI failure that found it.
     """
     return _jobcore_paths.display_path(raw, anchor=CHECKOUT_ROOT)
+
+
+def repr_spelling(raw: Any) -> str:
+    r"""How ``OSError.__str__`` spells a filename: ``repr()`` minus its quotes.
+
+    CPython renders an ``OSError``'s ``filename`` through ``%R``, so a Windows
+    path arrives in the message with every separator DOUBLED::
+
+        OSError(13, "Permission denied", r"C:\Users\Dell\config\jobhunt.json")
+        str(...) -> [Errno 13] Permission denied: 'C:\\Users\\Dell\\config\\jobhunt.json'
+
+    That is the same path, spelled differently -- and an exact-substring
+    scrubber looking for the single-separator form finds nothing in it and
+    passes the payload through as clean. Measured on 2026-08-22 against
+    ``instahyre_config()``: ``config_status`` carried a correctly relativised
+    ``../../config/jobhunt.json`` and this machine's full absolute layout, in
+    the SAME SENTENCE, because the second half came from ``{exc}``.
+
+    On POSIX the two spellings are identical for any ordinary path, so this
+    returns its input unchanged there and the extra needle costs nothing.
+    """
+    return repr(str(raw))[1:-1]
+
+
+def relativise_prose(text: Any, known) -> Any:
+    r"""``relativise_known``, handed BOTH spellings of every path it is given.
+
+    NOT A SECOND RENDERER, and not the hand post-processing that was deleted on
+    2026-08-22. The rendering rule is still exactly one function
+    (:func:`display_path`) and the substitution is still exact -- only strings
+    the caller already KNOWS it holds are replaced. The single change is that
+    each needle is offered in its ``repr`` spelling as well, because that is a
+    spelling of the same path that jobcore's own pass structurally cannot see:
+    ``Loaded.known_paths`` holds the path as the filesystem spells it, and the
+    text it is scrubbing spells it as ``repr`` does.
+
+    Deliberately NOT a hunt for path-shaped text. A regex that went looking for
+    ``C:\`` or for slashes in arbitrary prose would eventually eat an
+    ``instahyre.com`` API route or a quoted URL, which is how a scrubber does
+    more damage than the leak it was written for.
+
+    Both spellings map to the SAME rendering, resolved through a lookup rather
+    than by un-escaping the needle: collapsing ``\\`` to ``\`` would corrupt a
+    UNC path, whose leading ``\\`` is not an escape at all.
+
+    Args:
+        text: any value; non-strings are returned untouched.
+        known: the path strings this caller knows it may have emitted.
+    """
+    renderings: dict[str, str] = {}
+    for raw in known or ():
+        if not raw:
+            continue
+        raw = str(raw)
+        rendered = display_path(raw)
+        if not rendered:
+            continue
+        renderings[raw] = str(rendered)
+        # Same rendering, second spelling. A no-op on POSIX, where the two
+        # spellings of an ordinary path are byte-identical.
+        renderings[repr_spelling(raw)] = str(rendered)
+    if not renderings:
+        return text
+    # ``relativise_known`` replaces longest needle first, which is what keeps a
+    # parent directory from being substituted inside its own child's path --
+    # and it is what makes the repr spelling safe to add, since the doubled
+    # form of a path is strictly longer than the single form.
+    return relativise_known(
+        text, known=renderings.keys(), render=renderings.__getitem__
+    )

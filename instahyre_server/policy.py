@@ -39,9 +39,8 @@ from typing import Any, Optional
 
 from jobcore import config as _jobcore_config
 from jobcore.config import Loaded
-from jobcore.paths import relativise_known
 
-from .paths import display_path
+from .paths import display_path, relativise_prose
 
 __all__ = [
     "SERVER",
@@ -142,7 +141,7 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
 
 
 def _prose(loaded: Loaded, text: Any) -> Any:
-    """Render any absolute path that jobcore BAKED INTO a composed message.
+    r"""Render any absolute path that jobcore BAKED INTO a composed message.
 
     Renaming a path field does not reach a path that was never in a field.
     jobcore's loader composes ``f"{path} is not valid JSON: {exc}"``,
@@ -154,8 +153,28 @@ def _prose(loaded: Loaded, text: Any) -> Any:
     Substitution is EXACT -- only strings the snapshot already knows it holds
     are replaced, never a regex hunt for path-shaped text, which would
     eventually eat a URL or a quoted API route.
+
+    BOTH SPELLINGS, and this is the second half of the same defect. The
+    ``{exc}`` in those templates is an ``OSError``, whose ``__str__`` renders
+    its ``filename`` through ``repr()`` -- so on Windows the path arrives with
+    doubled separators and an exact search for the filesystem spelling finds
+    nothing. Measured on 2026-08-22 on the production geometry::
+
+        "error: cannot read ../../config/jobhunt.json: [Errno 13] Permission
+         denied: 'C:\\Users\\Dell\\...\\config\\jobhunt.json'"
+
+    One sentence: the ``{path}`` half correctly relativised, the ``{exc}``
+    half the same path untouched.
+
+    NOT the hand post-processing that was deleted on 2026-08-22 for rendering
+    three fields and missing three. Same ``display_path``, same exact
+    substitution, one more SPELLING of the same needle -- substituting only
+    what jobcore's own pass structurally could not see, because
+    ``Loaded.known_paths`` holds each path as the filesystem spells it. There
+    is still no field list anywhere and still one rendering rule. See
+    :func:`instahyre_server.paths.relativise_prose`.
     """
-    return relativise_known(text, known=loaded.known_paths, render=display_path)
+    return relativise_prose(text, loaded.known_paths)
 
 
 def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> dict:
@@ -174,6 +193,19 @@ def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> di
     # this that lived here rendered three fields and missed the other three,
     # because a list of fields to keep in sync is a list that falls behind.
     full: dict[str, Any] = loaded.report(server=SERVER, display=display_path)
+    # ONE more pass, over the three keys jobcore just rendered, and it is not
+    # a second renderer: ``_prose`` is the same ``display_path`` and the same
+    # exact substitution, offered the ``repr`` spelling of each needle as well.
+    # jobcore's pass structurally CANNOT see that spelling -- it substitutes
+    # ``self.known_paths``, which holds each path as the filesystem spells it,
+    # while an ``OSError`` in the same sentence spells it as ``repr`` does. So
+    # ``config_status`` was measured on 2026-08-22 carrying a correctly
+    # relativised path and this machine's absolute layout at the same time.
+    # Fixing it inside jobcore would be the right home for it; that is a
+    # different repository and this is the caller that can see the symptom.
+    for key in ("config_status", "config_error", "ledger_error"):
+        if full.get(key):
+            full[key] = _prose(loaded, full[key])
     if section is None:
         return full
     key = str(section).strip().lower()

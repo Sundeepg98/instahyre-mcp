@@ -56,6 +56,7 @@ from . import constants as C
 from .cache import Store, default_db_path
 from .errors import ApiError, InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
+from .paths import relativise_prose
 
 log = logging.getLogger("instahyre.profile_write")
 
@@ -243,10 +244,20 @@ class ProfileWriter:
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
+            # ``{path.name}`` was already safe. ``{exc}`` was not: an OSError
+            # here carries the FULL absolute snapshot path, and it carries it
+            # in the spelling ``repr()`` produces, because that is how
+            # ``OSError.__str__`` renders its filename. Nothing scrubbed this
+            # site at all, so unlike the config loader -- which jobcore does
+            # scrub, just not in that spelling -- this one leaked the whole
+            # layout on every platform. Same renderer as everywhere else, and
+            # exact substitution of the two paths this method actually holds;
+            # never a hunt for path-shaped text in an error message.
+            detail = relativise_prose(str(exc), (path, path.parent))
             raise WriteRefused(
-                f"Snapshot {path.name} could not be read as JSON ({exc}). Refusing to "
-                "restore from a file this server cannot understand -- a restore deletes "
-                "every skill the snapshot does not mention."
+                f"Snapshot {path.name} could not be read as JSON ({detail}). Refusing "
+                "to restore from a file this server cannot understand -- a restore "
+                "deletes every skill the snapshot does not mention."
             ) from exc
 
         if not isinstance(record, dict) or not record.get("candidate_skills"):
