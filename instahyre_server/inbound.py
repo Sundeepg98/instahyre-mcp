@@ -573,11 +573,37 @@ class Inbound:
 
     def profile_skills(self) -> list[str]:
         """His own skills, for scoring, so a caller never has to retype them."""
+        return self.profile_for_scoring()["skills"]
+
+    def profile_for_scoring(self) -> dict:
+        """His own skills AND years, for scoring. Best-effort, never raises.
+
+        Two callers need the same answer for different halves of a score, so
+        they share one method rather than two lookups of one profile.
+
+        Swallowing the error is the point, not an oversight: the tools that
+        reach for this have already been told they can run without a session,
+        so a missing one must cost them the FALLBACK and nothing else. They
+        each decide what an empty answer means -- ``instahyre_rank_jobs`` turns
+        it back into the same "no skills to score against" it has always
+        raised, which is a far more useful thing for a caller to read than an
+        auth failure out of a tool that never asked them to log in.
+
+        ``unavailable`` carries the error kind when the read failed and None
+        when it succeeded, so a caller can tell "no session" from "a profile
+        with no skills on it" -- different problems, different fixes.
+        """
         try:
             profile = self.profile()
-        except InstahyreError:
-            return []
-        return list(profile.get("skills") or [])
+        except InstahyreError as exc:
+            log.info("account profile unavailable for scoring: %s", exc.kind)
+            return {"skills": [], "years": None, "unavailable": exc.kind}
+        return {
+            "skills": list(profile.get("skills") or []),
+            # shape_profile's name for the raw payload's ``total_experience``.
+            "years": profile.get("total_experience_years"),
+            "unavailable": None,
+        }
 
     # -- the one-way door --------------------------------------------------
 

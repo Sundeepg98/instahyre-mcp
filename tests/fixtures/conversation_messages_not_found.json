@@ -1,0 +1,11 @@
+{
+  "_capture": "LIVE CAPTURE, not hand-built. GET https://www.instahyre.com/api/v1/resume_modal/emails/message?conv_id=1 and the same path with conv_id=999999999, both at 2026-08-22T03:34:41+00:00 on the signed-in session. Both ids are foreign -- the account's inbox holds zero conversations (see conversations_empty.json) -- and both answered HTTP 200 with the body below, identical key for key. What matters is what is ABSENT: no recipients, no starred, no unsent_messages. The endpoint has no not-found signal, and its not-found envelope carries no thread frame at all, only the tastypie meta.",
+  "objects": [],
+  "meta": {
+    "offset": 0,
+    "limit": 1000,
+    "total_count": null,
+    "previous": null,
+    "next": null
+  }
+}

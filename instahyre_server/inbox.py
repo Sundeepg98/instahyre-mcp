@@ -20,6 +20,15 @@ endpoints do mutate, and one of them is genuinely nasty: ``mark_all_read`` is a
 the list call. Every request this module makes goes through
 :func:`guard_read_only` first, which refuses any path naming a mutating action.
 
+The message endpoint has **no not-found signal**. A ``conv_id`` that is not his
+answers 200 with ``{"objects": [], "meta": {...}}`` -- captured live against two
+foreign ids on 2026-08-22 -- which is key for key what a real thread with
+nothing said in it would look like. Passing that through as a successful read
+of nothing is the failure ``errors.py`` forbids, so
+:meth:`Inbox.read_conversation` resolves the ambiguity against his own
+conversation list, exactly as ``Inbound.find_opportunity`` resolves an
+opportunity id against his queue, and raises when the id is not there.
+
 The one thing this module cannot promise: whether *fetching* a thread marks it
 read on the server. The frontend sends no mark-read request -- it decrements
 the badge locally and optimistically -- which is only coherent if the server
@@ -36,7 +45,7 @@ from typing import Any, Optional
 from . import constants as C
 from . import shape
 from .cache import Store
-from .errors import ApiError, InstahyreError, InvalidFilter
+from .errors import ApiError, InstahyreError, InvalidFilter, NotFound
 from .http import InstahyreHTTP
 
 log = logging.getLogger("instahyre.inbox")
@@ -279,6 +288,13 @@ class Inbox:
         ``continue`` -- it stops at the first falsy one and discards it and
         everything after. This mirrors that by default and reports how many were
         withheld, so the count is never silently short.
+
+        An envelope with no records at all is never returned bare, because the
+        endpoint has no not-found signal of its own: the id is cross-checked
+        against his conversation list and raises :class:`NotFound` when it is
+        not there, or comes back carrying a ``diagnosis`` saying which silence
+        it is. That check costs one extra request and runs ONLY on that answer
+        -- a thread with records in it has already proved it exists.
         """
         try:
             conv_id_int = int(conv_id)
@@ -317,7 +333,13 @@ class Inbox:
                 gated += 1
             messages.append(shape_message(obj, body_chars=body_chars))
 
-        return {
+        # Gate on ``raw``, not on ``messages``: a thread whose records were all
+        # withheld by show_message also lands on count 0, but it demonstrably
+        # exists, and cross-checking it would buy a request to confirm what
+        # withheld_by_show_message already says.
+        diagnosis = self._diagnose_empty_thread(conv_id_int, payload) if not raw else None
+
+        out: dict[str, Any] = {
             "conv_id": conv_id_int,
             "messages": messages,
             "count": len(messages),
@@ -333,6 +355,119 @@ class Inbox:
                 "to test: the inbox has no conversations to test on."
             ),
         }
+        # Present exactly when the thread came back with nothing in it, which is
+        # the same rule list_conversations follows for its own diagnosis.
+        if diagnosis:
+            out["diagnosis"] = diagnosis
+        return out
+
+    def _diagnose_empty_thread(self, conv_id: int, payload: dict) -> str:
+        """Say WHICH silence an empty thread is, or raise :class:`NotFound`.
+
+        The endpoint answers 200 for an id that is not his, so the verdict has
+        to come from somewhere else: his own conversation list, which is where
+        a ``conv_id`` comes from in the first place. That makes "not his" a
+        measurement rather than an inference off the envelope. Two other
+        outcomes are possible and both return rather than raise -- the id IS
+        his and the thread really is empty, or the cross-check could not be
+        completed, in which case both readings ship and neither is chosen.
+        """
+        frame = self._frame_note(payload)
+        undecided: Optional[str] = None
+        try:
+            known = self._conversation_ids()
+        except InstahyreError as exc:
+            log.info("conversation id cross-check unavailable: %s", exc.kind)
+            known, undecided = None, "the list request failed with %s" % exc.kind
+        else:
+            if known is None:
+                undecided = "his inbox runs past the %d conversations this check walks" % (
+                    C.CONV_ID_CHECK_PAGE * C.CONV_ID_CHECK_MAX_PAGES
+                )
+
+        if undecided is not None:
+            return (
+                "Conversation %d came back with no messages, and which silence that is could "
+                "not be established: the cross-check against instahyre_list_conversations "
+                "could not be completed -- %s. Both readings stay open -- a real thread with "
+                "nothing said in it, or a conv_id that is not his -- because the message "
+                "endpoint cannot tell them apart on its own: a foreign id answers 200 with an "
+                "empty objects list. What is known is that %s." % (conv_id, undecided, frame)
+            )
+
+        if str(conv_id) in known:
+            return (
+                "Conversation %d is his -- instahyre_list_conversations lists it -- so this is "
+                "a real thread with no messages in it, not a bad id. Worth noting anyway: %s."
+                % (conv_id, frame)
+            )
+
+        raise NotFound(
+            "No conversation %d in this account's inbox. It is not in "
+            "instahyre_list_conversations, which is the only place a conv_id comes from, and "
+            "that list was walked in full (%d conversation(s)). The message endpoint cannot "
+            "report this itself -- an id that is not his answers 200 with an empty objects "
+            "list, which is why this used to come back as a successful read of nothing. "
+            "Corroborating: %s." % (conv_id, len(known), frame),
+            conv_id=conv_id,
+            checked_against="instahyre_list_conversations",
+            conversations_in_inbox=len(known),
+        )
+
+    def _frame_note(self, payload: dict) -> str:
+        """What the envelope itself says about whether a thread was there."""
+        present = [key for key in C.MSG_THREAD_FRAME if key in payload]
+        if present:
+            return (
+                "the envelope did carry a thread frame (" + ", ".join(present) + "), which "
+                "points the other way"
+            )
+        return (
+            "the envelope carried no thread frame either -- no "
+            + ", ".join(C.MSG_THREAD_FRAME)
+            + ", absent rather than null, which is what the live not-found capture looks like"
+        )
+
+    def _conversation_ids(self) -> Optional[set]:
+        """Every conversation id in his inbox, as strings. ``None`` = did not finish.
+
+        Unfiltered on purpose: a status or unread filter would hide a thread
+        that IS his and turn the cross-check into a false not-found, which is a
+        worse bug than the one it exists to fix. Ids are compared as STRINGS
+        because this API is not consistent about the type -- an opportunity id
+        arrives quoted, a conversation id bare -- and find_opportunity settled
+        that question the same way.
+
+        ``None`` means the walk hit its page cap, never "not in the inbox".
+        """
+        ids: set = set()
+        offset = 0
+        for _ in range(C.CONV_ID_CHECK_MAX_PAGES):
+            payload = self.http.get(
+                guard_read_only(C.EP_CONVERSATIONS),
+                params={"limit": C.CONV_ID_CHECK_PAGE, "offset": offset},
+            )
+            if not isinstance(payload, dict) or "objects" not in payload:
+                raise ApiError(
+                    "The conversation list came back without an 'objects' key; its contract "
+                    "has changed.",
+                    path=C.EP_CONVERSATIONS,
+                )
+            objects = payload.get("objects") or []
+            ids.update(
+                str(obj["id"])
+                for obj in objects
+                if isinstance(obj, dict) and obj.get("id") is not None
+            )
+            # Two terminators, because neither covers the other: meta.next is
+            # what tastypie itself says, and a short page ends the walk even if
+            # that key ever stops being sent. Neither has been seen to fail --
+            # his inbox is empty, so only the first page has ever been walked --
+            # which is exactly why the cheap belt is worth having here.
+            if not objects or not (payload.get("meta") or {}).get("next"):
+                return ids
+            offset += len(objects)
+        return None
 
 
 # ---------------------------------------------------------------------------

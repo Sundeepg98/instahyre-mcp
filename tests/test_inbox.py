@@ -46,7 +46,7 @@ import pytest
 from conftest import fixture_json, html_response, json_response, make_client
 from instahyre_server import constants as C
 from instahyre_server import inbox as inbox_module
-from instahyre_server.errors import ApiError, AuthRequired, InvalidFilter
+from instahyre_server.errors import ApiError, AuthRequired, InvalidFilter, NotFound
 from instahyre_server.inbox import (
     DEFAULT_BODY_CHARS,
     MutatingPathRefused,
@@ -65,6 +65,11 @@ EMPTY = fixture_json("conversations_empty.json")
 POPULATED = fixture_json("conversations_populated.json")
 THREAD = fixture_json("conversation_messages.json")
 COUNT_PAYLOAD = fixture_json("conversation_counts.json")
+
+#: The live capture of what the message endpoint answers for a conv_id that is
+#: NOT his: 200, an empty objects list, and no thread frame at all. Captured
+#: 2026-08-22 against conv_id 1 and 999999999 -- see the fixture's _capture key.
+NOT_HIS = fixture_json("conversation_messages_not_found.json")
 
 #: The first record is UNREAD and unstarred; the second is READ and starred.
 #: The inversion test needs both values present, so this is asserted, not hoped.
@@ -254,7 +259,11 @@ def test_every_http_call_in_the_inbox_module_source_is_wrapped_in_the_guard():
     total, offenders = http_calls_in(source)
 
     assert offenders == [], "an inbox request bypasses guard_read_only"
-    assert total == 3, "the module's request count changed; re-check the new call site"
+    # 4 since the not-found cross-check: list, counts, messages, and
+    # _conversation_ids' own paged read of the list. That fourth call site is
+    # exactly what this assertion is for -- it fired, it was re-checked, and it
+    # goes through the guard like the other three.
+    assert total == 4, "the module's request count changed; re-check the new call site"
 
 
 def test_the_unguarded_call_scanner_catches_an_unguarded_call_when_it_is_shown_one():
@@ -765,6 +774,124 @@ def test_a_conv_id_that_is_a_numeric_string_is_accepted_and_sent_as_an_integer()
     assert result["conv_id"] == CONV_ID
     assert isinstance(result["conv_id"], int)
     assert client.routes.last_params(MESSAGES)["conv_id"] == [str(CONV_ID)]
+
+
+# ---------------------------------------------------------------------------
+# An empty thread is never left ambiguous
+#
+# The message endpoint has NO not-found signal. A conv_id that is not his
+# answers 200 with ``{"objects": [], "meta": {...}}`` -- captured live, twice,
+# see NOT_HIS -- which is key for key what a real thread with nothing said in
+# it would look like. Returning ``ok`` with ``messages: []`` for both is the
+# one thing errors.py forbids: a failure that looks like an empty result.
+# ---------------------------------------------------------------------------
+
+
+def test_a_conv_id_that_is_not_in_his_inbox_is_raised_as_not_found_not_returned_empty():
+    """The bug. His inbox is empty, so 4242 cannot be his; the endpoint still
+    answers 200 with an empty envelope, and the tool used to pass that straight
+    through as a successful read of nothing."""
+    client = inbox_client(thread=NOT_HIS, conversations=EMPTY)
+
+    result = "sentinel"
+    with pytest.raises(NotFound) as excinfo:
+        result = client.inbox.read_conversation(4242)
+
+    assert result == "sentinel", "read_conversation returned instead of raising"
+    assert excinfo.value.kind == "not_found"
+    assert "instahyre_list_conversations" in excinfo.value.message
+    assert excinfo.value.context["conv_id"] == 4242
+
+
+def test_the_not_found_verdict_is_the_conversation_list_and_not_the_bare_envelope():
+    """The cross-check is what makes the verdict a measurement rather than an
+    inference off three absent keys, so it has to have actually happened."""
+    client = inbox_client(thread=NOT_HIS, conversations=EMPTY)
+
+    with pytest.raises(NotFound):
+        client.inbox.read_conversation(4242)
+
+    assert client.routes.count(CONVERSATIONS) == 1
+    # Unfiltered: a status or unread filter could hide a thread that IS his and
+    # turn this into a false not-found.
+    assert set(client.routes.last_params(CONVERSATIONS)) == {"limit", "offset"}
+
+
+def test_an_id_that_is_in_his_own_list_is_a_real_thread_and_is_diagnosed_not_refused():
+    """The control on the refusal: it has to be able to NOT fire. Same empty
+    envelope, but the id is in his conversation list, so this is a genuine
+    thread with nothing said in it."""
+    client = inbox_client(thread=NOT_HIS, conversations=POPULATED)
+
+    result = client.inbox.read_conversation(CONV_ID)
+
+    assert result["count"] == 0
+    assert result["messages"] == []
+    assert str(CONV_ID) in result["diagnosis"]
+    assert "not_found" not in result["diagnosis"]
+
+
+def test_the_empty_thread_diagnosis_reports_that_the_envelope_carried_no_thread_frame():
+    """recipients / starred / unsent_messages are the frame a real thread's
+    payload carries. The live not-found capture has none of the three, and that
+    evidence is the caller's, not just the module's."""
+    client = inbox_client(thread=NOT_HIS, conversations=POPULATED)
+
+    diagnosis = client.inbox.read_conversation(CONV_ID)["diagnosis"]
+
+    assert "recipients" in diagnosis
+    assert "starred" in diagnosis
+
+
+def test_a_cross_check_that_cannot_be_completed_reports_both_readings():
+    """When the list cannot be read, "not his" is not knowable -- and guessing
+    it would be a worse bug than the one this fixes. Both readings ship."""
+    client = inbox_client(
+        thread=NOT_HIS, conversations=json_response({"detail": "boom"}, status=500)
+    )
+
+    result = client.inbox.read_conversation(4242)
+
+    assert result["count"] == 0
+    diagnosis = result["diagnosis"]
+    assert "instahyre_list_conversations" in diagnosis
+    assert "could not" in diagnosis.lower()
+
+
+def test_a_thread_that_came_back_with_messages_is_never_cross_checked():
+    """The cross-check costs a request, so it may only run on the one answer
+    that needs it. A thread with records in it has already proved it exists."""
+    client = inbox_client(thread=THREAD)
+
+    result = client.inbox.read_conversation(CONV_ID)
+
+    assert result["count"] == 3
+    assert "diagnosis" not in result
+    assert client.routes.count(CONVERSATIONS) == 0
+
+
+def test_a_thread_whose_records_were_all_gated_is_not_cross_checked_either():
+    """count is 0 here too, but the envelope had four records, so the thread
+    demonstrably exists and withheld_by_show_message already says why."""
+    gated_first = dict(THREAD, objects=[dict(obj, show_message=False) for obj in THREAD["objects"]])
+    client = inbox_client(thread=gated_first)
+
+    result = client.inbox.read_conversation(CONV_ID)
+
+    assert result["count"] == 0
+    assert result["withheld_by_show_message"] == 4
+    assert "diagnosis" not in result
+    assert client.routes.count(CONVERSATIONS) == 0
+
+
+def test_the_read_side_effect_note_survives_on_the_not_found_path_free_result():
+    """The honest UNVERIFIED note must not be lost to the new branch."""
+    client = inbox_client(thread=NOT_HIS, conversations=POPULATED)
+
+    result = client.inbox.read_conversation(CONV_ID)
+
+    assert result["read_side_effect"].startswith("UNVERIFIED")
+    assert "POSSIBLY marking it read" in result["read_side_effect"]
 
 
 # ---------------------------------------------------------------------------

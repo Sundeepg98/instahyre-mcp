@@ -26,6 +26,12 @@ MEASURED 2026-08-21, against the commit that introduced the config seam::
 
     6 failed, 40 passed
 
+RE-MEASURED 2026-08-22, after the account-profile fallback added ten tests to
+the file. The SAME six fail: the new ten pin which SOURCE supplied the skills,
+which a scorer that discards its policy still gets right::
+
+    6 failed, 50 passed
+
     FAILED TestDefaultsAreTodaysLiterals::test_a_non_default_scored_result_says_so
     FAILED TestAConfiguredWeightMovesAnInstahyreScore::test_the_function_moves
     FAILED TestAConfiguredWeightMovesAnInstahyreScore::test_the_whole_tool_moves

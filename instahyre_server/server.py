@@ -22,7 +22,7 @@ from .cache import Store, default_db_path
 from .client import InstahyreClient
 from .errors import InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
-from .session import SessionStore, check_auth, login_with_password
+from .session import SESSION_COOKIE, SessionStore, check_auth, login_with_password
 
 log = logging.getLogger("instahyre.server")
 
@@ -352,7 +352,15 @@ def instahyre_rank_jobs(
     top_n: int = 10,
     explain: bool = False,
 ) -> dict:
-    """Search, then rank the results by fit against your own skills. No login needed.
+    """Search, then rank the results by fit against your own skills.
+
+    Login is OPTIONAL, and which half you get depends only on how you call it.
+    Pass ``my_skills`` -- or put them in the shared config -- and this needs no
+    session at all. Omit them and it falls back to the skills on his live
+    Instahyre profile, which does need one; with no session that fallback comes
+    back empty and the tool raises the same "no skills to score against" it
+    always has, never an auth failure. ``skills_source`` in the result names
+    which of the three actually supplied the numbers.
 
     Ranks ONE page -- the 35 jobs the server returns for these filters, not the
     whole matching set. ``total_matching`` says how many exist; narrow the
@@ -379,9 +387,15 @@ def instahyre_rank_jobs(
 
     Args:
         my_skills: Your skills, e.g. ["Node.js", "TypeScript", "AWS"]. Omit to
-            use ``candidate.skills`` from the shared config, when it has any.
+            fall back, in that order, to ``candidate.skills`` from the shared
+            config and then to the skills on his live Instahyre profile (the
+            ones instahyre_get_profile reports). ``skills_source`` in the
+            result says which one won; all three empty is the error.
         my_experience_years: Your years of experience, for the band check.
-            Omit to use ``candidate.years_experience``.
+            Omit to fall back to ``candidate.years_experience`` and then to the
+            profile's total experience. ``experience_years_source`` names the
+            winner. Unlike the skills, no value here is not an error -- the
+            experience half simply scores as unknown.
         my_location: Your city. Omit to use ``candidate.locations``.
         top_n: How many ranked jobs to return.
         explain: Add the arithmetic behind each score to that job's own row --
@@ -393,18 +407,74 @@ def instahyre_rank_jobs(
     """
     snapshot = policy.current()
     scoring_args = policy.scoring_args(snapshot)
+    client = get_client()
+
+    # The account profile is fetched at most once, by whichever of the two
+    # fallbacks below reaches it first -- skills and years are independent, and
+    # a config supplying one but not the other must not cost two requests. With
+    # no session cookie it is not fetched AT ALL: this tool works without a
+    # login, and spending a request to be told 401 on every public-tier call
+    # would be a quiet tax on that. A missing cookie is not a guess -- nothing
+    # authenticated can succeed without one.
+    signed_in = bool(client.http.cookies.get(SESSION_COOKIE))
+    account: Optional[dict] = None
+
+    def account_profile() -> dict:
+        nonlocal account
+        if account is None:
+            account = (
+                client.inbound.profile_for_scoring()
+                if signed_in
+                else {"skills": [], "years": None, "unavailable": "no_session_cookie"}
+            )
+        return account
+
+    # Every source is REPORTED, because a ranking whose caller cannot tell
+    # whether it scored against their argument, the shared config or the live
+    # account is not a number anyone can act on.
+    skills_source = "argument"
     if not my_skills:
         my_skills = list(snapshot.candidate.skills)
+        skills_source = "shared_config"
     if not my_skills:
+        # The one this tool used to skip. It could already read the profile --
+        # instahyre_get_profile is right there on the same client -- and simply
+        # never asked, so a bare call died on an empty config block while his
+        # twenty account skills sat one request away.
+        my_skills = list(account_profile()["skills"])
+        skills_source = "account_profile"
+    if not my_skills:
+        # Name all three, and say which silence the third one is: "no session"
+        # and "a profile with no skills on it" are different problems with
+        # different fixes, and a caller cannot act on them being merged.
+        unavailable = account_profile()["unavailable"]
+        if unavailable == "no_session_cookie":
+            why = "not attempted, there is no session -- instahyre_auth_status confirms"
+        elif unavailable:
+            why = "could not be read: %s" % unavailable
+        else:
+            why = "read, and it lists none"
         raise InvalidFilter(
-            "No skills to score against. Pass my_skills=[...], or put them in "
-            "candidate.skills in the shared config (instahyre_config() says "
-            "where that file is, or would be).",
+            "No skills to score against, and all three sources came up empty: the my_skills "
+            "argument, candidate.skills in the shared config (instahyre_config() says where "
+            "that file is, or would be), and the skills on his live Instahyre account profile "
+            "(instahyre_get_profile -- %s). Passing my_skills=[...] needs neither of the "
+            "other two." % why,
             field="my_skills",
         )
+
+    experience_years_source: Optional[str] = "argument"
     if my_experience_years is None:
         my_experience_years = snapshot.candidate.years_experience
-    client = get_client()
+        experience_years_source = "shared_config"
+    if my_experience_years is None:
+        my_experience_years = account_profile()["years"]
+        experience_years_source = "account_profile"
+    if my_experience_years is None:
+        # Not an error: the experience half scores as unknown and the skills
+        # half still ranks. Naming no source is the honest report of that.
+        experience_years_source = None
+
     result = client.search(
         skills=skills,
         job_functions=job_functions,
@@ -453,6 +523,9 @@ def instahyre_rank_jobs(
         "total_matching": result.get("total_matching"),
         "scoring_engine": scoring.ENGINE,
         "scored_against_skills": list(my_skills),
+        "skills_source": skills_source,
+        "scored_against_experience_years": my_experience_years,
+        "experience_years_source": experience_years_source,
         "note": "Ranked locally -- the API's own sort parameter is accepted but ignored.",
         **policy.summary(snapshot),
     }

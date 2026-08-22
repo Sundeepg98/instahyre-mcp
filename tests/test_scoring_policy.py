@@ -34,7 +34,8 @@ And the whole file has been RUN against a permissive build -- one that accepts
 the policy and discards it, which is precisely the bug it exists to catch::
 
     PYTHONPATH=scripts pytest tests/test_scoring_policy.py -p permissive_scorer_control
-    # 6 failed, 40 passed
+    # 6 failed, 50 passed  (re-measured 2026-08-22; the same six, ten new tests
+    #                       added by the account-profile fallback all survive it)
 
 ``scripts/permissive_scorer_control.py`` ships that plugin and lists which six,
 and why the other forty are supposed to survive it.
@@ -57,6 +58,7 @@ from fastmcp.exceptions import ToolError
 from instahyre_server import constants as C
 from instahyre_server import policy, scoring
 from instahyre_server import server as server_module
+from instahyre_server.session import SESSION_COOKIE
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -579,6 +581,234 @@ class TestTheCandidateBlockReachesTheScore:
             server_module.instahyre_rank_jobs()
         assert "[invalid_filter]" in str(excinfo.value)
         assert "my_skills" in str(excinfo.value)
+
+
+#: The account fixtures the profile fallback is scored against. Key names
+#: re-verified live on 2026-08-22 against GET /candidate_misc/profile/candidate/
+#: {id}: ``total_experience`` is an int and ``main_skills`` a comma-joined
+#: string, exactly as here. Values in the fixture are sanitised; the shape is not.
+ACCOUNT_PROFILE = json.loads((FIXTURES / "candidate_profile.json").read_text(encoding="utf-8"))
+ACCOUNT_EDUCATION = json.loads((FIXTURES / "education.json").read_text(encoding="utf-8"))
+LOGGED_OUT = json.loads((FIXTURES / "error_401.json").read_text(encoding="utf-8"))
+EDUCATION = C.EP_EDUCATION
+PROFILE = C.EP_PROFILE.format(candidate_id=ACCOUNT_PROFILE["id"])
+
+#: What shape_profile makes of the fixture. Spelled out rather than derived, so
+#: a change to either side is a failure instead of a silent agreement.
+PROFILE_SKILLS = ["RabbitMQ", "Scala", "Svelte", "Kotlin"]
+PROFILE_YEARS = 7
+
+
+def account_routes(search_payload: dict, *, live: bool = True) -> dict:
+    """Search plus the two requests the profile fallback needs.
+
+    ``live=False`` answers the candidate-id lookup with Instahyre's real
+    logged-out body -- an expired cookie, which is the only way the fallback
+    can fail after it has decided to spend a request. Leaving the route off
+    would raise the harness's own AssertionError, which no live client can
+    ever produce.
+    """
+    from conftest import json_response
+
+    routes = {SEARCH: json_response(search_payload)}
+    if live:
+        routes[EDUCATION] = ACCOUNT_EDUCATION
+        routes[PROFILE] = ACCOUNT_PROFILE
+    else:
+        routes[EDUCATION] = json_response(LOGGED_OUT, status=401)
+    return routes
+
+
+def signed_in(client):
+    """Put a session cookie on a mock client and hand it back.
+
+    The profile fallback will not spend a request without one -- that is what
+    keeps ``instahyre_rank_jobs`` free for a caller who never logs in -- so a
+    test of the fallback has to say which side of that gate it is on.
+    """
+    client.http.cookies.set(SESSION_COOKIE, "test-session", domain="www.instahyre.com")
+    return client
+
+
+class TestTheAccountProfileIsTheLastSkillsSourceBeforeTheError:
+    """Three sources, in order, and the result says which one it used.
+
+    The bug this class pins: with no ``my_skills`` and an empty candidate block
+    -- which is the state on this machine, the shared config does not load --
+    ``instahyre_rank_jobs`` raised, while ``instahyre_get_profile`` on the same
+    client would have handed it twenty skills. It never asked.
+    """
+
+    def test_the_account_profile_supplies_the_skills_when_nothing_else_does(
+        self, monkeypatch, search_payload
+    ):
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = signed_in(make_client(account_routes(search_payload)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(top_n=3)
+
+        assert out["scored_against_skills"] == PROFILE_SKILLS
+        assert out["skills_source"] == "account_profile"
+        assert out["scored"] > 0
+
+    def test_the_account_profile_supplies_the_experience_years_too(
+        self, monkeypatch, search_payload
+    ):
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = signed_in(make_client(account_routes(search_payload)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(top_n=3)
+
+        assert out["scored_against_experience_years"] == PROFILE_YEARS
+        assert out["experience_years_source"] == "account_profile"
+
+    def test_an_explicit_argument_still_wins_and_costs_no_profile_request(
+        self, monkeypatch, search_payload
+    ):
+        """The control on the fallback: it must not fire when it is not needed,
+        and it must not change what a caller who passes skills already gets."""
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = signed_in(make_client(account_routes(search_payload)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(
+            my_skills=["Java"], my_experience_years=7.0, top_n=3
+        )
+
+        assert out["scored_against_skills"] == ["Java"]
+        assert out["skills_source"] == "argument"
+        assert out["experience_years_source"] == "argument"
+        assert client.routes.count(EDUCATION) == 0
+        assert client.routes.count(PROFILE) == 0
+
+    def test_the_shared_config_still_beats_the_account_profile(
+        self, tmp_path, monkeypatch, search_payload
+    ):
+        point_at(monkeypatch, write_config(tmp_path / "jobhunt.json", {
+            "config_version": 1, "revision": 1,
+            "candidate": {"skills": ["Java", "Spring Boot"], "years_experience": 6.0},
+        }))
+        client = signed_in(make_client(account_routes(search_payload)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(top_n=3)
+
+        assert out["scored_against_skills"] == ["Java", "Spring Boot"]
+        assert out["skills_source"] == "shared_config"
+        assert out["experience_years_source"] == "shared_config"
+        assert client.routes.count(PROFILE) == 0
+
+    def test_a_config_with_skills_but_no_years_takes_only_the_years_from_the_profile(
+        self, tmp_path, monkeypatch, search_payload
+    ):
+        """The two fallbacks are independent, and the profile is fetched once
+        for whichever of them reaches it first."""
+        point_at(monkeypatch, write_config(tmp_path / "jobhunt.json", {
+            "config_version": 1, "revision": 1,
+            "candidate": {"skills": ["Java", "Spring Boot"]},
+        }))
+        client = signed_in(make_client(account_routes(search_payload)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(top_n=3)
+
+        assert out["skills_source"] == "shared_config"
+        assert out["scored_against_experience_years"] == PROFILE_YEARS
+        assert out["experience_years_source"] == "account_profile"
+        assert client.routes.count(PROFILE) == 1
+
+    def test_with_no_session_the_profile_step_is_tried_and_degrades_to_the_old_error(
+        self, monkeypatch, search_payload
+    ):
+        """The docstring used to promise "No login needed" flatly. The fallback
+        needs one, so a missing session has to cost the FALLBACK and nothing
+        else: the same invalid_filter as before, never an auth_required, and
+        not one wasted request either -- with no cookie in the jar nothing
+        authenticated can succeed, so the profile is not asked for at all."""
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = make_client(account_routes(search_payload))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        with pytest.raises(ToolError) as excinfo:
+            server_module.instahyre_rank_jobs()
+
+        assert "[invalid_filter]" in str(excinfo.value)
+        assert "auth_required" not in str(excinfo.value)
+        assert "no session" in str(excinfo.value)
+        assert client.routes.count(EDUCATION) == 0
+        assert client.routes.count(PROFILE) == 0
+
+    def test_an_expired_session_costs_the_fallback_and_not_the_tool(
+        self, monkeypatch, search_payload
+    ):
+        """The other half: a cookie IS in the jar, so the request is spent, and
+        the 401 that comes back has to stay inside the fallback."""
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = signed_in(make_client(account_routes(search_payload, live=False)))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        with pytest.raises(ToolError) as excinfo:
+            server_module.instahyre_rank_jobs()
+
+        assert "[invalid_filter]" in str(excinfo.value)
+        assert "auth_required" in str(excinfo.value), "the reason must survive into the message"
+        assert client.routes.count(EDUCATION) == 1, "the profile step was never attempted"
+
+    def test_with_no_session_an_explicit_my_skills_still_ranks_exactly_as_before(
+        self, monkeypatch, search_payload
+    ):
+        """No login needed remains TRUE for the caller who passes skills."""
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = make_client(account_routes(search_payload))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        out = server_module.instahyre_rank_jobs(my_skills=["Node.js"], top_n=3)
+
+        assert out["scored"] > 0
+        assert out["skills_source"] == "argument"
+        assert client.routes.count(EDUCATION) == 0
+
+    def test_the_no_skills_error_names_all_three_sources_it_tried(
+        self, monkeypatch, search_payload
+    ):
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        client = make_client(account_routes(search_payload))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        with pytest.raises(ToolError) as excinfo:
+            server_module.instahyre_rank_jobs()
+
+        message = str(excinfo.value)
+        assert "my_skills" in message
+        assert "candidate.skills" in message
+        assert "instahyre_get_profile" in message
+
+    def test_a_profile_with_no_skills_on_it_is_not_scored_as_a_match_for_everything(
+        self, monkeypatch, search_payload
+    ):
+        """An empty profile is a third empty source, not a third answer."""
+        from conftest import json_response
+
+        monkeypatch.setenv("JOBHUNT_CONFIG", ":none:")
+        policy.invalidate_cache()
+        routes = account_routes(search_payload)
+        routes[PROFILE] = json_response(dict(ACCOUNT_PROFILE, main_skills=""))
+        client = signed_in(make_client(routes))
+        monkeypatch.setattr(server_module, "_client", client)
+
+        with pytest.raises(ToolError) as excinfo:
+            server_module.instahyre_rank_jobs()
+
+        assert "[invalid_filter]" in str(excinfo.value)
 
 
 class TestVocabularyAdditionsReachTheTaxonomy:

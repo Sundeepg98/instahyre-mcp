@@ -293,6 +293,22 @@ CONV_STATUS_NAMES = {1: "in process", 2: "closed by recruiter"}
 CONV_PARAMS = frozenset({"status", "unread", "starred", "query", "limit", "offset"})
 CONV_DEFAULT_LIMIT = 10
 
+# How the not-found cross-check walks his conversation list. VERIFIED live on
+# 2026-08-22: the message endpoint has NO not-found signal -- conv_id=1 and
+# conv_id=999999999 both answered 200 with {"objects": [], "meta": {...}} and
+# nothing else -- so an empty thread is resolved against the LIST, the way
+# find_opportunity resolves an opportunity id against the queue. The cap is
+# there so one read can never become hundreds of requests; hitting it reports
+# "do not know", never "not his".
+CONV_ID_CHECK_PAGE = 100
+CONV_ID_CHECK_MAX_PAGES = 20
+
+# The keys that make up a thread FRAME on a message payload. All three are
+# ABSENT from the not-found capture above -- not null, absent. Corroboration
+# for the cross-check's verdict; never the verdict itself, because no real
+# thread has ever been captured on this account to compare against.
+MSG_THREAD_FRAME = ("recipients", "starred", "unsent_messages")
+
 # A conversation record carries NO company, recruiter or subject field -- the
 # site joins those in from GET /employer_public_jobs/{job_id}. Verified by
 # enumerating every property access on conv/selectedConv across all eight

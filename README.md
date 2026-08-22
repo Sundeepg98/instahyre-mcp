@@ -93,7 +93,7 @@ venv/Scripts/python -m playwright install chromium
 | `instahyre_get_job` | One job's description, experience band, recruiter, agency verdict. | 1 (cached 6h) |
 | `instahyre_get_company` | An employer's profile plus every live job they have open. Doubles as a membership oracle. | 1 |
 | `instahyre_market_stats` | Faceted market aggregates for a slice, with no job records at all. | 1 |
-| `instahyre_rank_jobs` | Search, then rank one page by fit against your own skills. | 1+ |
+| `instahyre_rank_jobs` | Search, then rank one page by fit against your own skills. Skills come from `my_skills`, else the shared config, else -- when signed in -- his own Instahyre profile; `skills_source` names the winner. | 1+ (+2 for the profile fallback) |
 | `instahyre_sync_index` | Page a slice into the local index and report what is NEW since last run. | 1/page |
 | `instahyre_list_job_functions` | The 58 job functions with ids. | 1 (cached 30d) |
 | `instahyre_list_locations` | The accepted location tokens, grouped. | 1 (cached 30d) |
@@ -127,7 +127,7 @@ send, reply, star, or mark read.
 | Tool | What it does | Requests |
 |---|---|---|
 | `instahyre_list_conversations` | Threads, with company and role joined in from the job. Filters: status, unread, starred, free text. | 1 (+1 per job if `include_job`) |
-| `instahyre_read_conversation` | Every message in one thread as text, oldest first. | 1 |
+| `instahyre_read_conversation` | Every message in one thread as text, oldest first. A `conv_id` that is not his raises `not_found` rather than returning an empty thread. | 1 (+1 when the thread comes back empty) |
 | `instahyre_inbox_counts` | Unread / starred / starred-unread totals. | 1 |
 
 One honest caveat, stated in the tool's own docstring: **reading a thread may
