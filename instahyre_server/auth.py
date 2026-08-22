@@ -27,6 +27,7 @@ from typing import Any, Callable, Optional
 
 from .errors import InstahyreError
 from .http import InstahyreHTTP
+from .paths import display_path
 from .session import (
     SESSION_COOKIE,
     SessionStore,
@@ -287,9 +288,15 @@ def login_via_browser(
 
     elapsed = round(time.time() - started, 1)
     status = record["status"] or {}
+    # ``common`` is spread into EVERY return branch below, so ``profile_dir``
+    # reaches the ``instahyre_login_browser`` tool result on success, on
+    # failure and on an undetermined verdict alike. It is relativised for that
+    # reason -- and kept rather than dropped, because "which browser profile
+    # holds the sign-in" is the question a reader has when a login that looked
+    # fine did not stick. See :mod:`instahyre_server.paths`.
     common = {
         "method": "browser",
-        "profile_dir": str(profile_dir),
+        "profile_dir": display_path(str(profile_dir)),
         "elapsed_seconds": elapsed,
         "checks_run": record["checks"],
         "checked_against": status.get("checked_against", AUTH_ENDPOINT_NOTE),

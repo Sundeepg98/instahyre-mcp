@@ -16,9 +16,10 @@ from typing import Any, Optional
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
-from . import constants as C
+from . import buildinfo, constants as C
 from . import policy, scoring, shape
 from .cache import Store, default_db_path
+from .paths import display_path
 from .client import InstahyreClient
 from .errors import InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
@@ -648,22 +649,54 @@ def instahyre_logout() -> dict:
 @mcp.tool()
 @handled
 def instahyre_server_info() -> dict:
-    """What this server is, what it has cached, and what it deliberately cannot do.
+    """What this server is, what code it is running, and what it cannot do.
 
-    Useful when a search behaves unexpectedly -- it reports the local index
-    size, request count this process, and the known-absent data fields.
+    START HERE WHEN BEHAVIOUR DISAGREES WITH THE SOURCE. ``build.code.commit``
+    is the commit this PROCESS was started from, resolved once at import and
+    frozen. Compare it against the checkout on disk::
+
+        git rev-parse HEAD          # run inside the instahyre checkout
+
+    Equal means the running code IS the committed code, and a bug you can see
+    here is a real bug. DIFFERENT means the process is stale: the fix is on
+    disk and this server has never loaded it, so nothing you observe about its
+    behaviour is evidence about the current source. RESTART THE SERVER FIRST --
+    debugging a stale process is how one bug got re-diagnosed as a regression
+    four separate times in a single day.
+
+    Two more fields carry the same warning. ``build.code.dirty`` says the
+    loaded code differs from that commit, which is normal mid-fix and means the
+    hash alone does not identify what is running. ``build.jobcore`` is the
+    SEPARATE commit of the scoring library: this server's fit scores are
+    jobcore's arithmetic, installed editable from a sibling checkout, so a
+    stale jobcore moves every score while this server's own commit matches
+    disk perfectly. Check both.
+
+    ``build.process.started_at`` and ``pid`` say which process and since when,
+    which is what tells two accidentally-running servers apart. Under
+    ``config``, ``policy_hash`` and ``scoring_hash`` fingerprint the config the
+    same code is running under -- the same commit scores differently under two
+    ``jobhunt.json`` files, and this server shares that file with the Naukri
+    and Uplers servers.
+
+    Also reports the local index size, request count this process, and the
+    known-absent data fields. Costs no request.
     """
     client = get_client()
     return {
         "server": "instahyre",
         "tier": "public tools always live; authenticated tools need instahyre_login",
+        # Frozen at import -- see instahyre_server.buildinfo. Re-resolving here
+        # would make a stale process report the commit sitting on disk, which
+        # reads as confirmation that the fix is loaded and is false.
+        "build": buildinfo.build_block(),
         "requests_this_process": client.http.request_count,
         "min_seconds_between_requests": client.http.min_interval,
         "scoring_engine": scoring.ENGINE,
         "scoring_engine_version": scoring.ENGINE_VERSION,
         "config": policy.summary(),
         "index": client.store.index_stats(),
-        "state_dir": str(default_db_path().parent),
+        "state_dir": display_path(str(default_db_path().parent)),
         "not_available_on_this_platform": {
             "salary": "0% of jobs disclose pay; no structured field exists",
             "posting_date": "no date field on any endpoint; use instahyre_sync_index instead",

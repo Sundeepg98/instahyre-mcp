@@ -46,6 +46,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -315,7 +316,30 @@ class TestAConfiguredWeightMovesAnInstahyreScore:
 
         assert out["scoring_engine"] == "jobcore"
         assert out["policy_hash"]
-        assert out["config_source"] == str(tmp_path / "jobhunt.json")
+
+        # REWRITTEN 2026-08-22. This line used to read
+        #
+        #     assert out["config_source"] == str(tmp_path / "jobhunt.json")
+        #
+        # which ASSERTED THE LEAK: it required the field to be this machine's
+        # full absolute path, so the path-hygiene fix could not land while it
+        # stood. A live sweep the day before had found exactly that value --
+        # "D:\\Sundeep\\projects\\job-hunting\\config\\jobhunt.json" -- inside
+        # a real tool result.
+        #
+        # The assertion is kept, not deleted, because what it was FOR is still
+        # true and still worth pinning: the tool must name the file its numbers
+        # came from. Only the FORM changed. Both halves are asserted, because
+        # each alone admits a wrong answer -- "no drive letter" alone passes
+        # for a null, and "names jobhunt.json" alone passes for the absolute
+        # path. See tests/test_path_hygiene.py.
+        source = out["config_source"]
+        assert source, "the source was emptied rather than relativised"
+        assert not re.search(r"(?<![A-Za-z])[A-Za-z]:[\\/]", source), (
+            "config_source is still an absolute local path: %r" % (source,)
+        )
+        assert source.endswith("jobhunt.json")
+        assert Path(tmp_path / "jobhunt.json").name in source
 
 
 # ---------------------------------------------------------------------------

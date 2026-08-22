@@ -40,6 +40,8 @@ from typing import Any, Optional
 from jobcore import config as _jobcore_config
 from jobcore.config import Loaded
 
+from .paths import display_path
+
 __all__ = [
     "SERVER",
     "SECTIONS",
@@ -107,11 +109,17 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
     # printing that one here is what lets a stored score be matched back to the
     # config that produced it. Comparing a result's stamp against
     # ``policy_hash`` reports a difference that does not exist.
+    #
+    # ``config_source`` is RELATIVISED, not printed raw and not dropped. A live
+    # sweep on 2026-08-21 found this machine's full layout here and in
+    # ``instahyre_config()``; deleting the field would have passed a leak scan
+    # while destroying the only thing it is for, which is telling a reader
+    # which file produced these numbers. See :mod:`instahyre_server.paths`.
     out = {
         "policy_rev": loaded.policy_rev,
         "policy_hash": loaded.policy_hash,
         "scoring_hash": loaded.scoring_hash,
-        "config_source": loaded.source,
+        "config_source": display_path(loaded.source),
     }
     # Only surfaced when there is something to say. A quiet field that is
     # always ``null`` trains a reader to stop looking at it.
@@ -124,6 +132,35 @@ def summary(loaded: Optional[Loaded] = None) -> dict:
     return out
 
 
+def _relativised(out: dict) -> dict:
+    """Render every path in a jobcore config report against this checkout.
+
+    THREE FIELDS, NOT ONE, and the third is the one that gets forgotten.
+    ``config_status`` is a jobcore ``@property`` that INTERPOLATES the raw
+    source into a sentence -- ``"loaded from <path>"``, or the whole
+    ``searched`` list joined when nothing was found. Relativising ``source``
+    and ``searched`` and leaving that sentence alone would fix two fields and
+    leave the full absolute path sitting in the third, which is why it is
+    REBUILT here from the already-rendered values rather than copied.
+
+    The error branch is deliberately left untouched: when ``config_error`` is
+    set jobcore's status is ``"error: <message>"``, which carries the parser's
+    own words about a malformed file and no interpolated path of ours to
+    correct.
+    """
+    out["source"] = display_path(out.get("source"))
+    out["searched"] = [display_path(entry) for entry in out.get("searched") or ()]
+    if not out.get("config_error"):
+        if out["source"] is None:
+            out["config_status"] = (
+                "no file found; built-in defaults in use. searched: "
+                + (", ".join(out["searched"]) if out["searched"] else "(nothing)")
+            )
+        else:
+            out["config_status"] = "loaded from %s" % out["source"]
+    return out
+
+
 def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> dict:
     """The payload ``instahyre_config()`` returns.
 
@@ -133,7 +170,7 @@ def report(section: Optional[str] = None, loaded: Optional[Loaded] = None) -> di
     """
     if loaded is None:
         loaded = current()
-    full: dict[str, Any] = loaded.report(server=SERVER)
+    full: dict[str, Any] = _relativised(loaded.report(server=SERVER))
     if section is None:
         return full
     key = str(section).strip().lower()

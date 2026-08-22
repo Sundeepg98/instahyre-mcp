@@ -346,6 +346,37 @@ def block_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
+def restore_server_globals(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Put ``server._client`` and ``server._sessions`` back after the test.
+
+    NOT autouse, and requested by name from the two files that need it, so its
+    blast radius is exactly those files.
+
+    ``instahyre_server.server.get_client()`` assigns the process-wide client to
+    a MODULE GLOBAL as a side effect, and several tools call it -- including
+    ``instahyre_server_info()``, which a test may call purely to inspect its
+    payload. The client then survives into later tests, and
+    ``test_server.py::test_listing_tools_makes_no_request_and_builds_no_client``
+    fails from a different file for a reason unrelated to what it tests. That
+    is the most expensive kind of failure to diagnose, so the cost is paid at
+    the source.
+
+    Claiming both names through ``monkeypatch`` BEFORE the test body runs is
+    what makes the restore correct: a ``monkeypatch.setattr`` issued later,
+    inside the test, would record the ALREADY-POLLUTED value as the one to put
+    back, and restore the pollution instead of removing it.
+    """
+    from instahyre_server import server as server_module
+
+    monkeypatch.setattr(server_module, "_client", None)
+    monkeypatch.setattr(server_module, "_sessions", None)
+    yield
+    created = server_module._client
+    if created is not None:
+        created.store.close()
+
+
+@pytest.fixture
 def store() -> Iterator[Store]:
     db = Store(":memory:")
     yield db
