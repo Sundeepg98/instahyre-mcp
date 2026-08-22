@@ -17,7 +17,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from . import buildinfo, constants as C
-from . import policy, scoring, shape
+from . import policy, scoring, shape, skillgap
 from .cache import Store, default_db_path
 from .paths import display_path
 from .client import InstahyreClient
@@ -1354,6 +1354,120 @@ def instahyre_verify_apply_target() -> dict:
     from .browser import read_page_flags
 
     return read_page_flags()
+
+
+@mcp.tool()
+@handled
+def instahyre_skill_gap(
+    my_skills: Optional[list[str]] = None,
+    top_n: int = 15,
+    interest: str = "pending",
+) -> dict:
+    """Which skill, added to your profile, would put you in the most match sets.
+
+    THE question on this platform, and it is not the question a job board asks.
+    Instahyre is employer-initiated: the scarce resource is being IN the match
+    set, and the profile skill list is capped at 20 by the platform. So the
+    useful move is not "apply to more" -- it is to work out which twenty skills
+    buy the most inbound. This reads the whole curated queue and answers that.
+
+    Both halves are returned, and the second one is the half people forget:
+
+    * ``missing_skills`` -- what the queue asks for that you do not list,
+      ranked by how many of its jobs ask. These are the additions.
+    * ``covered_skills`` and ``dead_weight_skills`` -- which of your own skills
+      the queue actually demands, and which appear in ZERO of its jobs. With
+      the cap at 20 and no free slots, every addition is a SWAP, and the dead
+      weight names what to swap out.
+
+    ``skill_slots`` says whether you have room at all. ``duplicate_slots``
+    catches two of your rows that normalise to the same skill -- they cost two
+    slots and buy one.
+
+    One request. Scored with the shared ``jobcore`` taxonomy, so "Node.js" on
+    your profile and "nodejs" on a job are the same skill and never show up as
+    a gap. Percentages exclude jobs that declare no keywords at all, and
+    ``jobs_with_no_keywords`` reports how many that was.
+
+    Profile changes reach the queue on Instahyre's own batch cycle, not
+    immediately -- ``instahyre_get_profile`` reports when it last recalculated.
+
+    Args:
+        my_skills: Your skills. Omit to use the skills on your live Instahyre
+            profile, which is what the match queue is actually computed
+            against and therefore the right default.
+        top_n: How many gap rows to return. The full count is always reported
+            separately, so a truncated list never reads as complete.
+        interest: Which slice of the queue to analyse -- "pending" (the default,
+            and the one that matters: roles still open to you), "interested" or
+            "not_interested".
+    """
+    snapshot = policy.current()
+    inbound = get_client().inbound
+
+    # RAW records, deliberately. The shaped ones cap skills at 8 and move the
+    # overflow to skills_more, which is right for a list a human reads and
+    # wrong for anything that counts -- it would report lower bounds that look
+    # like measurements.
+    payload = inbound.raw_queue(interest=interest)
+    records = payload.get("objects") or []
+
+    skills_source = "argument"
+    if not my_skills:
+        my_skills = inbound.profile_skills()
+        skills_source = "account_profile"
+
+    result = skillgap.analyse_gap(
+        records, my_skills, top_n=top_n, **policy.scoring_args(snapshot)
+    )
+    result["skills_source"] = skills_source
+    result["interest"] = interest
+    result["queue_recalculated_at"] = payload.get("calculation_done_at")
+    return result
+
+
+@mcp.tool()
+@handled
+def instahyre_resume_info() -> dict:
+    """The resume recruiters actually open: how old it is, and its download URL.
+
+    Worth its own tool on this platform specifically. Every signal here runs
+    through the resume -- the recruiter-activity tab is literally called
+    "viewed your resume" -- and Instahyre carries its own ``is_fresh`` verdict
+    on the file, which is a thing recruiters can filter on and a thing a stale
+    upload silently loses.
+
+    ``instahyre_get_profile`` reduces all of this to ``has_resume: true``. This
+    returns the record: title, upload date, age in days, Instahyre's freshness
+    verdict, conversion status and the URL.
+
+    No resume on file comes back as ``has_resume: false`` with a diagnosis and
+    the same keys, not as an error and not as an empty result.
+    """
+    return get_client().inbound.resume_info()
+
+
+@mcp.tool()
+@handled
+def instahyre_saved_searches() -> dict:
+    """Your saved searches and their alert toggles. The only "saved" thing here.
+
+    Read the shape before reaching for this: Instahyre has NO bookmarked or
+    saved JOBS -- no bookmark feature and no job-side endpoint to build one
+    from. A saved SEARCH is the only saveable object, and a job alert is not a
+    separate object either: it is one boolean on a saved search.
+
+    The constraints are the platform's, not this server's: at most 5 saved
+    searches, alerts only on a search carrying at least 3 filters, and no
+    frequency field anywhere in the product -- there is no daily-or-weekly
+    choice to make, so do not offer one.
+
+    On a reverse marketplace this is a minor surface by construction: the
+    inbound queue is where the value is, and an outbound alert competes with
+    it rather than adding to it. Zero saved searches is a normal answer and
+    comes back with a diagnosis saying so.
+    """
+    return get_client().inbound.saved_searches()
 
 
 def main() -> None:

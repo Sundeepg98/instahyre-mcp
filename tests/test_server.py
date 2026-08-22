@@ -54,6 +54,13 @@ EXPECTED_TOOLS = {
     "instahyre_list_conversations",
     "instahyre_read_conversation",
     "instahyre_inbox_counts",
+    # Read-only analysis over what the account already holds. No new endpoint
+    # between them: skill_gap re-reads the queue, resume_info follows an id the
+    # profile already publishes, saved_searches exposes a route the client had
+    # implemented and never surfaced.
+    "instahyre_skill_gap",
+    "instahyre_resume_info",
+    "instahyre_saved_searches",
     # Tier 4 -- profile writes. These change his account.
     "instahyre_update_skills",
     "instahyre_update_profile",
@@ -159,8 +166,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_thirty_three_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 33
+def test_the_server_registers_exactly_thirty_six_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 36
 
 
 def test_every_tool_name_is_namespaced(tools):

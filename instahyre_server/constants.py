@@ -168,6 +168,34 @@ EP_OPP_SIBLINGS = (
 )
 EP_SAVED_SEARCHES = "/candidate_opportunities/saved_job_searches"
 
+# --- Saved searches, and what a "job alert" actually is ---------------------
+#
+# READ out of the frontend bundle, not inferred from the name: searchjobs.html
+# binds toggleSavedJobSearchAlerts($event) on a saved-search row, and the rows
+# carry job_alert_enabled_at. Three consequences, each of which contradicts a
+# reasonable-sounding assumption about how alerts usually work:
+#
+#   AN ALERT IS NOT AN OBJECT. It is a boolean toggle on a saved search. There
+#   is no alerts resource to list, no alert id to hold, and nothing to create
+#   or delete -- only a search whose flag is on or off.
+#
+#   THE TOGGLE IS GATED ON FILTER COUNT. A search carrying fewer than three
+#   filters cannot have alerts switched on at all.
+#
+#   THERE IS NO FREQUENCY ANYWHERE. No daily, no weekly, no digest, no field
+#   for one in any of the bundles. A tool that offered a frequency would be
+#   describing a different product.
+#
+# The account this server runs against has ZERO saved searches (VERIFIED live
+# 2026-08-21: {"meta": ..., "objects": []}), so the populated shape has never
+# been seen on the wire and no record field beyond job_alert_enabled_at has any
+# evidence behind it. That is why saved_searches() forwards each row whole
+# instead of renaming it into a shape nobody has measured.
+MAX_SAVED_SEARCHES = 5
+SAVED_SEARCH_ALERT_MIN_FILTERS = 3
+SAVED_SEARCH_ALERT_FIELD = "job_alert_enabled_at"
+SAVED_SEARCH_HAS_FREQUENCY = False
+
 # VERIFIED: a bare GET on either queue resource returns HTTP 400 with an EMPTY
 # body -- no field name, no message. Sending an explicit limit fixes it.
 # Never issue a queue request without one.
@@ -230,6 +258,33 @@ EP_PROFILE = "/candidate_misc/profile/candidate/{candidate_id}"
 EP_SETTINGS = "/candidate_misc/settings/candidate_settings/{candidate_id}"
 EP_EDUCATION = "/candidate_misc/profile/education"
 EP_PRIMARY_SKILL = "/candidate_misc/profile/primary_skill"
+
+# The uploaded resume. BOTH halves measured live on 2026-08-21, in one sitting,
+# because only the pair settles where the id may come from:
+#
+#   GET /candidate_misc/profile/resume/7770003  -> HTTP 200, the full record
+#                                                  (title, uploaded_on,
+#                                                  is_fresh, conversion_status,
+#                                                  and four file URLs)
+#   GET /candidate_misc/profile/resume/         -> HTTP 405
+#
+# The 405 is the detail-only pattern documented above, and it is the reason
+# this id is never guessed and never enumerated: the ONLY published source for
+# it is the profile payload's own ``resume`` object, which names it twice (as
+# ``id`` and inside ``resource_uri``). An account with no resume simply has no
+# ``resume`` key -- absent, not null -- so there is no id to look up, and the
+# 405 means there is no listing to fall back on either. Both facts point the
+# same way: no resume on the profile is an answer, not a lookup to attempt.
+EP_RESUME = "/candidate_misc/profile/resume/{resume_id}"
+
+# ``is_fresh`` is Instahyre's own verdict on the uploaded file and it is not
+# cosmetic -- the platform surfaces resume staleness to recruiters. The CUTOFF
+# that flips it is not published anywhere: no bundle constant, no help page, no
+# API field names the number of days. So the tool reports the platform's flag
+# beside a derived age and infers nothing from the pair. Do not "fix" this by
+# picking a plausible number like 30 or 90; a printed threshold reads as
+# measured, and this one would not be.
+RESUME_FRESHNESS_CUTOFF_PUBLISHED = False
 
 # Settings GET echoes the account's password fields back in the payload. They
 # are stripped before anything is returned, logged or cached. Never widen this.

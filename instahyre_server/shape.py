@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import html as _html
 import re
+from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from . import constants as C
@@ -533,6 +534,110 @@ def _profile_completeness(raw: dict) -> dict:
             "up on the NEXT recalculation, not immediately."
         ),
     }
+
+
+#: The two URLs on a resume record that resolve to the document itself, in the
+#: order a human wants them: ``pdf_file`` is Instahyre's PDF rendering and
+#: ``url`` the file as uploaded. The record carries two MORE -- ``watermark_file``
+#: and ``html_file`` -- and neither is ever offered as the download: they are
+#: Instahyre's own derived copies, and the second is a gzipped HTML conversion
+#: (``.jgz``) that nothing opens as a document.
+RESUME_DOWNLOAD_FIELDS = ("pdf_file", "url")
+
+#: Written once, here, because two things have to agree about it: the flag is
+#: the platform's verdict and the cutoff behind it is not published. See
+#: ``constants.RESUME_FRESHNESS_CUTOFF_PUBLISHED``.
+RESUME_FRESHNESS_NOTE = (
+    "is_fresh is Instahyre's OWN verdict on this file, not a computation of this "
+    "server's, and it is not cosmetic: the platform surfaces resume staleness to "
+    "recruiters, and recruiter resume-opens are what the activity feed counts. The "
+    "cutoff that flips the flag is UNPUBLISHED -- no bundle constant, help page or "
+    "API field names the number of days -- so age_days is reported beside the flag "
+    "and neither one is derived from the other."
+)
+
+
+def _age_in_days(stamp: Any, *, now: Optional[datetime] = None) -> Optional[int]:
+    """Whole days between an ISO-8601 timestamp and now, or None.
+
+    Returns None rather than raising, and that is the whole design: an
+    unreadable timestamp must cost the derived age and NOTHING else. The
+    load-bearing field is the platform's own ``is_fresh`` verdict, which does
+    not depend on this parsing succeeding.
+
+    The one captured value is ``2026-08-13T10:59:44+00:00``. A trailing ``Z``
+    is normalised anyway rather than trusted not to appear -- it costs one
+    replace, and a capture in the other spelling would otherwise silently
+    become None.
+    """
+    if not isinstance(stamp, str) or not stamp.strip():
+        return None
+    text = stamp.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    # Clamped at zero on purpose: ``timedelta.days`` floors toward negative
+    # infinity, so two seconds of clock skew against the server would report an
+    # age of -1 rather than 0.
+    return max(0, (reference - parsed).days)
+
+
+def shape_resume(raw: dict, *, now: Optional[datetime] = None) -> dict:
+    """The uploaded resume record -> whether it is still doing its job.
+
+    ``shape_profile`` reduces this whole resource to ``has_resume: true``,
+    which is the right size for a completeness check and the wrong size for the
+    question that actually matters. ``is_fresh`` is the field with
+    consequences: Instahyre shows resume staleness to recruiters, and the
+    activity feed counts resume opens, so a stale file is felt on the one
+    signal this platform runs on.
+
+    ``now`` is injectable so the age arithmetic is testable against a fixed
+    clock rather than against whatever day the suite happens to run on.
+    """
+    download = None
+    for field in RESUME_DOWNLOAD_FIELDS:
+        if raw.get(field):
+            download = raw[field]
+            break
+    return {
+        "has_resume": True,
+        "resume_id": raw.get("id"),
+        "title": raw.get("title"),
+        "uploaded_on": raw.get("uploaded_on"),
+        "age_days": _age_in_days(raw.get("uploaded_on"), now=now),
+        "is_fresh": raw.get("is_fresh"),
+        "conversion_status": raw.get("conversion_status"),
+        "download_url": download,
+        "freshness_note": RESUME_FRESHNESS_NOTE,
+    }
+
+
+def shape_saved_search(row: dict) -> dict:
+    """One saved search, with the one field whose meaning is established.
+
+    The row is forwarded WHOLE and a single derived key is added, which is the
+    opposite of what every other shaper in this file does. The reason is
+    evidence, not laziness: this account has ZERO saved searches, so no live
+    record has ever been captured, and ``job_alert_enabled_at`` -- read off the
+    frontend bundle beside ``toggleSavedJobSearchAlerts($event)`` -- is the
+    only field name with anything behind it. Renaming keys nobody has seen into
+    a tidy shape would publish a contract this server has not measured.
+    """
+    out = dict(row)
+    # An "_at" field: present and non-null means the toggle is on. There is no
+    # boolean beside it and no frequency anywhere in the product -- an alert IS
+    # this one timestamp, or it is off.
+    out["alerts_on"] = bool(row.get(C.SAVED_SEARCH_ALERT_FIELD))
+    return out
 
 
 def shape_settings(raw: dict) -> dict:

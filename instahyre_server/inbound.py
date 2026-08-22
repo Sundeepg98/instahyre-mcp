@@ -36,6 +36,11 @@ from . import shape
 from .cache import Store
 from .errors import ApiError, InstahyreError, InvalidFilter, NotFound
 from .http import InstahyreHTTP
+# The inbox's read-only guard, borrowed rather than reimplemented. ``inbox``
+# imports nothing from this module, so the direction is one-way and there is no
+# cycle. It is a substring check on the path actually about to be requested,
+# which is worth having on any path built by formatting an id into a template.
+from .inbox import guard_read_only
 
 log = logging.getLogger("instahyre.inbound")
 
@@ -45,6 +50,7 @@ _ID_KEY = "candidate_id"
 _ID_TTL = 30 * 24 * 3600
 
 _CANDIDATE_URI_RE = re.compile(r"/candidate_misc/profile/candidate/(\d+)")
+_RESUME_URI_RE = re.compile(r"/candidate_misc/profile/resume/(\d+)")
 
 
 
@@ -204,6 +210,31 @@ class Inbound:
         if not page:
             result["diagnosis"] = self._diagnose_empty_queue(interest, params, path)
         return result
+
+    def raw_queue(self, *, interest: str = "pending", use_cache: bool = True) -> dict:
+        """The queue payload UNSHAPED, for callers that need the full keyword lists.
+
+        :meth:`list_opportunities` is the tool-facing read and it shapes every
+        record, which caps ``skills`` at ``shape.MAX_SKILLS_IN_LIST`` (8) and
+        moves the rest to ``skills_more``. That is right for a list a human
+        reads and wrong for anything that COUNTS skills: on this account two
+        records in a six-record sample already carry 10 and 11 keywords, so an
+        analysis fed shaped records silently reports lower bounds.
+
+        Same request, same params, same cache entry as
+        :meth:`list_opportunities` -- this is the identical call without the
+        shaping, not a second fetch.
+        """
+        params = self._queue_params(
+            interest=interest,
+            location=None,
+            industry_id=None,
+            company_size=None,
+            job_type=None,
+            limit=C.OPP_MAX_LIMIT,
+            offset=0,
+        )
+        return self._queue_request(C.EP_OPPORTUNITIES, params, use_cache=use_cache)
 
     def _queue_params(
         self,
@@ -498,11 +529,17 @@ class Inbound:
         return out
 
     def unread_messages(self) -> dict:
-        """Unread recruiter messages -- the COUNT, which is all that is reachable.
+        """Unread recruiter messages -- the COUNT, and where the threads are read.
 
-        The site has an inbox. Its message list demands a ``conv_id`` and no
-        endpoint anywhere enumerates conversations, so the bodies cannot be read
-        over the API. Saying that plainly beats a tool that quietly returns [].
+        This returns only the count because that is the only thing it asks for,
+        which is a scope, not a limit: ``instahyre_list_conversations``
+        enumerates the threads and ``instahyre_read_conversation`` returns their
+        bodies, both over plain httpx with no browser.
+
+        This method used to report the bodies as unreachable. That was wrong --
+        the conversation list is in a different namespace from the one the
+        original search checked -- and the full correction is recorded above
+        ``EP_CONVERSATIONS`` in ``constants.py``.
         """
         payload = self.http.get(C.EP_MESSAGE_COUNT, params=dict(C.MESSAGE_COUNT_PARAMS))
         count = (payload or {}).get("message_count")
@@ -515,34 +552,71 @@ class Inbound:
             "unread_messages": count,
             "read_them_at": C.SITE_BASE + "/candidate/inbox/",
             "limitation": (
-                "Only the unread count is available over the API. Message bodies need a "
-                "conv_id and no endpoint lists conversations, so threads must be read on "
-                "the website."
+                "This tool returns the count only. The threads themselves ARE reachable over "
+                "the API: instahyre_list_conversations lists them and hands back the conv_id "
+                "that instahyre_read_conversation needs for a thread's messages. What the "
+                "count does not carry is any breakdown -- no per-thread, per-company or "
+                "per-recruiter split -- so it answers 'how many' and nothing else."
             ),
         }
 
     def saved_searches(self) -> dict:
-        """Saved job SEARCHES. Instahyre has no saved/bookmarked JOBS at all."""
-        payload = self.http.get(C.EP_SAVED_SEARCHES, params={"limit": 50})
+        """Saved job SEARCHES, and the alert toggle each one carries.
+
+        Instahyre has no saved or bookmarked JOBS at all -- no bookmark feature,
+        and no job-side endpoint to build one from. What exists is a capped list
+        of saved searches, each carrying a single boolean alert.
+
+        This account has ZERO saved searches, so the populated path has never
+        been exercised against the live API and every field beyond the alert
+        flag is unmeasured -- see :func:`shape.shape_saved_search`. Zero comes
+        back with a diagnosis, because "he has never saved one" and "the read
+        failed" must be different answers rather than the same empty list.
+        """
+        # limit=50 against a cap of 5 is deliberate. The cap was READ off the
+        # frontend bundle, not measured on the server, so asking for exactly
+        # five would mean trusting an unverified number enough to truncate. If
+        # this account ever holds more, the tool sees them and the count says so.
+        payload = self.http.get(guard_read_only(C.EP_SAVED_SEARCHES), params={"limit": 50})
         objects = (payload or {}).get("objects")
         if objects is None:
             raise ApiError(
                 "saved_job_searches returned no 'objects' list; its contract has changed.",
                 path=C.EP_SAVED_SEARCHES,
             )
-        return {
-            "saved_searches": objects,
-            "count": len(objects),
+        meta = (payload or {}).get("meta") or {}
+        records = [shape.shape_saved_search(row) for row in objects]
+        result: dict[str, Any] = {
+            "saved_searches": records,
+            "count": len(records),
+            "max_saved_searches": C.MAX_SAVED_SEARCHES,
+            "alerts_on_count": sum(1 for row in records if row["alerts_on"]),
             "note": (
                 "Instahyre has no bookmark or saved-job feature -- only saved searches. "
-                "There is nothing to list on the job side and no endpoint to build it from."
+                "There is nothing to list on the job side and no endpoint to build it from. "
+                "A job alert is not a separate object either: it is a boolean TOGGLE on one "
+                f"of these saved searches ({C.SAVED_SEARCH_ALERT_FIELD}), it can only be "
+                f"switched on for a search carrying at least "
+                f"{C.SAVED_SEARCH_ALERT_MIN_FILTERS} filters, and an account holds at most "
+                f"{C.MAX_SAVED_SEARCHES} saved searches. No alert frequency exists anywhere "
+                "in the product -- there is no schedule field of any kind on any of these "
+                "records -- so never offer one."
             ),
         }
+        if not records:
+            result["diagnosis"] = _no_saved_searches_diagnosis(meta)
+        return result
 
     # -- profile and settings ----------------------------------------------
 
-    def profile(self, *, use_cache: bool = True) -> dict:
-        """The full candidate profile, shaped, with a completeness assessment."""
+    def _raw_profile(self, *, use_cache: bool = True) -> dict:
+        """The unshaped profile payload, cached for ``TTL_PROFILE``.
+
+        Split out of :meth:`profile` because :meth:`resume_info` needs a field
+        the shaping deliberately throws away -- ``shape_profile`` reduces the
+        whole resume resource to ``has_resume`` -- and re-fetching the same
+        payload to see it would be a second request for bytes already in hand.
+        """
         cid = self.candidate_id()
         key = str(cid)
         raw = self.store.get("profile", key) if use_cache else None
@@ -554,7 +628,52 @@ class Inbound:
                     path=C.EP_PROFILE.format(candidate_id=cid),
                 )
             self.store.put("profile", key, raw, C.TTL_PROFILE)
-        return shape.shape_profile(raw)
+        return raw
+
+    def profile(self, *, use_cache: bool = True) -> dict:
+        """The full candidate profile, shaped, with a completeness assessment."""
+        return shape.shape_profile(self._raw_profile(use_cache=use_cache))
+
+    def resume_info(self, *, use_cache: bool = True) -> dict:
+        """The uploaded resume: how old it is, and whether Instahyre calls it fresh.
+
+        TWO requests, and the split is deliberate. The resume id is published in
+        exactly one place -- the profile payload's own ``resume`` object -- and
+        the collection route is HTTP 405, so there is nothing to enumerate and
+        nothing to guess from. But the profile is cached for fifteen minutes,
+        and a cached copy of the thing being asked about is not an answer. So
+        the ID comes from the cached profile, where it is stable, and the
+        RECORD is read live off the detail route.
+
+        An account with no resume has no ``resume`` key at all. That returns a
+        diagnosis rather than an exception or an empty dict: it is a fact about
+        the account, and on a platform whose entire signal is recruiters opening
+        a resume, it is the most consequential fact there is.
+        """
+        raw = self._raw_profile(use_cache=use_cache)
+        record = raw.get("resume")
+        if not isinstance(record, dict) or not record:
+            return _no_resume_result()
+
+        resume_id = _resume_id_from(record)
+        if resume_id is None:
+            raise ApiError(
+                "The profile carries a 'resume' object that names no id -- no 'id' key and "
+                f"no resource_uri to parse one out of (keys present: {sorted(record)}). The "
+                "resume collection route is HTTP 405, so there is no listing to recover the "
+                "id from, and this server will not invent one to request.",
+                path=C.EP_PROFILE.format(candidate_id=raw.get("id")),
+            )
+
+        path = guard_read_only(C.EP_RESUME.format(resume_id=resume_id))
+        payload = self.http.get(path)
+        if not isinstance(payload, dict) or "id" not in payload:
+            raise ApiError(
+                f"The resume record {resume_id} came back without an 'id'; its contract has "
+                "changed.",
+                path=path,
+            )
+        return shape.shape_resume(payload)
 
     def account_settings(self) -> dict:
         """Account settings: visibility, notifications, blocked employers.
@@ -782,6 +901,83 @@ class Inbound:
             "irreversible": True,
             "response": response if isinstance(response, dict) else {"raw": str(response)[:200]},
         }
+
+
+def _resume_id_from(record: dict) -> Optional[int]:
+    """The resume id, off ``id`` or out of ``resource_uri``. Never invented.
+
+    The live record names it twice, so either source alone is enough. The
+    fallback is here because the collection route is HTTP 405: there is no
+    listing to recover an id from, so a record whose ``id`` key went missing
+    would otherwise take the whole resource down with it while the id sat in
+    the ``resource_uri`` in the same object.
+    """
+    raw_id = record.get("id")
+    if isinstance(raw_id, bool):
+        return None
+    if isinstance(raw_id, int):
+        return raw_id
+    if isinstance(raw_id, str) and raw_id.strip().isdigit():
+        return int(raw_id.strip())
+    match = _RESUME_URI_RE.search(str(record.get("resource_uri") or ""))
+    return int(match.group(1)) if match else None
+
+
+def _no_resume_result() -> dict:
+    """The absent-resume answer: the same keys, empty, plus a diagnosis.
+
+    The key set does not change between the two cases, so a caller branches
+    once on ``has_resume`` instead of defending against a missing key on every
+    field. The diagnosis is what stops "no resume" being read as "the lookup
+    broke" -- on this platform those are opposite facts, and only one of them
+    is something he can fix.
+    """
+    return {
+        "has_resume": False,
+        "resume_id": None,
+        "title": None,
+        "uploaded_on": None,
+        "age_days": None,
+        "is_fresh": None,
+        "conversion_status": None,
+        "download_url": None,
+        "diagnosis": {
+            "reason": "no_resume_on_file",
+            "explanation": (
+                "There is no resume on this account. The profile payload came back with no "
+                "'resume' key at all -- absent, not null and not an empty object -- which is "
+                "exactly how an account that has never uploaded one reads. Nothing was "
+                "requested for it: there is no id to look up, and the resume collection "
+                "route answers HTTP 405, so there is no listing to search either."
+            ),
+            "why_it_matters": (
+                "Recruiters open the resume and the activity feed counts those opens, so an "
+                "account without one is invisible on the single signal this platform runs on."
+            ),
+            "fix": "Upload one at " + C.SITE_BASE + "/candidate/profile/",
+        },
+    }
+
+
+def _no_saved_searches_diagnosis(meta: dict) -> dict:
+    """Zero saved searches: say why it is a fact and not a swallowed failure.
+
+    Two situations would look identical if this shrugged -- he has never saved
+    one, or the read failed and the failure arrived wearing an empty list. The
+    second is structurally unreachable, and the explanation names the mechanism
+    rather than asserting the conclusion, so a reader can check it.
+    """
+    return {
+        "reason": "never_saved_one",
+        "explanation": (
+            "No saved search has ever been created on this account. This is not a failed "
+            "read wearing an empty list: a dead session cannot reach this branch, because a "
+            "401 raises AuthRequired inside the HTTP client, and a payload that arrived "
+            "without an 'objects' list raises ApiError before the count is taken. The "
+            "request answered 200 with a tastypie envelope."
+        ),
+        "total_count_reported": meta.get("total_count"),
+    }
 
 
 def build_apply_request(raw: dict, *, is_interested: bool) -> tuple[str, dict]:

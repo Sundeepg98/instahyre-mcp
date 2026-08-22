@@ -492,8 +492,17 @@ def test_opportunity_counts_names_the_statuses_instead_of_returning_bare_integer
     assert counts["top_companies"][0] == {"id": 48328, "name": "Arctic Wolf", "count": 15}
 
 
-def test_unread_messages_returns_the_count_and_says_why_the_threads_are_unreadable():
-    """The inbox exists; only its unread count is reachable over the API."""
+def test_unread_messages_returns_the_count_and_points_at_the_thread_tools():
+    """The count is this tool's SCOPE, not a limit -- the threads are readable.
+
+    The name and docstring here used to say the threads were unreachable, which
+    was true of an earlier build and false since the conversation list was
+    found (see the correction above ``EP_CONVERSATIONS`` in constants). The
+    assertion below never changed: ``conv_id`` appears in the message either
+    way, because it is the thing the caller needs in BOTH stories. That is
+    worth noticing -- an assertion that survives the fact it was pinning is not
+    pinning it, and ``test_resume_saved.py`` carries the tripwire that is.
+    """
     client = make_client({C.EP_MESSAGE_COUNT: fixture_json("message_count.json")})
 
     result = client.inbound.unread_messages()

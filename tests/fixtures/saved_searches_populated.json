@@ -1,0 +1,27 @@
+{
+  "_synthetic": "HAND-BUILT, NOT CAPTURED. This account holds ZERO saved searches -- saved_searches.json is the live empty envelope -- so no populated payload exists to golden and none was invented to look like one. The only record field here that carries evidence is job_alert_enabled_at, read out of the frontend bundle where searchjobs.html binds toggleSavedJobSearchAlerts($event) on a saved-search row. Every other key a real record may carry (a name, the filter set, a created timestamp) is deliberately ABSENT rather than guessed: inventing plausible field names is how a test comes to depend on a contract nobody has ever seen. The ids and timestamps below are made up. The envelope is copied from the real empty capture, with total_count set to match the object count.",
+  "meta": {
+    "offset": 0,
+    "limit": 50,
+    "total_count": 3,
+    "previous": null,
+    "next": null
+  },
+  "objects": [
+    {
+      "id": 91,
+      "resource_uri": "/api/v1/candidate_opportunities/saved_job_searches/91",
+      "job_alert_enabled_at": "2026-08-01T06:12:00+00:00"
+    },
+    {
+      "id": 92,
+      "resource_uri": "/api/v1/candidate_opportunities/saved_job_searches/92",
+      "job_alert_enabled_at": null
+    },
+    {
+      "id": 93,
+      "resource_uri": "/api/v1/candidate_opportunities/saved_job_searches/93",
+      "job_alert_enabled_at": "2026-07-19T11:40:31+00:00"
+    }
+  ]
+}
