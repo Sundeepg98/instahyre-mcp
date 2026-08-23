@@ -619,6 +619,38 @@ class TestStatus:
         assert stats["last_advanced"] == advanced_at, "nothing new must not advance"
         assert stats["last_checked"] >= advanced_at
 
+    def test_last_checked_can_never_predate_last_advanced(self):
+        """The two stamps come from two clocks, so their ORDER is the contract
+        rather than their equality.
+
+        Inherited from a sibling server, where two ``time.time()`` calls put
+        0.1 days between fields a payload described as equal -- a flake about
+        one run in a few thousand, invisible until it fires. Nothing here
+        claims the three stamps are equal, and `watch_touch` always runs after
+        `watch_record`, so the ordering holds by construction. Pinned anyway:
+        by-construction is a property of today's call order, and a reordering
+        would look harmless in review.
+        """
+        client = watch_client()
+        for _ in range(3):
+            client.watch.whats_new("opportunities")
+            stats = client.store.watch_stats("opportunities")
+            assert stats["last_checked"] >= stats["last_advanced"]
+            assert stats["last_advanced"] >= stats["baselined_at"]
+
+    def test_a_baseline_writes_its_three_stamps_from_ONE_clock_read(self):
+        """`first_seen`, `baselined_at` and `last_advanced` are written by a
+        single `watch_record` call and must share its one `now`. Deriving them
+        from separate reads is how two fields that describe one instant drift
+        apart."""
+        store = Store(":memory:")
+        store.watch_record("opportunities", ["a", "b"])
+        stats = store.watch_stats("opportunities")
+
+        assert stats["oldest_first_seen"] == stats["newest_first_seen"]
+        assert stats["baselined_at"] == stats["last_advanced"]
+        assert stats["baselined_at"] == stats["oldest_first_seen"]
+
     def test_it_states_that_nothing_runs_unattended(self):
         """A user-visible claim, pinned. This server has no scheduler by
         design -- an application here cannot be withdrawn -- and the tool that

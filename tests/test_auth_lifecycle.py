@@ -63,12 +63,20 @@ from test_auth import (
 
 DAY_S = 86400.0
 
-#: Values that must never appear in a tool result, a log line or an error. They
-#: are deliberately unmistakable: a substring search for them cannot match by
-#: accident, so a hit is always a real leak.
-SECRET_SESSION_VALUE = "SECRET-sessionid-value-must-never-be-returned"
-SECRET_CSRF_VALUE = "SECRET-csrftoken-value-must-never-be-returned"
-SECRET_ENCRYPTED_BLOB = b"SECRET-encrypted-blob-must-never-be-selected"
+#: Values that must never appear in a tool result, a log line or an error.
+#:
+#: CREDENTIAL-SHAPED AND CREDENTIAL-LENGTH, deliberately: 32 lowercase
+#: alphanumerics for the session id and 64 mixed-case for the csrftoken, which
+#: is what Django hands out and what was measured in the live jar. They used to
+#: be hyphenated 45-character sentences, and that made the guard look stronger
+#: than it was -- a marker whose shape no real credential wears cannot exercise
+#: the shape scan at all, and one shorter than the truncation window survives
+#: truncation whole and passes for a reason that has nothing to do with the
+#: leak. They are still unmistakable: 32 alphanumerics have on the order of
+#: 36**32 spellings, so a hit is never an accident.
+SECRET_SESSION_VALUE = "secretsessionidvalue0must0never0"
+SECRET_CSRF_VALUE = "SECRETcsrftokenValueMustNeverBeReturned0000000000000000000000000"
+SECRET_ENCRYPTED_BLOB = b"secretencryptedblob0must0never00"
 
 
 # ---------------------------------------------------------------------------

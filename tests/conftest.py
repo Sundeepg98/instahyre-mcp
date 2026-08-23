@@ -539,6 +539,7 @@ def credential_needles(secret: Any) -> list:
     costs nothing and reports under the name that found it first.
     """
     import base64 as _b64
+    import binascii as _binascii
     import urllib.parse as _urlparse
 
     # TWO REPRESENTATIONS, AND THEY ARE NOT INTERCHANGEABLE. ``text`` is what a
@@ -561,6 +562,12 @@ def credential_needles(secret: Any) -> list:
         ("exact", text),
         ("b64", _b64.b64encode(raw).decode("ascii").rstrip("=")),
         ("b64url", _b64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")),
+        # Hex is a separate spelling and not a variation on base64: a hex dump
+        # of a credential shares no substring with either base64 form or with
+        # the plaintext. Added 2026-08-23 after a 9-transform x 6-entry-point
+        # grid measured hex invisible at EVERY entry point -- 6 of the 18
+        # leaking cells.
+        ("hex", _binascii.hexlify(raw).decode("ascii")),
         ("percent", _urlparse.quote(text, safe="")),
         ("repr", repr(text)[1:-1]),
     ):
@@ -568,6 +575,79 @@ def credential_needles(secret: Any) -> list:
             seen.add(needle)
             out.append((label, needle))
     return out
+
+
+#: How many consecutive characters of a credential count as a leak.
+#:
+#: WHY A RUN AND NOT THE WHOLE VALUE. Whole-string matching is defeated by two
+#: things a real codebase does on purpose: a redaction that TRUNCATES
+#: (``value[:12] + "..."``) and a value SPLIT across two fields. Neither
+#: payload contains the whole credential, so every whole-string needle reports
+#: CLEAN -- and both were measured invisible at every entry point on the
+#: 2026-08-23 grid, 12 of the 18 leaking cells between them.
+#:
+#: TWELVE is a floor chosen against false positives, not a guess. The
+#: credentials here are alphanumeric, so a specific 12-character run has on the
+#: order of 36**12 spellings; colliding with unrelated payload text is not a
+#: practical risk. Going lower buys little and starts matching ordinary words
+#: and ids; a scanner that cries wolf gets muted, and a muted scanner is a
+#: disconnected one.
+#:
+#: THE LIMIT, STATED: a redaction that truncates BELOW this length is not
+#: caught. Twelve characters of a 32-character Django session id is not a
+#: usable credential, so that is the intended trade rather than an oversight.
+CREDENTIAL_RUN_LENGTH = 12
+
+
+def credential_runs(secret: Any, length: int = CREDENTIAL_RUN_LENGTH) -> dict:
+    """Every ``length``-character run of every SPELLING of ``secret``.
+
+    Returns ``{run: label}``, where the label names the spelling the run came
+    from -- so a failure can say "this is a run of the hex form", which is the
+    difference between a finding and a puzzle.
+
+    Runs are taken AFTER encoding, not before, and that ordering matters: a
+    hex-encoded credential shares no substring with its plaintext, so runs of
+    the plaintext would never match it. Taking runs of each spelling covers the
+    whole value, a truncation of it, and either half of a split, in any of the
+    spellings :func:`credential_needles` knows.
+    """
+    out: dict = {}
+    for label, spelling in credential_needles(secret):
+        if len(spelling) < length:
+            # A spelling shorter than one run is already covered whole by the
+            # needle scan; indexing it here would produce nothing.
+            continue
+        for start in range(len(spelling) - length + 1):
+            out.setdefault(spelling[start:start + length], label)
+    return out
+
+
+def credential_run_hits(payload: Any, *secrets: Any) -> list:
+    """``(label, trail, run)`` for every credential run found in ``payload``.
+
+    Implemented as a sliding window over each payload string checked against a
+    SET, rather than a substring search per needle. A 32-character secret
+    yields roughly 180 runs across its six spellings, and two secrets make 360;
+    searching each one separately over every string is quadratic for no reason.
+    """
+    wanted: dict = {}
+    for secret in secrets:
+        wanted.update(credential_runs(secret))
+    if not wanted:
+        return []
+    length = CREDENTIAL_RUN_LENGTH
+    hits = []
+    for trail, text in credential_strings_in(payload):
+        if len(text) < length:
+            continue
+        seen_here = set()
+        for start in range(len(text) - length + 1):
+            window = text[start:start + length]
+            if window in wanted and window not in seen_here:
+                seen_here.add(window)
+                hits.append((wanted[window], trail, window))
+    return hits
 
 
 def _elide_around(text: str, needle: str, margin: int = 24) -> str:
@@ -592,21 +672,120 @@ def assert_no_credential(payload: Any, *secrets: Any, where: str = "payload") ->
     through a channel a plaintext search cannot see, which is the entire reason
     there is more than one spelling.
 
+    TWO INSTRUMENTS, ALWAYS BOTH RUN. The whole-value needles give the best
+    failure message and name the spelling; the RUN scan catches the two shapes
+    no whole-value needle can see -- a truncating redaction and a value split
+    across two fields. A run hit with no needle hit beside it means the payload
+    is leaking a FRAGMENT, which is the case that used to pass silently.
+
     The leak itself is elided out of the failure message -- printing it in full
     would put the credential in the CI log, which is where the operator is least
     able to rotate it.
     """
     strings = credential_strings_in(payload)
     hits: list = []
+    matched_whole: set = set()
     for secret in secrets:
         for label, needle in credential_needles(secret):
             for trail, text in strings:
                 if needle in text:
+                    matched_whole.add(trail)
                     hits.append(
                         "%s -> [%s] %s = %s"
                         % (where, label, trail, _elide_around(text, needle))
                     )
+    for label, trail, run in credential_run_hits(payload, *secrets):
+        if trail in matched_whole:
+            # Already reported, with a better message. A whole-value leak also
+            # contains every run of itself; listing both would triple the noise
+            # on the ordinary case and bury the fragment hits that are the
+            # reason this second instrument exists.
+            continue
+        hits.append(
+            "%s -> [run/%s] %s = a %d-char run of the %s form"
+            % (where, label, trail, len(run), label)
+        )
     assert not hits, (
         "%d credential leak(s) reached a tool result:\n  %s"
         % (len(hits), "\n  ".join(hits))
+    )
+
+
+# --- The marker-free scan ---------------------------------------------------
+#
+# EVERYTHING ABOVE CAN ONLY FIND LEAKS IT WAS TOLD TO EXPECT. A walker hunting
+# a planted marker proves that the paths a test planted into are clean; it says
+# nothing about a path no test ever planted into, and that is where a real leak
+# of the operator's actual cookie would live. So there is a second instrument
+# that hunts the SHAPE of the credential with no marker at all.
+#
+# It is deliberately the NOISIER of the two and is not a drop-in replacement.
+# Measured 2026-08-23: ``inbound_watch.activity_identity`` returns
+# ``sha256(...)[:32]`` -- 32 lowercase alphanumerics, which is byte-for-byte
+# the shape of a Django session id. That collision is real, it is not a bug in
+# either component, and it is why this scan takes an explicit allowlist rather
+# than a looser pattern. Loosening the pattern to dodge the collision would
+# blind the instrument to the thing it exists for.
+
+#: What Instahyre's two credentials actually look like on the wire, measured
+#: from the live jar: ``sessionid`` is 32 lowercase alphanumerics (Django's
+#: default session key), ``csrftoken`` is 64 mixed-case alphanumerics.
+#:
+#: Anchored with a negative lookaround rather than ``fullmatch`` so that a
+#: credential EMBEDDED in a longer string is still found -- a leak inside a
+#: sentence is still a leak, and requiring the whole field to be the credential
+#: would be a check that only fires on the tidiest possible bug.
+CREDENTIAL_SHAPES = (
+    ("sessionid", r"(?<![A-Za-z0-9])[a-z0-9]{32}(?![A-Za-z0-9])"),
+    ("csrftoken", r"(?<![A-Za-z0-9])[A-Za-z0-9]{64}(?![A-Za-z0-9])"),
+)
+
+
+def credential_shaped_hits(payload: Any, allow: Any = ()) -> list:
+    """``(shape, trail, value)`` for every credential-SHAPED run in ``payload``.
+
+    No marker is involved. This is what catches a leak of the real cookie on a
+    code path nobody thought to plant into.
+
+    ``allow`` is a collection of literal values that are known to wear this
+    shape for an innocent reason. Every entry is a claim that has to be
+    justified where it is written -- an allowlist is where a scanner goes to
+    die quietly, so it is kept explicit, small, and passed in at the call site
+    rather than hidden in here.
+    """
+    import re as _re
+
+    permitted = set(allow or ())
+    hits = []
+    for trail, text in credential_strings_in(payload):
+        for shape, pattern in CREDENTIAL_SHAPES:
+            for found in _re.findall(pattern, text):
+                if found not in permitted:
+                    hits.append((shape, trail, found))
+    return hits
+
+
+def assert_no_credential_shape(payload: Any, allow: Any = (), where: str = "payload") -> None:
+    """Fail if anything in ``payload`` is SHAPED like a live credential.
+
+    Reported separately from :func:`assert_no_credential` so a failure says
+    which instrument saw it: a shape hit with no marker hit beside it means
+    something is leaking that no test planted -- which is the interesting case
+    and the reason this exists.
+
+    The value is elided, as everywhere else here: a guard that reprints a
+    credential into a CI log is itself a disclosure.
+    """
+    hits = credential_shaped_hits(payload, allow=allow)
+    assert not hits, (
+        "%d credential-SHAPED value(s) reached a tool result -- no marker was "
+        "planted, so this is a leak nobody expected:\n  %s"
+        % (
+            len(hits),
+            "\n  ".join(
+                "%s -> [%s-shaped] %s = <%d chars, starts %r>"
+                % (where, shape, trail, len(value), value[:4])
+                for shape, trail, value in hits
+            ),
+        )
     )

@@ -43,23 +43,36 @@ fail".
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
+import pathlib
+import sys
 import urllib.parse
 
 import pytest
 
 from conftest import (
+    CREDENTIAL_RUN_LENGTH,
     assert_no_credential,
+    assert_no_credential_shape,
     credential_needles,
+    credential_runs,
+    credential_shaped_hits,
     credential_strings_in,
 )
 
-#: The credential shapes this file reasons about. Deliberately unmistakable, so
-#: a hit is never an accident -- and deliberately DIFFERENT from the sentinels
-#: in ``test_auth_lifecycle.py``, so that a copy-paste between the two files
-#: cannot make one look green on the other's fixture.
-COOKIE = "SECRET-walker-sessionid-value-0123456789abcdef"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts"))
+import leak_transform_matrix as matrix  # noqa: E402
+
+#: The credential shapes this file reasons about. CREDENTIAL-SHAPED and
+#: CREDENTIAL-LENGTH -- 32 lowercase alphanumerics, exactly what Django hands
+#: out -- because a marker that is neither cannot exercise the shape scan and
+#: one shorter than the truncation window passes truncation for the wrong
+#: reason. Still unmistakable at 36**32 spellings, and deliberately DIFFERENT
+#: from the sentinels in ``test_auth_lifecycle.py``, so that a copy-paste
+#: between the two files cannot make one look green on the other's fixture.
+COOKIE = "walkersessionidvalue0123456789ab"
 
 #: A DPAPI-sealed blob, as sqlite hands back Chrome's ``encrypted_value``:
 #: ``bytes``, not ``str``, and carrying bytes no text codec would round-trip.
@@ -491,3 +504,267 @@ class TestTheRealSurfaces:
             "longer does, this control has stopped measuring the hole it found"
         )
         assert new_detector_sees([record], COOKIE)
+
+
+# ===========================================================================
+# 5. The transform grid -- 9 transforms x 6 entry-point shapes
+# ===========================================================================
+#
+# THE LESSON THIS ENCODES, because it has now been re-learned twice across
+# three servers: THE ENCODING DOES NOT HAVE TO BE IN THE CREDENTIAL. IT CAN BE
+# IN THE LEAK PATH. A tool that base64s, hex-dumps, splits or merely logs its
+# output hides a planted marker regardless of what shape the credential itself
+# has. "Our session cookie is an opaque Django string with no encoding step in
+# which a marker could hide" is a clearance issued by reasoning, and it is
+# wrong -- measured here rather than argued.
+#
+# The grid ran 18/54 LEAK on 2026-08-23 with three transforms invisible at
+# every entry point: hex, split and truncated. It runs 0/54 now. Both numbers
+# are in scripts/leak_transform_matrix.py, which prints the map; this is the
+# same grid as a gate.
+
+
+class TestTheTransformGrid:
+
+    @pytest.mark.parametrize("transform_name", [n for n, _ in matrix.TRANSFORMS])
+    @pytest.mark.parametrize("entry_name", [n for n, _ in matrix.ENTRY_POINTS])
+    def test_no_cell_ships_the_credential(self, transform_name, entry_name):
+        transform = dict(matrix.TRANSFORMS)[transform_name]
+        wrap = dict(matrix.ENTRY_POINTS)[entry_name]
+        assert not matrix.cell_leaks(transform, wrap), (
+            "%s through %s shipped the whole credential and the walker said CLEAN"
+            % (transform_name, entry_name)
+        )
+
+    def test_the_grid_is_the_size_it_claims(self):
+        """A grid that quietly shrank would report a clean sweep over fewer
+        cells. Pinned, so dropping a transform is a visible edit."""
+        rows, leaking, total = matrix.run_grid()
+        assert total == 54 and len(rows) == 9
+        assert leaking == 0
+
+    def test_every_transform_really_hides_the_plaintext__CONTROL(self):
+        """The grid is only evidence if its transforms actually transform.
+
+        A transform that returned the value unchanged would make its whole row
+        pass on the strength of the plaintext needle, certifying nothing. Each
+        encoding transform is checked to have removed the plaintext; the two
+        fragment transforms are checked to hold no field containing the whole
+        value, which is the property that defeats whole-string matching.
+        """
+        value = matrix.SESSIONID
+        for name, transform in matrix.TRANSFORMS:
+            if name in ("identity", "percent", "repr", "log_only"):
+                # percent and repr are identity for an alphanumeric value, and
+                # log_only does carry it verbatim -- on an ARG, which is the
+                # point. Their coverage is asserted elsewhere in this file.
+                continue
+            produced = transform(value)
+            fields = list(produced.values())
+            assert all(value not in str(f) for f in fields), (
+                "%s left the plaintext intact -- its row proves nothing" % name
+            )
+
+    def test_the_fragment_transforms_hold_no_whole_value__CONTROL(self):
+        """split and truncated are the two the run scan exists for. If either
+        ever produced a field containing the whole credential, it would be
+        caught by the ordinary needle and this file would silently stop
+        exercising the run scan at all."""
+        value = matrix.SESSIONID
+        for name in ("split", "truncated"):
+            produced = dict(matrix.TRANSFORMS)[name](value)
+            assert all(value not in str(f) for f in produced.values())
+            assert any(len(str(f)) >= 12 for f in produced.values()), (
+                "%s produced nothing long enough for a 12-char run" % name
+            )
+
+
+# ===========================================================================
+# 6. The run scan -- fragments, which no whole-value needle can see
+# ===========================================================================
+
+
+class TestTheRunScan:
+
+    def test_a_split_value_is_caught(self):
+        value = COOKIE
+        payload = {"prefix": value[:16], "suffix": value[16:]}
+
+        assert not old_detector_sees(payload, value), (
+            "a split value was supposed to be invisible to whole-string matching"
+        )
+        assert new_detector_sees(payload, value)
+
+    def test_a_truncating_redaction_is_caught(self):
+        """The redaction that looks responsible. Twelve characters of a
+        32-character session id is not usable, but it is a fragment of a live
+        credential in a payload that claims to have redacted it."""
+        payload = {"redacted": COOKIE[:12] + "..."}
+
+        assert not old_detector_sees(payload, COOKIE)
+        assert new_detector_sees(payload, COOKIE)
+
+    def test_a_hex_dump_is_caught(self):
+        """Hex shares no substring with the plaintext OR with either base64
+        form, so it needed its own spelling rather than falling out of the
+        others."""
+        payload = {"hexed": binascii.hexlify(COOKIE.encode()).decode()}
+
+        assert not old_detector_sees(payload, COOKIE)
+        assert new_detector_sees(payload, COOKIE)
+
+    def test_a_split_of_an_ENCODED_value_is_caught(self):
+        """Runs are taken AFTER encoding, and this is why. A base64 blob cut in
+        half shares nothing with the plaintext, so runs of the plaintext would
+        never match it."""
+        blob = base64.b64encode(COOKIE.encode()).decode()
+        payload = {"a": blob[:20], "b": blob[20:]}
+
+        assert not old_detector_sees(payload, COOKIE)
+        assert new_detector_sees(payload, COOKIE)
+
+    def test_a_run_shorter_than_the_window_is_NOT_caught__CONTROL(self):
+        """The stated limit, kept executable.
+
+        A redaction that truncates below CREDENTIAL_RUN_LENGTH is not caught,
+        and that is the intended trade -- eight characters of a 32-character
+        session id is not a credential, and hunting shorter runs starts
+        matching ordinary words. If this ever starts failing, the window was
+        lowered and the false-positive question needs re-asking.
+        """
+        payload = {"redacted": COOKIE[:8] + "..."}
+        assert not new_detector_sees(payload, COOKIE)
+
+    def test_the_window_is_twelve(self):
+        assert CREDENTIAL_RUN_LENGTH == 12
+
+    def test_the_runs_carry_the_spelling_that_produced_them(self):
+        """A failure has to say WHICH form the fragment came from; "a run
+        matched" without that is a puzzle rather than a finding."""
+        runs = credential_runs(COOKIE)
+        assert set(runs.values()) >= {"exact", "b64", "hex"}
+        assert all(len(r) == CREDENTIAL_RUN_LENGTH for r in runs)
+
+    def test_the_failure_message_marks_a_fragment_as_a_run(self):
+        payload = {"redacted": COOKIE[:12] + "..."}
+        with pytest.raises(AssertionError) as excinfo:
+            assert_no_credential(payload, COOKIE)
+        assert "[run/" in str(excinfo.value)
+
+    def test_a_whole_value_leak_is_not_reported_twice(self):
+        """A whole-value leak contains every run of itself. Reporting both
+        instruments on the same field would triple the noise on the ordinary
+        case and bury the fragment hits the run scan exists to surface."""
+        with pytest.raises(AssertionError) as excinfo:
+            assert_no_credential({"cookie": COOKIE}, COOKIE)
+        message = str(excinfo.value)
+        assert message.count("[run/") == 0
+        assert "[exact]" in message
+
+    def test_ordinary_payload_text_does_not_trip_it(self):
+        """The false-positive half. Twelve characters is a floor chosen against
+        exactly this -- a scanner that fires on prose gets muted."""
+        payload = {
+            "title": "Senior Backend Engineer, Distributed Systems",
+            "company": "A Very Long Company Name Private Limited",
+            "url": "https://www.instahyre.com/api/v1/candidate_matching?limit=100",
+            "note": "the quick brown fox jumps over the lazy dog repeatedly",
+        }
+        assert_no_credential(payload, COOKIE, SEALED)
+
+
+# ===========================================================================
+# 7. The marker-free scan -- a leak nobody planted
+# ===========================================================================
+#
+# Everything above finds leaks it was TOLD to expect. This finds one it was
+# not, by hunting the SHAPE of a live credential with no marker involved.
+
+
+class TestTheShapeScan:
+
+    def test_a_real_shaped_session_id_is_caught_with_no_marker(self):
+        """The whole point. Nothing planted this value and no needle knows it;
+        it is caught because it LOOKS like the operator's session cookie."""
+        real = "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3"
+        payload = {"credential": {"session": real}}
+
+        assert not new_detector_sees(payload, COOKIE, SEALED), (
+            "the marker walker was supposed to be blind to a value it never planted"
+        )
+        with pytest.raises(AssertionError) as excinfo:
+            assert_no_credential_shape(payload)
+        assert "sessionid-shaped" in str(excinfo.value)
+
+    def test_a_real_shaped_csrftoken_is_caught(self):
+        real = "Ab3Cd5Ef7Gh9Ij1Kl3Mn5Op7Qr9St1Uv3Wx5Yz7Ab9Cd1Ef3Gh5Ij7Kl9Mn1Op3Q"
+        assert credential_shaped_hits({"t": real})[0][0] == "csrftoken"
+
+    def test_it_finds_a_credential_embedded_in_prose(self):
+        """Requiring the whole field to BE the credential would be a check that
+        only fires on the tidiest possible bug. A leak inside a sentence is
+        still a leak."""
+        real = "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3"
+        assert credential_shaped_hits({"why": "renew failed for %s, retrying" % real})
+
+    def test_an_ordinary_auth_payload_is_clean(self):
+        """The other half of a usable detector. Names, booleans and dates are
+        what these tools actually return, and none of them wears the shape."""
+        payload = {
+            "authenticated": True,
+            "cookie_names": ["sessionid", "csrftoken"],
+            "expires": 1795000000.0,
+            "expiry_source": "read from the persistent Chrome profile",
+            "stored_in": "_state/session.json",
+        }
+        assert_no_credential_shape(payload)
+
+    def test_the_watcher_identity_collides_and_that_is_why_allow_exists__CONTROL(self):
+        """A REAL false positive, measured, not hypothetical.
+
+        ``inbound_watch.activity_identity`` returns ``sha256(...)[:32]`` -- 32
+        lowercase alphanumerics, byte-for-byte the shape of a Django session
+        id. Neither component is wrong. Loosening the pattern to dodge this
+        would blind the scan to the thing it exists for, so the collision is
+        handled by an explicit allowlist and this control is what stops the
+        allowlist being mistaken for a defect in either.
+        """
+        from instahyre_server.inbound_watch import activity_identity
+
+        identity = activity_identity(
+            {
+                "recruiter_id": 111111,
+                "recruiter_company": "Acme",
+                "job_title": "Backend",
+                "hiring_company": "RealCo",
+            }
+        )
+        payload = {"new": [{"identity": identity}]}
+
+        assert credential_shaped_hits(payload), (
+            "the collision is gone -- if activity_identity changed shape, this "
+            "control and the allowlist below can both be removed"
+        )
+        assert_no_credential_shape(payload, allow=[identity])
+
+    def test_the_allowlist_only_permits_what_it_names__CONTROL(self):
+        """An allowlist is where a scanner goes to die quietly. Permitting one
+        value must not permit a second."""
+        first = "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3"
+        second = "z1y2x3w4v5u6t7s8r9q0p1o2n3m4l5k6"
+        assert_no_credential_shape({"a": first}, allow=[first])
+        with pytest.raises(AssertionError):
+            assert_no_credential_shape({"a": first, "b": second}, allow=[first])
+
+    def test_the_shape_scan_reaches_bytes_and_reprs_too(self):
+        """It runs over the same wide walker, so it inherits every channel the
+        marker scan reaches rather than re-deriving a narrower one."""
+        real = "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3"
+        assert credential_shaped_hits({"raw": real.encode()})
+
+    def test_it_does_not_fire_on_a_shorter_or_longer_run__CONTROL(self):
+        """The shape is anchored, so a 31- or 33-character id is not a session
+        id. Without the anchors, every long hex blob in the tree would match a
+        32-character window inside it and the scan would be unusable."""
+        assert not credential_shaped_hits({"a": "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d"})
+        assert not credential_shaped_hits({"a": "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3x"})
