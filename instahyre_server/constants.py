@@ -496,6 +496,87 @@ FORBIDDEN_ENDPOINTS = frozenset(
     }
 )
 
+# --- Writes that CANNOT be built on the evidence this tree holds -------------
+#
+# Six write surfaces were commissioned on 2026-08-23 and none was built. This
+# is the measurement that stopped them, recorded here rather than in a report,
+# so the next session finds the finding instead of re-deriving it -- or worse,
+# guessing a body and shipping it.
+#
+# WHAT THE EVIDENCE ACTUALLY IS. Five of the six trace to ONE table in
+# `_audit/2026-08-20-instahyre-exploration.md`, whose own heading reads
+# "auth INFERRED from shipped code (NOT probed, per the read-only constraint)".
+# It was built by resolving an Angular API_PATHS map against $resource action
+# maps. That technique yields a path string and a set of action NAMES. It
+# cannot yield a request body, and it never did.
+#
+#   A JS FUNCTION NAME IS NOT A CONTRACT. `send_invites` is an entry in an
+#   action map. It says a route probably exists. It does not say what method
+#   reaches it, what fields it takes, what it returns, or what it does on
+#   partial input -- and those are the whole content of a write.
+#
+# NO POST HAS EVER BEEN SENT TO INSTAHYRE FROM THIS CODEBASE, so there is no
+# measured status code for any of the six either. Every live call in the
+# exploration, the parity pass and the auth tier was a GET.
+#
+# THE RULE THIS ENCODES: a write with a guessed body shape is worse than no
+# tool. It fails in the direction that cannot be undone -- a guessed body that
+# is WRONG usually 400s harmlessly, and a guessed body that is half-right
+# succeeds and does something nobody chose. On this platform the second case is
+# permanent.
+#
+# Deliberately NOT merged into FORBIDDEN_ENDPOINTS, which means something
+# stronger: those two bulk paths must never be built, at any evidence level.
+# These six are UNBUILT PENDING MEASUREMENT. Capture the real request in a
+# signed-in browser, record the body here, and they become ordinary work.
+UNVERIFIED_WRITE_SURFACES = {
+    "saved_search_alert_toggle": (
+        "No method, path or body for the WRITE exists anywhere in this tree. The "
+        "only trace is an HTML template binding toggleSavedJobSearchAlerts($event), "
+        "and the 2026-08-22 parity pass records that this function appears in no "
+        "captured bundle -- a call site with no callee. The account also holds ZERO "
+        "saved searches, so there is nothing to toggle and the populated row shape "
+        "has never been on the wire. The >=3-filter gate and the cap of 5 above are "
+        "reported by an earlier reading of a bundle this tree no longer contains; "
+        "they are carried as stated, not as re-verified."
+    ),
+    "referrals": (
+        "ONE table row: /candidate_misc/refer/referral/ with 'get_link', "
+        "'import_gmail_contacts' and 'send_invites' listed under a shared "
+        "'POST/GET' cell. No per-action method, no per-action URL, no body for any "
+        "of the three. send_invites mails REAL THIRD PARTIES from his account and "
+        "no unsend appears anywhere in the evidence. A confirm gate for it cannot "
+        "be built honestly either: naming who would be contacted requires the "
+        "import_gmail_contacts contract, which is equally absent, so the gate would "
+        "be showing a fabricated list -- the appearance of informed consent without "
+        "the substance."
+    ),
+    "screening_questionnaires": (
+        "POST /questionnaires/answer is a name with an explicitly UNVERIFIED body, "
+        "and there is no READ route for the questions at all -- so there is no way "
+        "to know what is being answered. It rides an application that cannot be "
+        "withdrawn."
+    ),
+    "workex_put": (
+        "A PUT is a full replacement, and not even the READ shape of a candidate "
+        "workex record exists here: the profile fixture carries 42 keys and none is "
+        "a work-experience block. Every workex_* hit in this package is a job-side "
+        "field, not a candidate one. An omitted key in a PUT silently deletes a "
+        "field nobody has ever seen."
+    ),
+    "profile_image": (
+        "The GET record is captured, so the resource is real. The UPLOAD is not: "
+        "multipart versus JSON, the field name, and the content type are all "
+        "absent. APPLY_CONTENT_TYPE above is an ordinary-POST default and does not "
+        "apply to a file upload."
+    ),
+    "support_tickets": (
+        "One table row and nothing else. No body, no read-back, no retraction -- "
+        "and the destination is a human support queue, where a guessed body "
+        "succeeds VISIBLY rather than failing safely."
+    ),
+}
+
 # --- Profile writes --------------------------------------------------------
 #
 # Skills do NOT ride the profile PATCH. They have their own resource, and the
