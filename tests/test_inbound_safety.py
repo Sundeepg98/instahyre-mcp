@@ -575,6 +575,7 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         "C.EP_LOGIN",
         "C.EP_REFERRAL",
         "C.EP_REFERRAL_INVITES",
+        "C.EP_SEND_MESSAGE",
         "C.EP_SUPPORT_QUERY",
     ], "a new write path appeared in the package: %s" % (sites,)
 
@@ -586,6 +587,12 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         "C.EP_SUPPORT_QUERY": "support_tickets",
         "C.EP_REFERRAL": "referrals",
         "C.EP_REFERRAL_INVITES": "referrals",
+        # Added 2026-08-23 with the reply tool. It is the FIRST inbox write in
+        # this package, so it is the one addition here that narrows a standing
+        # refusal rather than filling a gap -- and it is admitted on the same
+        # terms as the others: an entry in CAPTURED_WRITE_CONTRACTS, or it does
+        # not belong on the list above.
+        "C.EP_SEND_MESSAGE": "inbox_reply",
     }
     for target in targets:
         if target in ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"):

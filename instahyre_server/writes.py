@@ -57,12 +57,84 @@ MAX_INVITES_PER_CALL = 10
 _ADDRESS_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+#: The longest single reply this tool will send. Instahyre publishes no limit
+#: and its own page enforces none, so this is a rail of ours: on a surface with
+#: no undo, the most expensive realistic failure is not a typo but a generated
+#: body that ran away, and a cap turns that into a refusal instead of a wall of
+#: text in a recruiter's inbox.
+MAX_REPLY_CHARS = 4000
+
+
 class ConfirmationRequired(InstahyreError):
     kind = "confirmation_required"
 
 
 class NothingToDo(InstahyreError):
     kind = "nothing_to_do"
+
+
+class NotSendable(InstahyreError):
+    """A POST was aimed at a path that is not the one sendable path."""
+
+    kind = "not_sendable"
+
+
+def _guard_sendable(path: str) -> str:
+    """Allow exactly one POST target on the inbox resource. Returns the path.
+
+    An ALLOWLIST, not a blocklist, and the difference is the whole point of the
+    carve-out. A blocklist that had been narrowed to let ``send_message``
+    through would also let through anything nobody thought to add to it -- and
+    the mark-all-read trap on this very resource is the proof that this API has
+    mutating routes which do not look like writes (it is a **GET**).
+
+    So this asks the opposite question: is this THE one path this package may
+    POST to? Star, toggle-read, mark-all-read and bulk apply are refused here
+    not because they are listed but because they are not the single allowed
+    value, which is a property that survives someone adding a new action to the
+    API tomorrow.
+    """
+    if path not in C.SENDABLE_INBOX_PATHS:
+        raise NotSendable(
+            "Refusing to POST to %r. This server has exactly ONE sendable inbox path "
+            "(%s) and this is not it. Replying is the only inbox write that was built; "
+            "starring, marking read and bulk mark-read remain unreachable by design, "
+            "not by omission." % (path, C.EP_SEND_MESSAGE),
+            path=path,
+        )
+    return path
+
+
+#: Characters that change meaning inside the HTML body the editor produces.
+_HTML_ESCAPES = (("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"))
+
+
+def _as_message_html(text: str) -> str:
+    """Turn typed text into the HTML shape the compose editor sends.
+
+    ``content`` is the Quill editor's HTML, not plain text -- so handing the
+    endpoint a raw string is a guess about how the server renders it. Escaping
+    first and wrapping each paragraph in ``<p>`` is the conservative reading:
+    an ampersand or a less-than in his message survives as itself instead of
+    being swallowed or, worse, interpreted, and a blank line becomes a
+    paragraph break rather than disappearing.
+
+    Escaping runs BEFORE the tags are added, and ``&`` is escaped first, or the
+    escapes would escape each other.
+
+    One paragraph PER LINE, with a blank line becoming ``<p><br></p>``, because
+    that is what Quill itself produces. Collapsing a run of lines into one
+    paragraph would silently reflow his message -- and a tool that quietly
+    rewrites what a person is about to send to a recruiter has broken the
+    consent the preview obtained, since the preview shows the text he typed.
+    """
+    out = text.replace("\r\n", "\n").replace("\r", "\n")
+    for raw, escaped in _HTML_ESCAPES:
+        out = out.replace(raw, escaped)
+    lines = out.strip("\n").split("\n")
+    return "".join(
+        "<p>%s</p>" % (line.strip() or "<br>") for line in lines
+    )
 
 
 def _contract(surface: str) -> dict:
@@ -83,12 +155,13 @@ def _contract(surface: str) -> dict:
 
 
 class Writer:
-    """The four captured write surfaces, each behind a confirm gate."""
+    """The five captured write surfaces, each behind a confirm gate."""
 
-    def __init__(self, http: Any, store: Any, inbound: Any) -> None:
+    def __init__(self, http: Any, store: Any, inbound: Any, inbox: Any = None) -> None:
         self.http = http
         self.store = store
         self.inbound = inbound
+        self.inbox = inbox
 
     # -- who he is, for the bodies that name the sender --------------------
 
@@ -114,6 +187,223 @@ class Writer:
                 "contract change rather than a missing setting."
             )
         return {"name": name, "email": email}
+
+    # -- 0. replying to a recruiter (SHIPPED) ------------------------------
+
+    def reply_to_conversation(
+        self, conv_id: int, message: str, *, confirm: bool = False
+    ) -> dict:
+        """Send one reply into one recruiter thread. A person reads this.
+
+        THE ONLY INBOX WRITE THIS SERVER HAS, and it is reached through an
+        allowlist of exactly one path rather than through a hole in the
+        read-only guard. Starring, marking read and bulk mark-read are not
+        merely still refused -- there is no branch here that could construct
+        them. :data:`constants.MUTATING_PATH_MARKERS` is unchanged and the read
+        tier still refuses all five markers, ``send_message`` included.
+
+        WHAT THE PLATFORM CHECKS BEFORE SENDING: nothing. Instahyre's own
+        ``addMessage`` has one guard and it is a double-click latch -- no
+        empty-content test, no length test, no closed-thread rule. So every rail
+        below is this server's, not theirs, and the two are not conflated.
+
+        WHAT CANNOT BE UNDONE: all of it. There is no unsend, no edit and no
+        delete anywhere in Instahyre's product, and the recipient is a person at
+        a company he may want to work for. ``confirm=False`` therefore returns
+        the recipients as the SERVER reports them, the thread's company and
+        role, and the exact bytes of the body -- and sends nothing.
+
+        The contract is SHIPPED, not WIRE: read whole out of Instahyre's inbox
+        controller bundle. A wire capture is not merely absent, it is currently
+        impossible -- his inbox holds zero conversations, the compose form only
+        renders inside a selected thread, and the page's own send function
+        dereferences the selected conversation before building a request.
+        """
+        if self.inbox is None:
+            raise InstahyreError(
+                "This Writer was built without an inbox, so it cannot read the thread a "
+                "reply would go to -- and it will not send into a thread it could not "
+                "read. This is a wiring bug, not a platform limit."
+            )
+
+        text = (message or "").strip()
+        if not text:
+            raise NothingToDo(
+                "An empty reply would put a blank message in a recruiter's inbox under "
+                "his name, and there is no unsend. Instahyre's own page would send it -- "
+                "it validates nothing -- which is exactly why this refuses. Say "
+                "something."
+            )
+        if len(text) > MAX_REPLY_CHARS:
+            raise NothingToDo(
+                "That reply is %d characters. This tool caps a single message at %d -- "
+                "not a platform limit (none is published) but a rail on a surface with no "
+                "undo, where a runaway generated body is the failure that costs the most. "
+                "Send something shorter, or send it from the website."
+                % (len(text), MAX_REPLY_CHARS)
+            )
+
+        # Read the thread FIRST. Two things come out of it that a preview cannot
+        # honestly fabricate: whether the id is even his -- the message endpoint
+        # answers 200 for a foreign id, so read_conversation cross-checks it
+        # against his own conversation list and raises -- and the recipients, as
+        # the SERVER reports them rather than as this code guesses.
+        thread = self.inbox.read_conversation(conv_id, body_chars=200)
+        recipients = thread.get("recipients")
+        context = self._thread_context(conv_id)
+
+        body = {
+            "conv_id": int(conv_id),
+            "content": _as_message_html(text),
+            "attachments": [],
+        }
+        # The doorway. Everything that reaches the wire from this module goes
+        # through it, and it is the ONLY place a POST target is decided -- which
+        # is what makes "reply and nothing else" a structural property rather
+        # than a promise. It is not self-certifying: the allowlist is pinned to
+        # a LITERAL path in tests/test_writes.py, so editing EP_SEND_MESSAGE
+        # fails there rather than sliding through here.
+        _guard_sendable(C.EP_SEND_MESSAGE)
+
+        preview = {
+            "conv_id": int(conv_id),
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + C.EP_SEND_MESSAGE,
+                "content_type": "application/json",
+                "body": body,
+            },
+            "recipients": recipients,
+            "thread": context,
+            "message_as_typed": text,
+            "contract": _contract("inbox_reply"),
+            "irreversible": (
+                "There is no unsend, no edit and no delete on Instahyre. A person at "
+                "this company reads whatever is sent, from his name and his address."
+            ),
+            "attachments": (
+                "Always empty, and refused rather than supported. The page populates "
+                "this array from an uploader that ships in no bundle, so the ELEMENT "
+                "SHAPE is unmeasured -- and a guessed element on an irreversible send "
+                "is the one thing this server's whole write register exists to refuse."
+            ),
+            "no_subject": (
+                "The candidate compose form has no subject field -- the literal has zero "
+                "hits in the inbox controller. A reply carries body text only."
+            ),
+        }
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Read 'recipients' and 'message_as_typed' above, "
+                "then re-run with confirm=True to send exactly that. There is no way to "
+                "take it back afterwards."
+            )
+            return preview
+
+        if not self.http.cookies.get("csrftoken"):
+            raise ConfirmationRequired(
+                "Refusing to send without a CSRF token -- Django would reject it and the "
+                "result would be ambiguous on a surface where an ambiguous result is the "
+                "worst outcome. Run instahyre_auth_status."
+            )
+
+        log.warning("sending a reply into conversation %s", conv_id)
+        response = self.http.post(C.EP_SEND_MESSAGE, json_body=body)
+
+        # A 200 is not a delivery. Re-read the thread and look for what was
+        # sent, exactly as every profile write re-reads rather than trusting the
+        # status -- and say plainly when the read-back cannot confirm it, rather
+        # than returning a receipt for something unobserved.
+        verification = self._verify_reply(conv_id, text)
+        result = {
+            "confirmed": True,
+            "conv_id": int(conv_id),
+            "sent": preview["would_send"],
+            "recipients": recipients,
+            "thread": context,
+            "response": response,
+            "verified": verification["ok"],
+            "verified_by": verification["how"],
+        }
+        if not verification["ok"]:
+            result["warning"] = (
+                "THE SEND WAS ACCEPTED BUT COULD NOT BE CONFIRMED by re-reading the "
+                "thread. Do NOT simply retry -- if the first one landed, a retry sends a "
+                "duplicate to a real person and there is no unsend. Open "
+                + C.SITE_BASE
+                + "/candidate/inbox/ and look before doing anything else."
+            )
+        return result
+
+    def _thread_context(self, conv_id: int) -> dict:
+        """Which company and role this thread is, for the consent preview.
+
+        Best-effort and explicitly so: a company name that could not be joined
+        must not stop a reply, but the preview has to say it is missing rather
+        than quietly showing a thread with no employer on it.
+        """
+        try:
+            listing = self.inbox.list_conversations(limit=C.CONV_DEFAULT_LIMIT)
+        except InstahyreError as exc:
+            return {"lookup_failed": exc.kind, "company": None, "title": None}
+        for record in listing.get("conversations") or []:
+            if str(record.get("id")) == str(conv_id):
+                return {
+                    "company": record.get("company"),
+                    "title": record.get("title"),
+                    "latest_message": record.get("latest_message"),
+                }
+        return {
+            "not_on_the_first_page": True,
+            "company": None,
+            "title": None,
+            "note": (
+                "The thread was readable but did not appear on the first page of the "
+                "conversation list, so its company could not be joined in. The reply "
+                "still goes to the recipients named above."
+            ),
+        }
+
+    def _verify_reply(self, conv_id: int, text: str) -> dict:
+        """Look for the sent message in the thread. Never raises.
+
+        ``include_gated=True`` is load-bearing and was found by a test rather
+        than reasoned about. ``show_message`` is a gate the site applies with a
+        ``break``: the default read stops at the first falsy one and discards it
+        AND EVERYTHING AFTER IT. A reply lands at the end of the thread, so any
+        gated message anywhere ahead of it makes the read-back blind to it --
+        and this check would then report a delivered message as unconfirmed,
+        which is the reading most likely to provoke a duplicate send.
+
+        Verification is a machine comparison, not a display, so it reads the
+        whole thread. ``body_chars=None`` is here for the same reason: a
+        truncated body could cut the needle in half.
+        """
+        try:
+            thread = self.inbox.read_conversation(
+                conv_id, body_chars=None, include_gated=True
+            )
+        except InstahyreError as exc:
+            return {
+                "ok": False,
+                "how": "the read-back failed with %s, so delivery is unconfirmed" % exc.kind,
+            }
+        needle = " ".join(text.split())[:80].lower()
+        for msg in thread.get("messages") or []:
+            haystack = " ".join(str(msg.get("body") or "").split()).lower()
+            if needle and needle in haystack:
+                return {
+                    "ok": True,
+                    "how": "re-read of the thread found the message that was sent",
+                }
+        return {
+            "ok": False,
+            "how": (
+                "re-read of the thread did not find the message that was sent; it may "
+                "not be indexed yet, or it may not have been stored"
+            ),
+        }
 
     # -- 1. support tickets (WIRE) -----------------------------------------
 

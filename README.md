@@ -11,7 +11,7 @@ is the tool that answers that in one call.
 
 ## The architecture: httpx by default, browser where the API cannot reach
 
-**43 of the 46 tools are plain `httpx`. Three use a browser, and all three say so.**
+**44 of the 47 tools are plain `httpx`. Three use a browser, and all three say so.**
 
 Instahyre's `/api/v1/*` is exempt from Cloudflare bot management. It answers a
 cold, unauthenticated, honestly-identified HTTP client on the first request --
@@ -40,7 +40,7 @@ not join the data path.**
 | `instahyre_login_browser` | yes, visible window | Google OAuth is a redirect dance no HTTP client can complete. |
 | `instahyre_verify_apply_target` | yes, visible window | Reads a server-injected page flag that decides **which endpoint an application posts to**. No API exposes it, and the page is Cloudflare-gated. Applications cannot be withdrawn, so this is worth a browser rather than an assumption. |
 | `instahyre_reauth` | yes, **headless**, never visible | Re-harvests the persistent profile's own long-lived `sessionid`, which outlives the copy saved on disk. It loads `/candidate/opportunities/` -- **never** the login page: a tool whose claim is "this is not a login" should not fetch the login URL, and sending a browser carrying a live session to a sign-in page is a needless risk. Headless is the guarantee, not an optimisation: no window means no human can be waited for. |
-| everything else (43 tools) | no | Plain `httpx`. |
+| everything else (44 tools) | no | Plain `httpx`. |
 
 The two *visible-window* browser tools abort **every** non-GET request at the router, except
 Cloudflare's own `/cdn-cgi/` challenge handshake -- which mutates nothing in the
@@ -78,7 +78,7 @@ install, with no "already satisfied" line to warn you.
 
 Playwright's browser binary is only needed by the three browser tools
 (`instahyre_login_browser`, `instahyre_verify_apply_target`,
-`instahyre_reauth`). The other 43 work without it -- and `instahyre_reauth`
+`instahyre_reauth`). The other 44 work without it -- and `instahyre_reauth`
 reports "no silent renew was possible" and names the fallback rather than
 raising, so a checkout with no chromium is degraded, not broken:
 
@@ -121,17 +121,23 @@ The half that matters. Every one of these needs a live session.
 | `instahyre_apply` | Apply to **one** opportunity. **Irreversible.** Preview-only unless `confirm=True`. | 0-1 |
 | `instahyre_decline_opportunity` | Mark one "not interested". Also irreversible, same gate. | 0-1 |
 
-### The inbox -- read-only, no browser
+### The inbox -- reads, plus exactly one write
 
-Recruiter conversations and message bodies. Every request is checked against a
-list of mutating path fragments before it goes out, so this tier **cannot**
-send, reply, star, or mark read.
+Recruiter conversations and message bodies. Every READ is checked against a
+list of mutating path fragments before it goes out, so the read tier **cannot**
+send, star, or mark read -- `send_message` is still on that list and the read
+side still refuses it.
+
+Replying goes out through a different door: an allowlist of exactly ONE URL.
+Starring, marking read and bulk mark-all-read are not merely refused, they have
+no branch that could construct them.
 
 | Tool | What it does | Requests |
 |---|---|---|
 | `instahyre_list_conversations` | Threads, with company and role joined in from the job. Filters: status, unread, starred, free text. | 1 (+1 per job if `include_job`) |
 | `instahyre_read_conversation` | Every message in one thread as text, oldest first. A `conv_id` that is not his raises `not_found` rather than returning an empty thread. | 1 (+1 when the thread comes back empty) |
 | `instahyre_inbox_counts` | Unread / starred / starred-unread totals. | 1 |
+| `instahyre_reply_to_conversation` | Send one reply into one thread. **IRREVERSIBLE** -- `confirm=True` required. The preview names the recipients as the server reports them, the company and role, and the exact body. | 2-3 to preview, 4-5 to send |
 
 One honest caveat, stated in the tool's own docstring: **reading a thread may
 mark it read on Instahyre's side.** The site sends no mark-read request -- it
@@ -376,12 +382,26 @@ employer sees it immediately. Everything below follows from that one fact.
   that flow fires *after* the POST is accepted. The `confirm=True` gate here is
   a stricter guard than the website's.
 
-- **The inbox tier cannot mutate.** Four inbox endpoints do -- send, star,
-  toggle-read, and `mark_all_read` -- and every request is checked against them
-  by substring first. `mark_all_read` deserves its own line: it is a **GET**
-  that bulk-clears unread state, sharing a prefix with the list endpoint, so an
-  ordinary "walk the resource and see what is under it" probe would wipe your
-  unread flags with no request body and no warning.
+- **The inbox READ tier cannot mutate, and the write tier can only reply.**
+  Four inbox endpoints mutate -- send, star, toggle-read, and `mark_all_read` --
+  and every read is checked against all four by substring first, `send_message`
+  included. Sending is reached through a separate ALLOWLIST holding exactly one
+  path, which is a different thing from a hole in a blocklist: anything that is
+  not that one value is refused, including an action nobody thought to list.
+  `mark_all_read` is why both guards key on the PATH and never on the verb --
+  it is a **GET** that bulk-clears unread state, sharing a prefix with the list
+  endpoint, so an ordinary "walk the resource and see what is under it" probe
+  would wipe your unread flags with no request body and no warning.
+
+- **A reply cannot be taken back, and the tool is built around that.** Instahyre
+  has no unsend, no edit and no delete. `confirm=False` sends nothing and
+  returns the recipients *as the server reports them*, the thread's company and
+  role, the message as typed, and the exact bytes of the body. Empty messages
+  are refused (Instahyre's own compose form validates nothing at all -- every
+  rail here is ours), attachments are never sent because their element shape was
+  never measured, and after a send the thread is re-read to confirm the message
+  arrived. If that confirmation fails the result says **do not retry**: a retry
+  that duplicates a delivered message cannot be undone either.
 
 - **Profile writes snapshot first and verify after.** A snapshot lands on disk
   *before* the request goes out, so a restore point survives the process dying

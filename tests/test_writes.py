@@ -1,4 +1,4 @@
-"""The four captured write surfaces, held to the gate their module promises.
+"""The five captured write surfaces, held to the gate their module promises.
 
 ``writes.py`` reaches three places nothing else in this package reaches: a human
 support queue, a saved-search row on his account, and -- the one that matters --
@@ -946,6 +946,448 @@ def test_the_preselect_flag_is_reported_and_never_acted_on():
     assert "acts on none of them" in result["preselect_note"]
     assert http.attempts == []
     assert describe(write_requests(client)) == []
+
+
+# ===========================================================================
+# Replying to a recruiter -- the one inbox write, and the carve-out that
+# admits it
+# ===========================================================================
+#
+# Two separate claims live here and they are easy to conflate, so they are
+# tested apart:
+#
+#   THE CARVE-OUT IS EXACTLY ONE PATH WIDE. Reply became reachable; starring,
+#   marking read and bulk mark-all-read did not. That is asserted against a
+#   LITERAL path string rather than against the constant the code uses -- a
+#   check written as ``SENDABLE_INBOX_PATHS == {C.EP_SEND_MESSAGE}`` is true by
+#   construction and would survive somebody repointing the constant at
+#   mark_all_read.
+#
+#   THE READ TIER DID NOT MOVE. ``guard_read_only`` still refuses all five
+#   markers, ``send_message`` included, so the read side cannot reach the send
+#   path even now that the send path exists.
+
+CONVERSATIONS = fixture_json("conversations_populated.json")
+THREAD = fixture_json("conversation_messages.json")
+CONV_COUNTS = fixture_json("conversation_counts.json")
+REPLY_CONV_ID = CONVERSATIONS["objects"][0]["id"]
+
+#: The literal the allowlist must equal. Written out here, not imported, so
+#: that repointing the constant fails this file instead of following it.
+SEND_PATH_LITERAL = "/resume_modal/emails/message/send_message/"
+
+#: The three inbox mutations that must STAY unreachable.
+STILL_REFUSED = sorted(C.MUTATING_INBOX_PATHS - {SEND_PATH_LITERAL})
+
+
+#: Invented companies. Real employer names never enter a fixture in this
+#: package. The preview joins these in so it can say WHICH thread is being
+#: replied to, which is half of what makes the consent informed.
+REPLY_JOBS = {
+    601001: ("Northwind Analytics", "Senior Backend Engineer"),
+    601002: ("Larkspur Systems", "Platform Engineer"),
+    601003: ("Fernway Labs", "Node.js Developer"),
+}
+
+
+def reply_job_routes() -> dict:
+    routes = {}
+    for job_id, (company, title) in REPLY_JOBS.items():
+        routes[C.EP_JOB_DETAIL.format(job_id=job_id)] = {
+            "id": job_id,
+            "title": title,
+            "hiring_company_name": company,
+            "recruiter_company_name": company,
+            "locations": ["Bangalore"],
+            "keywords": "Node.js, TypeScript",
+            "is_active": True,
+        }
+    return routes
+
+
+def reply_client(*, thread=THREAD, conversations=CONVERSATIONS, send_route=None):
+    """A client wired for the inbox reads a reply makes, plus an optional send.
+
+    The send route is absent unless a test asks for it, so a send that escaped
+    the confirm gate lands on an unmocked path and is recorded as a fact rather
+    than quietly answered.
+    """
+    routes = {
+        C.EP_EDUCATION: EDUCATION,
+        PROFILE_PATH: PROFILE,
+        C.EP_CONVERSATIONS: conversations,
+        C.EP_CONVERSATION_COUNT: CONV_COUNTS,
+        C.EP_MESSAGES: thread,
+    }
+    routes.update(reply_job_routes())
+    if send_route is not None:
+        routes[C.EP_SEND_MESSAGE] = send_route
+    client = make_client(routes, with_taxonomy=False)
+    client.http.cookies.set("csrftoken", "csrf-for-the-reply", domain="www.instahyre.com")
+    return client
+
+
+def detonating_reply_writer(**kwargs):
+    """``(writer, http, client)`` whose writer explodes on any write verb."""
+    client = reply_client(**kwargs)
+    http = NoWriteHTTP(client.http)
+    writer = Writer(http, client.store, client.inbound, client.inbox)
+    return writer, http, client
+
+
+# -- the carve-out ----------------------------------------------------------
+
+
+def test_the_sendable_allowlist_holds_exactly_one_path():
+    """Pinned to the literal. Asserting it equals the constant it is built from
+    would be true no matter what that constant was changed to."""
+    assert C.SENDABLE_INBOX_PATHS == frozenset({SEND_PATH_LITERAL})
+    assert len(C.SENDABLE_INBOX_PATHS) == 1
+    assert C.EP_SEND_MESSAGE == SEND_PATH_LITERAL
+
+
+def test_the_send_path_keeps_the_trailing_slash_its_siblings_do_not_have():
+    """The factory declares send_message WITH a slash and its two siblings
+    without. Django answers a slashless POST with a 301 that drops the body,
+    and this client does not follow redirects."""
+    assert C.EP_SEND_MESSAGE.endswith("/")
+    for path in STILL_REFUSED:
+        if "star_conversation" in path or "toggle_message_read" in path:
+            assert not path.endswith("/")
+
+
+@pytest.mark.parametrize("path", STILL_REFUSED)
+def test_every_other_mutating_inbox_path_is_refused_by_the_send_guard(path):
+    """The widening test. If somebody ever admits a second inbox mutation, this
+    is where it fails -- and it fails per-path, so the message names which."""
+    with pytest.raises(writes_module.NotSendable) as excinfo:
+        writes_module._guard_sendable(path)
+    assert "exactly ONE sendable inbox path" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/candidate_opportunities/candidate_matching/apply_bulk/",
+        "/inbox_page/candidate_conversation/mark_all_read",
+        C.EP_SEND_MESSAGE + "x",
+        C.EP_SEND_MESSAGE.rstrip("/"),
+        "",
+    ],
+)
+def test_the_send_guard_is_an_allowlist_not_a_blocklist(path):
+    """Anything that is not the one value is refused, including a path nobody
+    thought to list and the same path spelled without its slash. A blocklist
+    would pass the first and the last of these."""
+    with pytest.raises(writes_module.NotSendable):
+        writes_module._guard_sendable(path)
+
+
+def test_the_send_guard_admits_the_one_path_it_is_supposed_to():
+    """The other half of the limit. A guard only ever seen refusing could be a
+    blanket refusal, and the reply tool would be dead on arrival."""
+    assert writes_module._guard_sendable(SEND_PATH_LITERAL) == SEND_PATH_LITERAL
+
+
+def test_the_read_tier_still_refuses_send_message_along_with_all_four_others():
+    """The read-only guard did NOT shrink when the write door opened. A reader
+    that could reach the send path by editing a constant is the hazard this
+    keeps closed."""
+    from instahyre_server.inbox import MutatingPathRefused, guard_read_only
+
+    assert len(C.MUTATING_PATH_MARKERS) == 5
+    assert "send_message" in C.MUTATING_PATH_MARKERS
+    for marker in C.MUTATING_PATH_MARKERS:
+        with pytest.raises(MutatingPathRefused):
+            guard_read_only("/inbox_page/candidate_conversation/" + marker)
+    with pytest.raises(MutatingPathRefused):
+        guard_read_only(C.EP_SEND_MESSAGE)
+
+
+# -- the gate ---------------------------------------------------------------
+
+
+def test_a_reply_without_confirm_issues_no_write_at_all():
+    writer, http, client = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "Thanks, keen to talk.")
+
+    assert preview["confirmed"] is False
+    assert http.attempts == []
+    assert describe(write_requests(client)) == []
+
+
+def test_omitting_confirm_entirely_is_a_refusal_not_a_send():
+    writer, http, _ = detonating_reply_writer()
+    signature = inspect.signature(Writer.reply_to_conversation)
+
+    assert signature.parameters["confirm"].default is False
+    writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+    assert http.attempts == []
+
+
+def test_the_preview_names_the_recipients_the_server_reported():
+    """Consent on an irreversible send needs the real recipient, taken off the
+    thread the server returned -- not one this code assembled."""
+    writer, _, _ = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+
+    assert preview["recipients"] == THREAD["recipients"]
+    assert preview["recipients"], "a preview with no recipient is not consent"
+
+
+def test_the_preview_shows_the_message_as_typed_and_the_body_that_would_go():
+    writer, _, _ = detonating_reply_writer()
+    typed = "Hi Priya, that role sounds interesting."
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, typed)
+
+    assert preview["message_as_typed"] == typed
+    assert preview["would_send"]["method"] == "POST"
+    assert preview["would_send"]["url"] == C.API_BASE + SEND_PATH_LITERAL
+    assert preview["would_send"]["body"]["conv_id"] == REPLY_CONV_ID
+
+
+def test_the_preview_names_the_company_and_role_the_thread_belongs_to():
+    writer, _, _ = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+
+    assert preview["thread"]["company"] is not None
+    assert preview["thread"]["title"] is not None
+
+
+def test_the_preview_says_plainly_that_it_cannot_be_taken_back():
+    writer, _, _ = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+
+    assert "no unsend" in preview["irreversible"]
+    assert "NOTHING HAS BEEN SENT" in preview["next"]
+
+
+def test_the_preview_declares_its_evidence_class_as_shipped_not_wire():
+    """The one surface in this register that reaches a person AND has never
+    been observed on a wire. A preview that let that pass unstated would be
+    borrowing the confidence of the wire-captured surfaces beside it."""
+    writer, _, _ = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+
+    assert preview["contract"]["evidence_class"] == C.CONTRACT_SHIPPED
+    assert "never been serialized" in preview["contract"]["what_that_means"]
+
+
+# -- the body ---------------------------------------------------------------
+
+
+def test_the_body_carries_exactly_the_three_captured_keys():
+    writer, _, _ = detonating_reply_writer()
+
+    body = writer.reply_to_conversation(REPLY_CONV_ID, "hello")["would_send"]["body"]
+
+    assert sorted(body) == sorted(C.SEND_MESSAGE_BODY_KEYS)
+    assert sorted(body) == ["attachments", "content", "conv_id"]
+
+
+def test_attachments_are_always_empty_because_the_element_shape_is_unmeasured():
+    writer, _, _ = detonating_reply_writer()
+
+    body = writer.reply_to_conversation(REPLY_CONV_ID, "hello")["would_send"]["body"]
+
+    assert body["attachments"] == []
+
+
+def test_html_special_characters_are_escaped_rather_than_sent_as_markup():
+    """``content`` is HTML. An unescaped ``<`` in his message is either
+    swallowed by the renderer or interpreted as a tag, and this send cannot be
+    taken back."""
+    writer, _, _ = detonating_reply_writer()
+
+    body = writer.reply_to_conversation(
+        REPLY_CONV_ID, "R&D on <script> and 5 > 3"
+    )["would_send"]["body"]
+
+    assert "<script>" not in body["content"]
+    assert "&amp;" in body["content"]
+    assert "&lt;script&gt;" in body["content"]
+    assert "&gt;" in body["content"]
+
+
+def test_line_breaks_survive_as_paragraphs_rather_than_being_reflowed():
+    """The preview shows the text he typed, so silently joining his lines would
+    send something other than what he agreed to."""
+    writer, _, _ = detonating_reply_writer()
+
+    body = writer.reply_to_conversation(
+        REPLY_CONV_ID, "Hi Priya,\n\nYes, keen.\nBest,\nAlex"
+    )["would_send"]["body"]
+
+    assert body["content"].count("<p>") == 5
+    assert "<p>Hi Priya,</p>" in body["content"]
+    assert "<p>Yes, keen.</p>" in body["content"]
+    assert "<p><br></p>" in body["content"]
+
+
+def test_the_body_that_goes_out_is_exactly_the_body_the_preview_promised():
+    """The preview IS the consent. A send that differed from it -- in either
+    direction -- obtained agreement for a different message."""
+    recorder = BodyRecorder({"content": "<p>ok</p>"})
+    client = reply_client(send_route=recorder)
+    promised = client.writer.reply_to_conversation(REPLY_CONV_ID, "ok")["would_send"]
+
+    client.writer.reply_to_conversation(REPLY_CONV_ID, "ok", confirm=True)
+
+    assert recorder.calls == [promised["body"]]
+
+
+def test_a_confirmed_reply_posts_to_the_one_sendable_path_and_nowhere_else():
+    recorder = BodyRecorder({"content": "<p>ok</p>"})
+    client = reply_client(send_route=recorder)
+
+    client.writer.reply_to_conversation(REPLY_CONV_ID, "ok", confirm=True)
+
+    assert describe(write_requests(client)) == [("POST", "/api/v1" + SEND_PATH_LITERAL)]
+
+
+# -- the rails, each shown refusing AND allowing -----------------------------
+
+
+@pytest.mark.parametrize("message", ["", "   ", "\n\n", "\t "])
+def test_an_empty_or_blank_reply_is_refused_and_sends_nothing(message):
+    """Instahyre's own page would send this -- it validates nothing -- which is
+    exactly why this refuses."""
+    writer, http, client = detonating_reply_writer()
+
+    with pytest.raises(NothingToDo) as excinfo:
+        writer.reply_to_conversation(REPLY_CONV_ID, message, confirm=True)
+
+    assert "no unsend" in str(excinfo.value)
+    assert http.attempts == []
+    assert describe(write_requests(client)) == []
+
+
+def test_a_reply_over_the_length_cap_is_refused_and_one_at_the_cap_is_allowed():
+    """A limit only ever seen refusing could be a blanket refusal."""
+    writer, http, _ = detonating_reply_writer()
+
+    with pytest.raises(NothingToDo):
+        writer.reply_to_conversation(
+            REPLY_CONV_ID, "x" * (writes_module.MAX_REPLY_CHARS + 1), confirm=True
+        )
+    assert http.attempts == []
+
+    at_limit = writer.reply_to_conversation(
+        REPLY_CONV_ID, "x" * writes_module.MAX_REPLY_CHARS
+    )
+    assert at_limit["confirmed"] is False
+
+
+def test_a_conv_id_that_is_not_his_is_refused_before_anything_is_sent():
+    """The message endpoint answers 200 for a foreign id, so the refusal has to
+    come from cross-checking his own conversation list."""
+    from instahyre_server.errors import NotFound
+
+    not_his = fixture_json("conversation_messages_not_found.json")
+    writer, http, client = detonating_reply_writer(thread=not_his)
+
+    with pytest.raises(NotFound):
+        writer.reply_to_conversation(999999999, "hello", confirm=True)
+
+    assert http.attempts == []
+    assert describe(write_requests(client)) == []
+
+
+def test_a_confirmed_reply_without_a_csrf_token_refuses_before_sending():
+    client = reply_client()
+    client.http.cookies.clear()
+    http = NoWriteHTTP(client.http)
+    writer = Writer(http, client.store, client.inbound, client.inbox)
+
+    with pytest.raises(writes_module.ConfirmationRequired):
+        writer.reply_to_conversation(REPLY_CONV_ID, "hello", confirm=True)
+
+    assert http.attempts == []
+
+
+def test_a_writer_built_without_an_inbox_refuses_rather_than_sending_blind():
+    """It cannot show who a reply would reach, so it does not send. Stated as a
+    wiring bug rather than as a platform limit."""
+    client = reply_client()
+    writer = Writer(client.http, client.store, client.inbound)
+
+    with pytest.raises(InstahyreError) as excinfo:
+        writer.reply_to_conversation(REPLY_CONV_ID, "hello", confirm=True)
+
+    assert "wiring bug" in str(excinfo.value)
+
+
+# -- a 200 is not a delivery ------------------------------------------------
+
+
+def test_a_send_is_verified_by_re_reading_the_thread():
+    """Same rule the profile writes hold: the status code is not the outcome.
+
+    THIS IS ALSO THE CONTROL FOR ``include_gated``, which is why the fixture
+    matters more than usual here. ``show_message`` is a gate the site applies
+    with a ``break`` -- the ordinary read stops at the first falsy one and
+    discards it and everything after. This fixture HAS such a message, and a
+    reply lands after it, so a verification that read the thread the ordinary
+    way is structurally blind to what it just sent and reports a delivered
+    message as unconfirmed. That is the reading most likely to produce a
+    duplicate send to a real person, and there is no unsend.
+
+    The precondition is asserted rather than assumed: if the fixture ever loses
+    its gated message this test keeps passing while testing nothing.
+    """
+    sent_text = "Yes, Thursday works for me."
+    assert any(
+        not msg.get("show_message", True) for msg in THREAD["objects"]
+    ), "the fixture no longer contains a gated message, so this is not a control"
+
+    after = copy.deepcopy(THREAD)
+    after["objects"].append(
+        {
+            "content_html": "<p>%s</p>" % sent_text,
+            "is_owner": True,
+            "show_message": True,
+            "created_at_date_time": "2026-08-23T12:00:00",
+        }
+    )
+    client = reply_client(thread=after, send_route=BodyRecorder({"content": "ok"}))
+
+    result = client.writer.reply_to_conversation(
+        REPLY_CONV_ID, sent_text, confirm=True
+    )
+
+    assert result["verified"] is True
+    assert "re-read of the thread" in result["verified_by"]
+    assert "warning" not in result
+
+
+def test_a_send_that_cannot_be_confirmed_says_so_and_says_do_not_retry():
+    """The dangerous half. A retry that duplicates a delivered message cannot be
+    undone either, so an unconfirmed send must not read as a failed one."""
+    client = reply_client(send_route=BodyRecorder({"content": "ok"}))
+
+    result = client.writer.reply_to_conversation(
+        REPLY_CONV_ID, "A line that is nowhere in the fixture thread.", confirm=True
+    )
+
+    assert result["verified"] is False
+    assert "Do NOT simply retry" in result["warning"]
+    assert "duplicate" in result["warning"]
+
+
+def test_the_reply_tool_is_declared_irreversible_by_the_server_itself():
+    """A server that can send and does not say so is worse than one that never
+    could -- and the mirror: it must not claim the inbox is unwritable."""
+    info = server_module.instahyre_server_info()
+
+    assert "instahyre_reply_to_conversation" in info["irreversible_tools"]
+    assert "REPLYING IS NOW REACHABLE" in info["deliberately_not_built"]["inbox_writes"]
+    assert "allowlist" in info["deliberately_not_built"]["inbox_writes"]
 
 
 # ===========================================================================

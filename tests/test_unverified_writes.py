@@ -224,8 +224,14 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_four_that_were_captured(self):
+    def test_it_names_the_five_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
+            # Added 2026-08-23. inbox_reply is SHIPPED, and it is the entry that
+            # most needs its class read: it is the only irreversible surface in
+            # this register that reaches another person, and unlike the other
+            # four it cannot currently be wire-confirmed at all -- the inbox
+            # holds no threads to intercept a send in.
+            "inbox_reply",
             "support_tickets",
             "saved_search_alert_toggle",
             "referrals",

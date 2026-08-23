@@ -66,6 +66,7 @@ EXPECTED_TOOLS = {
     "instahyre_list_conversations",
     "instahyre_read_conversation",
     "instahyre_inbox_counts",
+    "instahyre_reply_to_conversation",
     # Read-only analysis over what the account already holds. No new endpoint
     # between them: skill_gap re-reads the queue, resume_info follows an id the
     # profile already publishes, saved_searches exposes a route the client had
@@ -184,8 +185,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_forty_six_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 46
+def test_the_server_registers_exactly_forty_seven_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 47
 
 
 def test_every_tool_name_is_namespaced(tools):

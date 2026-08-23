@@ -849,12 +849,22 @@ def instahyre_server_info() -> dict:
                 "them by name rather than guessing."
             ),
             "inbox_writes": (
-                "Sending, replying, starring and marking read all exist on the API and "
-                "none is reachable here -- every inbox request is checked against a list "
-                "of mutating path fragments first."
+                "REPLYING IS NOW REACHABLE, and nothing else is. instahyre_reply_to_"
+                "conversation POSTs to one path and one path only -- the write side runs "
+                "on an allowlist of a single URL, so starring, marking read and bulk "
+                "mark-all-read are not merely refused, they have no branch that could "
+                "construct them. The read tier is unchanged and still refuses all five "
+                "mutating path markers including send_message, so a reader cannot reach "
+                "the send path by editing a constant. Bulk apply remains permanently out "
+                "of scope. Worth knowing about this resource: mark_all_read is a GET that "
+                "mutates, which is why both guards key on the PATH and never on the verb."
             ),
         },
-        "irreversible_tools": ["instahyre_apply", "instahyre_decline_opportunity"],
+        "irreversible_tools": [
+            "instahyre_apply",
+            "instahyre_decline_opportunity",
+            "instahyre_reply_to_conversation",
+        ],
         "page_size": C.PAGE_SIZE,
         "opportunity_page_size": C.OPP_DEFAULT_LIMIT,
     }
@@ -1313,6 +1323,56 @@ def instahyre_read_conversation(
     """
     return get_client().inbox.read_conversation(
         conv_id, body_chars=body_chars, include_gated=include_gated
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_reply_to_conversation(
+    conv_id: int, message: str, confirm: bool = False
+) -> dict:
+    """Send a reply into one recruiter conversation. IRREVERSIBLE -- a person reads it.
+
+    THIS IS THE ONLY INBOX WRITE THIS SERVER HAS. Starring, marking read and
+    bulk mark-all-read exist on Instahyre's API and remain unreachable here --
+    not because they are on a blocklist, but because the write path has an
+    allowlist of exactly one URL and none of them is it.
+
+    THERE IS NO UNSEND. Instahyre has no unsend, no edit and no delete anywhere
+    in its product. The recipient is a named person at a company he may want to
+    work for, and the message goes from his name and his address.
+
+    So ``confirm=False`` (the default) sends NOTHING and instead returns, for
+    him to read before deciding: the recipients as the SERVER reports them, the
+    thread's company and role, his message exactly as typed, and the precise
+    body that would go on the wire. Re-run with ``confirm=True`` to send that.
+
+    ``conv_id`` comes from instahyre_list_conversations. An id that is not his
+    is refused rather than sent to -- the message endpoint answers 200 for a
+    foreign id, so the id is cross-checked against his own conversation list
+    first.
+
+    Rails worth knowing, because they are THIS SERVER'S and not the platform's
+    (Instahyre's own compose form validates nothing at all): an empty or
+    whitespace-only message is refused, a message over 4000 characters is
+    refused, attachments are never sent, and after a send the thread is re-read
+    to confirm the message is actually there -- a 200 is not treated as
+    delivery. If that confirmation fails the result says so and tells you NOT to
+    retry blindly, because a retry that duplicates a delivered message cannot be
+    undone either.
+
+    The request contract was read whole out of Instahyre's own inbox controller
+    JavaScript. It has never been observed on a wire and currently cannot be:
+    his inbox holds zero conversations, and the compose form only exists inside
+    a selected thread.
+
+    Args:
+        conv_id: Conversation id from instahyre_list_conversations.
+        message: The reply text. Plain text; line breaks are preserved.
+        confirm: Must be True to actually send. False returns a preview.
+    """
+    return get_client().writer.reply_to_conversation(
+        conv_id, message, confirm=confirm
     )
 
 

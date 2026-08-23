@@ -409,9 +409,16 @@ MUTATING_INBOX_PATHS = frozenset(
     }
 )
 
-#: Substrings that may never appear in any path this package requests. Checked
+#: Substrings that may never appear in any path the READ side requests. Checked
 #: as a substring test, not equality, so a query string or a trailing slash
 #: cannot smuggle one past.
+#:
+#: THIS LIST DID NOT SHRINK WHEN REPLY WAS BUILT, and that is deliberate. The
+#: read tier still refuses all five, including send_message: a reader that could
+#: reach the send path by editing a constant is exactly what this guard exists
+#: to stop. Sending goes out through a DIFFERENT door -- see
+#: SENDABLE_INBOX_PATHS below -- which is an allowlist of one rather than a hole
+#: in this list.
 MUTATING_PATH_MARKERS = (
     "mark_all_read",
     "send_message",
@@ -419,6 +426,53 @@ MUTATING_PATH_MARKERS = (
     "toggle_message_read",
     "apply_bulk",
 )
+
+# --- The one inbox write that IS reachable ---------------------------------
+#
+# Replying was refused by this server until 2026-08-23 on the honest grounds
+# that nobody had measured the request. That is no longer true: the caller was
+# read whole out of Instahyre's own inbox controller bundle (see
+# CAPTURED_WRITE_CONTRACTS["inbox_reply"]), so the refusal would now be caution
+# without a reason.
+#
+# THE CARVE-OUT IS AN ALLOWLIST, NOT AN EXEMPTION. The write side does not ask
+# "is this path forbidden?" -- it asks "is this path THE one path I am allowed
+# to POST to?", and there is exactly one. Starring, marking read, bulk read and
+# bulk apply are not merely still-blocked; they are unreachable from the write
+# channel because it has no branch that could reach them. The operator asked
+# for reply. He got reply.
+#
+# The trailing slash here is MEASURED and is not decoration: the factory
+# declares `send_message:{method:'POST',url:url+"send_message/"}` WITH it, while
+# its siblings star_conversation and toggle_message_read are declared without.
+# Django's APPEND_SLASH answers a slashless POST with a 301 that drops the body,
+# and this client does not follow redirects -- so the wrong spelling fails
+# loudly rather than sending a truncated message.
+EP_SEND_MESSAGE = "/resume_modal/emails/message/send_message/"
+
+#: The complete set of paths this package may POST to on the inbox resource.
+#: A test fails if this ever holds more than the one.
+SENDABLE_INBOX_PATHS = frozenset({EP_SEND_MESSAGE})
+
+#: The body, exactly. `content` is the Quill editor's HTML; `attachments` is
+#: initialised to [] by the page and populated by an uploader that ships in no
+#: bundle, so its ELEMENT SHAPE IS UNMEASURED and this server always sends the
+#: empty list rather than inventing one.
+SEND_MESSAGE_BODY_KEYS = ("attachments", "content", "conv_id")
+
+#: What the page validates before sending: nothing. The only guard on
+#: `addMessage` is a double-click latch (`buttonParams.disabled`), there is no
+#: empty-content check, no length check and no closed-thread rule -- an empty
+#: editor POSTs `content: ""`. Every rail on the reply tool is therefore this
+#: server's own, and is recorded as such rather than dressed up as the
+#: platform's.
+SEND_MESSAGE_CLIENT_VALIDATES_NOTHING = True
+
+#: The candidate compose form has NO subject field: the literal `subject` has
+#: zero hits in the inbox controller bundle. EMAIL_SUBJECT_MAX_LENGTH is
+#: employer-side. A reply that offered a subject would be offering a field the
+#: endpoint has never been sent.
+SEND_MESSAGE_HAS_NO_SUBJECT = True
 
 # --- The one-way door ------------------------------------------------------
 #
@@ -652,6 +706,29 @@ PROFILE_IMAGE_MAX_WIDTH = 800
 PROFILE_IMAGE_QUALITY = 0.7
 
 CAPTURED_WRITE_CONTRACTS = {
+    "inbox_reply": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "path": EP_SEND_MESSAGE,
+        "body_keys": SEND_MESSAGE_BODY_KEYS,
+        "note": (
+            "The caller is $scope.addMessage in the inbox page controller, which ships "
+            "in output.c956ddddd95a.js -- a TENTH bundle that no earlier pass had, "
+            "because no earlier pass reconned /candidate/inbox/. Against the nine "
+            "bundles previously in hand, send_message had a factory action and NO "
+            "caller, which is the same dead end workex_put is still sitting in; the "
+            "bundle was found by censusing the inbox page's own script tags. The body "
+            "is $scope.newMessage passed whole: attachments initialised to [] at "
+            "controller start, conv_id assigned from $scope.selectedConv.id one "
+            "statement before the POST, content bound from the compose form. "
+            "NOT wire-confirmed, and it CANNOT be on this account: his inbox holds "
+            "zero conversations (measured 2026-08-23, authenticated, 200), the compose "
+            "form only renders inside a selected thread, and addMessage dereferences "
+            "$scope.selectedConv.id -- so with nothing selected it throws before any "
+            "request is built. There is no control to intercept until a recruiter "
+            "opens a thread."
+        ),
+    },
     "support_tickets": {
         "evidence": CONTRACT_WIRE,
         "method": "POST",

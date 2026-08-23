@@ -54,13 +54,17 @@ class InstahyreClient:
 
         self.profile_writer = ProfileWriter(self.http, self.store, self.inbound)
 
-        # The four write surfaces whose contracts were captured on 2026-08-23.
+        # The five write surfaces whose contracts were captured on 2026-08-23.
         # Kept apart from ProfileWriter because they are a different kind of
         # write: those change the profile that drives his match queue, these
         # reach a support queue, a saved-search row and other people's inboxes.
         from .writes import Writer
 
-        self.writer = Writer(self.http, self.store, self.inbound)
+        # Handed the inbox as well, because the one inbox write it owns --
+        # replying -- has to READ the thread before it can show who a reply
+        # would reach, and it must do that through the same read path the read
+        # tools use rather than opening a second one.
+        self.writer = Writer(self.http, self.store, self.inbound, self.inbox)
 
         # "What changed since I last looked", over the two inbound streams. It
         # reads THROUGH inbound rather than issuing its own requests, so a
