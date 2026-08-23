@@ -745,6 +745,8 @@ class TestWhenTheSessionLapsesForGood:
             "silent_renew_available",
             "tool",
             "why",
+            "uses_browser",
+            "mechanism",
             "session_lapses_at",
             "session_lapses_in_days",
             "session_lapses_source",
@@ -1246,6 +1248,97 @@ class TestReauthSaysWhichFailureItWas:
         assert set(seen) | {"playwright_missing", "renewed"} == set(
             auth.REHARVEST_OUTCOMES
         ), "an outcome exists that nothing in this file exercises"
+
+
+class TestARenewIsSilentNotFree:
+    """``silent`` means no human. It does not mean no cost, and it must say so.
+
+    A reauth launches a headless Chromium, loads a page and spends seconds of
+    wall clock. A payload that reported only the verdict would let all of that
+    happen unannounced, which is the same defect as any other unmentioned
+    expense -- it just wears better clothes because the window never appears.
+
+    Both surfaces carry the keys, and they are built from ONE definition:
+    written twice, the two descriptions of one mechanism would drift and the
+    one a reader happened to open would be the stale one.
+    """
+
+    def expected_claims(self, text):
+        return {
+            "headless chromium": "headless chromium" in text.lower(),
+            "the profile path": "browser_profile" in text,
+            "opportunities page": "opportunities page" in text,
+            "storage state": "storage state" in text,
+            "put to the endpoint": "PUT TO" in text,
+            "costs seconds": "seconds of wall clock" in text,
+            "not free": "NOT mean free" in text,
+            "no password/window/human": "no password, no window and no human"
+            in text,
+        }
+
+    def test_session_info_says_a_renew_uses_a_browser_and_what_it_costs(
+        self, tmp_path
+    ):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        renewal = out["renewal"]
+        assert renewal["uses_browser"] is True
+        assert renewal["mechanism"].strip()
+        missing = [k for k, ok in self.expected_claims(renewal["mechanism"]).items() if not ok]
+        assert not missing, "mechanism does not state: %s" % ", ".join(missing)
+
+    def test_reauth_says_the_same_thing_in_the_same_words(
+        self, tmp_path, monkeypatch, clock
+    ):
+        browser = FakeBrowser(clock, [LIVE_COOKIES])
+        install_fake_playwright(monkeypatch, browser)
+        profile = live_profile(tmp_path)
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+
+        out = lifecycle.reauth(
+            http=auth_http(),
+            store=SessionStore(tmp_path / "session.json"),
+            profile_dir=profile,
+        )
+
+        assert out["uses_browser"] is True
+        assert out["mechanism"].strip()
+        missing = [k for k, ok in self.expected_claims(out["mechanism"]).items() if not ok]
+        assert not missing, "mechanism does not state: %s" % ", ".join(missing)
+
+    def test_the_two_surfaces_cannot_drift(self, tmp_path, monkeypatch, clock):
+        """Same profile in, same sentence out -- because it is one function."""
+        profile = live_profile(tmp_path)
+        browser = FakeBrowser(clock, [LIVE_COOKIES])
+        install_fake_playwright(monkeypatch, browser)
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+
+        info = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=profile,
+            http=None,
+            verify_live=False,
+        )
+        renewed = lifecycle.reauth(
+            http=auth_http(),
+            store=SessionStore(tmp_path / "session.json"),
+            profile_dir=profile,
+        )
+
+        assert info["renewal"]["mechanism"] == renewed["mechanism"]
+
+    def test_the_cost_disclosure_leaks_no_absolute_path(self, tmp_path):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        assert str(tmp_path) not in out["renewal"]["mechanism"]
 
 
 # ===========================================================================

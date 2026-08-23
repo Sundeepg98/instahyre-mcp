@@ -56,7 +56,7 @@ surface (``5 failed, 46 passed``), and RE-MEASURED after the wave lead's three
 bounces moved the seam to ``reharvest_from_profile``, made a partial logout
 report null, and added the session-lapse keys::
 
-    8 failed, 57 passed
+    8 failed, 61 passed
 
     FAILED TestSessionInfoLive::test_a_401_is_reported_as_a_measured_false
     FAILED TestSessionInfoLive::test_an_undetermined_check_is_null_not_false__HONESTY
@@ -82,7 +82,7 @@ Read the list, because WHICH eight is the point:
   ``endpoint_inconclusive`` both come back as ``renewed``, so the operator is
   told a stale profile was refreshed.
 
-And WHICH 57 survive is equally the point:
+And WHICH 61 survive is equally the point:
 
 * ``verify_live=False`` stays green throughout -- it makes no check at all, so
   a broken check cannot reach it. That guard is real but it is a different
@@ -95,7 +95,9 @@ And WHICH 57 survive is equally the point:
 * ``playwright_missing``, ``no_profile``, ``browser_failed`` and
   ``no_session_cookie`` stay green because every one of them RETURNS BEFORE
   the endpoint is ever asked. A control that broke those too would be a
-  control that breaks everything, which points at nothing.
+  control that breaks everything, which points at nothing;
+* the ``uses_browser`` / ``mechanism`` cost-disclosure tests stay green: what
+  a renew SPENDS does not depend on what the endpoint answers.
 
 That asymmetry is the property worth having. If the live check is ever
 short-circuited again, the honesty tests go red and the rest stay green,
@@ -104,7 +106,7 @@ pointing at the defect instead of at everything.
 WHOLE-SUITE MEASUREMENT, same build, same day::
 
     venv/Scripts/python -m pytest tests -q -p presence_is_auth_control
-    24 failed, 798 passed
+    24 failed, 802 passed
 
 The extra sixteen are all in ``test_auth.py``: the guards written when this bug
 was first fixed on the login paths. They are supposed to fail here -- this is

@@ -157,7 +157,7 @@ tested, because the inbox currently holds zero conversations.
 | `instahyre_login` | Email + password, over plain HTTP. No browser. |
 | `instahyre_login_browser` | Opens a window for Google sign-in. One of three tools that start a browser. |
 | `instahyre_auth_status` | Asks the server whether the session is live. Can honestly return `false`. |
-| `instahyre_session_info` | What the credential is, when it expires, when the session lapses for good, and how to renew it. `verify_live=False` costs no network and no browser. |
+| `instahyre_session_info` | What the credential is, when it expires, when the session lapses for good, and how to renew it -- including that a renew launches a headless browser and what that costs. `verify_live=False` costs no network and no browser. |
 | `instahyre_reauth` | Silent renew from the browser profile -- headless, no password, no window, and it never visits the login page. Try this first when a tool says `auth_required`. Reports which of seven things went wrong when it cannot renew, and puts the previous session back byte for byte. |
 | `instahyre_logout` | Clears the locally saved cookies. Leaves the browser profile alone, so `instahyre_reauth` usually gets straight back in. |
 

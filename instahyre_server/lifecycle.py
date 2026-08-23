@@ -336,6 +336,33 @@ def _durability(store: SessionStore) -> dict:
     }
 
 
+def _renew_mechanism(profile_dir: Any) -> str:
+    """What a renew actually DOES, and what it spends doing it.
+
+    THE REASON THIS FIELD EXISTS: "silent renew" reads as "free", and it is
+    not. It is a Chromium launch, a page load and seconds of wall clock. A
+    tool that quietly spends that and reports only its verdict is the same
+    defect as any other unannounced expense -- ``headless`` means no human is
+    needed, not that nothing is spent.
+
+    ONE definition, spread into BOTH ``session_info.renewal`` and the
+    ``reauth`` payload. Written twice, the two descriptions of one mechanism
+    would drift, and the one a reader happened to look at would be the one
+    that was stale.
+    """
+    return (
+        "a headless Chromium is launched against the persistent browser "
+        "profile at %s. It navigates to the authenticated candidate "
+        "opportunities page -- never the login page -- and harvests that "
+        "profile's storage state. The harvested cookies are then PUT TO %s "
+        "and only a 200 is believed: nothing is applied, saved, or reported "
+        "as renewed on the strength of a cookie appearing. COST: a browser "
+        "launch and a page load, so seconds of wall clock, not milliseconds. "
+        "'Silent' here means no password, no window and no human -- it does "
+        "NOT mean free." % (display_path(str(profile_dir)), AUTH_ENDPOINT_NOTE)
+    )
+
+
 def _renewal(
     profile_dir: Any, *, credential: dict, jar_error: Optional[str]
 ) -> dict:
@@ -372,6 +399,10 @@ def _renewal(
             "before believing any of it. No password, no window, no human."
             % display_path(str(profile_dir))
         ),
+        # A renew is not free, and a payload that only reports the verdict
+            # lets a Chromium launch happen unannounced. See _renew_mechanism.
+        "uses_browser": True,
+        "mechanism": _renew_mechanism(profile_dir),
         "session_lapses_at": credential["expires_at"],
         "session_lapses_in_days": credential["expires_in_days"],
         "session_lapses_source": _session_lapses_source(
@@ -714,6 +745,8 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
             "password was used, no window was opened, and no sign-in page was "
             "visited."
         ),
+        "uses_browser": True,
+        "mechanism": _renew_mechanism(profile_dir),
         "stage": record.get("stage") or "profile_reharvest",
         # The same fact as the reason prose, in a form a caller can branch on
         # without parsing English. One of auth.REHARVEST_OUTCOMES.
