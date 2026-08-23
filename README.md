@@ -389,14 +389,31 @@ employer sees it immediately. Everything below follows from that one fact.
   compares, and reports `verified: false` with the difference if it does not
   match.
 
-- **Skill writes are add-only, and that is load-bearing.** The skills resource
-  is a **full replacement set** -- measured, by adding one canary skill and then
-  sending a payload that omitted it, which deleted it. So any partial list is a
-  deletion instruction. Every write echoes the existing rows back byte-for-byte
-  as the server returned them, which is what makes the payload's implicit claim
-  ("these are all of them") true. `DELETE` on that resource answers **405,
-  Allow: GET,PATCH**; a restore path that deleted rows individually was removed
-  once that was known, because it could never have worked.
+- **Skill writes echo every surviving row back byte-for-byte.** The skills
+  resource is a **full replacement set** -- measured, by adding one canary skill
+  and then sending a payload that omitted it, which deleted it. So any partial
+  list is a deletion instruction, and the echo is what makes the payload's
+  implicit claim ("these are all of them") true. `DELETE` on that resource
+  answers **405, Allow: GET,PATCH**; a restore path that deleted rows
+  individually was removed once that was known, because it could never have
+  worked.
+
+- **Removal is that same mechanism, deliberately.** `instahyre_update_skills`
+  takes `remove=` as well as `add=`, and does both in ONE PATCH -- a skill
+  leaves by not being copied into the payload. This exists because the platform
+  caps the list at 20 and the account is AT the cap, so every addition is a
+  swap, and `instahyre_skill_gap`'s `dead_weight_skills` names rows appearing in
+  **zero** matched jobs while high-demand skills sit outside the list. The rails
+  are in the code: names match exactly and case-insensitively (never as a
+  substring, so removing "System Design" cannot take "System Design Patterns"),
+  a name that is not on the profile is reported rather than silently ignored,
+  adding and removing the same skill in one call is refused, and emptying the
+  list is refused outright -- on a reverse marketplace a profile with no skills
+  is not a short profile, it is an unfindable one. A removal that the server
+  ignores is reported as `removal_did_not_take` rather than counted as success.
+  Restoring a removed skill brings the NAME back under a NEW id: its original
+  row is gone server-side, so it is re-sent in the new-skill shape rather than
+  betting that the server tolerates a dead id.
 
 - **`restore_profile` validates its own argument.** `snapshot_id` arrives from
   an agent-callable tool, so it is untrusted input naming a file. A probe with

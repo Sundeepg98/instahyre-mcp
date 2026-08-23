@@ -14,18 +14,34 @@ all. They have their own resource, and the naming actively misleads:
 (``PATCH``, action ``multi_save``) come from the site's own ``$resource``
 definition.
 
-**The write is add-only, and that is now load-bearing rather than merely
-cautious.** It was originally unknown whether the server treats
-``{objects: [...]}`` as a full replacement set or as tastypie's ordinary
-additive ``patch_list``, so the write was shaped to give the same result under
-either. It has since been MEASURED, by adding one canary skill and then sending
-a payload that omitted it: the row was removed. **The resource is a full
-replacement set.** Anything absent from ``objects`` is deleted.
+**Every write echoes back, verbatim, every row that is meant to survive.** It
+was originally unknown whether the server treats ``{objects: [...]}`` as a full
+replacement set or as tastypie's ordinary additive ``patch_list``, so the write
+was shaped to give the same result under either. It has since been MEASURED, by
+adding one canary skill and then sending a payload that omitted it: the row was
+removed. **The resource is a full replacement set.** Anything absent from
+``objects`` is deleted.
 
-That turns the add-only rule from a hedge into the thing standing between a
-partial list and a wiped profile. Every write echoes each existing skill back
-**verbatim as the server returned it**, so the payload always says "these are
-all of them" truthfully.
+So the echo is not politeness, it is the thing standing between a partial list
+and a wiped profile: each surviving skill goes back **exactly as the server
+returned it**, in its original order, so the payload's implicit claim -- "these
+are all of them" -- is true.
+
+**Removal exists, and it is the same mechanism read the other way.** This module
+was add-only for as long as omission was the accident to be prevented. It is no
+longer, because the platform caps the list at 20 and this account sits at the
+cap, which makes every addition a swap: a skill that is worth adding cannot be
+added until one is dropped. ``update_skills`` therefore takes ``remove``, and a
+removal is nothing more than a row this method does not copy into ``objects``.
+No new verb, no second request -- ``DELETE`` answers 405 on this resource and
+could never have been the route.
+
+What removal adds is not machinery but consequence, so the rails are in the
+code rather than in the caller's care: exact case-folded name matching (never a
+substring), a name that is not on the profile reported rather than silently
+doing nothing, a refusal when one request both adds and removes the same skill,
+and a hard refusal to empty the list -- on a reverse marketplace a profile with
+no skills is not a small profile, it is an unfindable one.
 
 **Nothing is written before a snapshot exists.** :meth:`ProfileWriter.snapshot`
 runs first, unconditionally, and writes to disk before the request goes out --
@@ -273,17 +289,59 @@ class ProfileWriter:
 
     # -- the skills write --------------------------------------------------
 
-    def plan_skills(self, add: list[str]) -> dict:
+    def plan_skills(self, add: list[str], remove: Optional[list[str]] = None) -> dict:
         """Work out exactly what would be sent, and refuse what should not be.
 
         Runs the full validation path, so a preview that comes back clean means
         the write itself will not fail validation.
+
+        ``remove`` exists because the platform caps the list at 20 and this
+        account is AT the cap, which makes every addition a swap. Removal is not
+        a new mechanism and no new request shape: the resource is a full
+        replacement set (measured), so a row leaves by being omitted from the
+        list this method already builds. What removal needs is not machinery but
+        RAILS, and they are here rather than in the caller:
+
+        * a name is matched EXACTLY, after case folding -- never as a substring,
+          so asking to drop "System Design" cannot take "System Design Patterns"
+          with it;
+        * a name that is not on the profile is REPORTED, not silently ignored,
+          because a typo that quietly removes nothing looks identical to a
+          removal that worked;
+        * the same name on both lists is refused outright rather than resolved,
+          since under a replacement set "remove X and add X" would destroy X's
+          row id and re-create it, which is not what either word asked for;
+        * the surviving rows keep their original ORDER and their exact bytes,
+          and additions land after them, so a diff of the payload against the
+          current list shows only the intended departures.
         """
         current = self.read_skills()
         current_names = [s.get("name", "") for s in current if s.get("name")]
-        lowered = {n.strip().lower() for n in current_names}
+
+        kept, removed_rows, remove_report = self._partition_for_removal(current, remove)
+        kept_names = [s.get("name", "") for s in kept if s.get("name")]
+        # Additions are measured against what SURVIVES, not against what is
+        # there now. That is the whole point of a swap: the slot a removal frees
+        # has to be spendable in the same request, or the cap still blocks the
+        # addition and the account stays stuck at 20.
+        lowered = {n.strip().lower() for n in kept_names}
 
         requested = [str(s).strip() for s in (add or [])]
+
+        clash = sorted(
+            {n.strip().lower() for n in requested if n.strip()}
+            & {n.strip().lower() for n in (remove or []) if str(n).strip()}
+        )
+        if clash:
+            raise InvalidFilter(
+                "Refusing a request that both adds and removes the same skill: "
+                + ", ".join(clash)
+                + ". This resource is a full replacement set, so that is not a no-op -- "
+                "it would delete the existing row and create a new one with a different "
+                "id, losing nothing visible but changing the record for no reason. Ask "
+                "for one or the other.",
+                field="remove",
+            )
         additions: list[str] = []
         already_on_profile: list[str] = []
         repeated_in_request: list[str] = []
@@ -315,7 +373,7 @@ class ProfileWriter:
             seen.add(key)
             additions.append(name)
 
-        total = len(current_names) + len(additions)
+        total = len(kept_names) + len(additions)
         over_by = max(0, total - C.MAX_SKILLS)
         dropped_for_cap: list[str] = []
         if over_by:
@@ -323,16 +381,18 @@ class ProfileWriter:
             additions = additions[: len(additions) - over_by]
 
         uri = self.candidate_uri()
-        objects = list(current) + [{"candidate": uri, "name": n} for n in additions]
+        objects = list(kept) + [{"candidate": uri, "name": n} for n in additions]
 
-        return {
+        plan = {
             "current_skills": current_names,
             "would_add": additions,
+            "would_remove": [s.get("name", "") for s in removed_rows],
             "skipped_already_on_profile": already_on_profile,
             "skipped_repeated_in_request": repeated_in_request,
             "rejected": rejected,
             "dropped_over_platform_cap": dropped_for_cap,
-            "resulting_skill_count": len(current_names) + len(additions),
+            "resulting_skills": kept_names + additions,
+            "resulting_skill_count": len(kept_names) + len(additions),
             "platform_cap": C.MAX_SKILLS,
             "would_send": {
                 "method": "PATCH",
@@ -343,23 +403,121 @@ class ProfileWriter:
                     C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
                 },
             },
-            "add_only": (
-                "Existing rows are echoed back byte-for-byte as the server returned "
-                "them. This matters: the resource is a FULL REPLACEMENT SET -- measured, "
-                "by omitting one row and watching it be deleted -- so a payload that "
-                "left any current skill out would remove it. Add-only is what makes the "
-                "payload's implicit claim ('these are all of them') true."
-            ),
             "not_sent": (
                 "The site also PUTs the whole job-search-profile object afterwards. This "
                 "server does not: that request carries no skills, and it NULLs two "
                 "career-break fields on the way past."
             ),
         }
+        plan.update(remove_report)
 
-    def update_skills(self, add: list[str], *, confirm: bool = False) -> dict:
-        """Add skills to the live profile. Snapshots first, verifies after."""
-        plan = self.plan_skills(add)
+        if removed_rows:
+            # The claim this key makes has to change when the request removes,
+            # because the old text says "nothing is ever removed" and that would
+            # now be a lie told by the tool that is doing the removing.
+            plan["removal"] = {
+                "rows_that_leave": [
+                    {"name": s.get("name"), "id": s.get("id")} for s in removed_rows
+                ],
+                "how": (
+                    "By OMISSION. No delete verb is sent -- DELETE answers 405 on this "
+                    "resource -- and no extra request is made. The PATCH below carries "
+                    "the rows that stay, and the resource is a full replacement set, so "
+                    "everything absent from it is dropped by the server."
+                ),
+                "everything_else_is_echoed_verbatim": (
+                    "Every surviving row is byte-identical to what the server returned "
+                    "and in its original order. That is what makes this a removal of "
+                    "exactly these rows rather than a rewrite of the whole list."
+                ),
+                "reversible": (
+                    "A snapshot is written to disk before the request goes out and "
+                    "instahyre_restore_profile puts these rows back. A row that has been "
+                    "deleted server-side is restored as a NEW row -- same name, new id -- "
+                    "because its old id no longer exists."
+                ),
+            }
+        else:
+            plan["add_only"] = (
+                "Existing rows are echoed back byte-for-byte as the server returned "
+                "them. This matters: the resource is a FULL REPLACEMENT SET -- measured, "
+                "by omitting one row and watching it be deleted -- so a payload that "
+                "left any current skill out would remove it. Add-only is what makes the "
+                "payload's implicit claim ('these are all of them') true."
+            )
+        return plan
+
+    def _partition_for_removal(
+        self, current: list[dict], remove: Optional[list[str]]
+    ) -> tuple[list[dict], list[dict], dict]:
+        """Split the current rows into the ones that stay and the ones that go.
+
+        Order is preserved on both sides and no row is copied or rebuilt, so the
+        kept rows remain the exact objects the server returned. Matching is on
+        the folded name and on nothing else: an id is not accepted here, because
+        a caller holding a stale id from an earlier read could aim a removal at
+        a row that has since become a different skill.
+        """
+        wanted = [str(n).strip() for n in (remove or [])]
+        blank = [n for n in wanted if not n]
+        folded: list[str] = []
+        repeated: list[str] = []
+        seen: set[str] = set()
+        for name in wanted:
+            if not name:
+                continue
+            key = name.lower()
+            if key in seen:
+                repeated.append(name)
+                continue
+            seen.add(key)
+            folded.append(name)
+
+        by_key = {n.lower(): n for n in folded}
+        kept: list[dict] = []
+        removed: list[dict] = []
+        matched: set[str] = set()
+        for row in current:
+            key = str(row.get("name", "")).strip().lower()
+            if key and key in by_key:
+                removed.append(row)
+                matched.add(key)
+            else:
+                kept.append(row)
+
+        not_on_profile = [by_key[k] for k in by_key if k not in matched]
+
+        report: dict = {}
+        if wanted:
+            report["remove_not_on_profile"] = sorted(not_on_profile)
+            report["remove_repeated_in_request"] = repeated
+            if blank:
+                report["remove_blank_entries_ignored"] = len(blank)
+        if not_on_profile:
+            report["remove_not_on_profile_note"] = (
+                "These were asked for and are NOT on the profile, so they remove "
+                "nothing. Matching is exact (case-insensitive), never a substring -- "
+                "check the spelling against current_skills rather than assuming the "
+                "removal happened."
+            )
+        return kept, removed, report
+
+    def update_skills(
+        self,
+        add: list[str],
+        remove: Optional[list[str]] = None,
+        *,
+        confirm: bool = False,
+    ) -> dict:
+        """Add and/or remove skills on the live profile. One PATCH does both.
+
+        A swap is deliberately ONE request rather than a remove call followed by
+        an add call. Under a replacement set the two-call version has a window
+        between them where the profile is genuinely short a skill, and if the
+        second call fails he is left worse off than before with no single thing
+        to retry.
+        """
+        plan = self.plan_skills(add, remove)
 
         if not confirm:
             plan["executed"] = False
@@ -368,14 +526,33 @@ class ProfileWriter:
                 "snapshot is taken automatically first, and instahyre_restore_profile "
                 "puts it back."
             )
+            if plan["would_remove"]:
+                plan["next_step"] += (
+                    " Read would_remove first: those rows are DELETED by this write."
+                )
             return plan
 
-        if not plan["would_add"]:
+        if not plan["would_add"] and not plan["would_remove"]:
             raise WriteRefused(
                 "Nothing to write: every requested skill is already on the profile, was "
-                "rejected, or did not fit under the platform's "
-                f"{C.MAX_SKILLS}-skill cap. Refusing to send a request that cannot "
-                "change anything -- a no-op write is indistinguishable from a broken one."
+                "rejected, did not fit under the platform's "
+                f"{C.MAX_SKILLS}-skill cap, or -- for a removal -- is not on the profile "
+                "to begin with. Refusing to send a request that cannot change anything "
+                "-- a no-op write is indistinguishable from a broken one."
+            )
+
+        # A reverse marketplace finds him BY his skills. An empty list is not a
+        # small profile, it is an invisible one, and no legitimate use of this
+        # tool ends there -- so it is refused rather than confirm-gated.
+        if plan["would_remove"] and not plan["resulting_skills"]:
+            raise WriteRefused(
+                "Refusing to remove every skill on the profile. Instahyre is a reverse "
+                "marketplace: employers search the skill list, so a profile with none is "
+                "not a short profile but an unfindable one, and this write would suppress "
+                "every future match cycle rather than one application. If that is really "
+                "wanted, do it on the website at "
+                + C.SITE_BASE
+                + "/candidate/profile/ where the consequence is visible."
             )
 
         if not self.http.cookies.get("csrftoken"):
@@ -387,15 +564,25 @@ class ProfileWriter:
         snap = self.snapshot(label="pre-skills-write")
         body = plan["would_send"]["json_body"]
 
-        log.warning("writing %d new skills to the live profile", len(plan["would_add"]))
+        log.warning(
+            "writing %d new and removing %d existing skills on the live profile",
+            len(plan["would_add"]),
+            len(plan["would_remove"]),
+        )
         response = self.http.patch(C.EP_SKILL_MODEL, json_body=body)
 
+        # Expect the RESULT, not the sum of what was there and what was asked
+        # for. Reading the old list into the expectation would make a removal
+        # that silently failed look like a success, since the row it was
+        # supposed to drop would still be in `expected` and so never counted as
+        # unexpected.
         verification = self._verify_skills(
-            expected=set(n.lower() for n in plan["current_skills"] + plan["would_add"])
+            expected=set(n.lower() for n in plan["resulting_skills"])
         )
         result = {
             "executed": True,
             "added": plan["would_add"],
+            "removed": plan["would_remove"],
             "snapshot_id": snap["snapshot_id"],
             "skills_now": verification["actual"],
             "skill_count_now": len(verification["actual"]),
@@ -415,6 +602,16 @@ class ProfileWriter:
                 "above to put it back, and do not retry the write until the difference "
                 "is understood."
             )
+            # Named separately because it is the failure a caller is least likely
+            # to read out of a generic "unexpected" list, and the most likely to
+            # act on wrongly: a removal that did not take means the slot is still
+            # occupied and the swap this write existed to perform did not happen.
+            survived = sorted(
+                n for n in plan["would_remove"]
+                if n.lower() in {a.lower() for a in verification["actual"]}
+            )
+            if survived:
+                result["removal_did_not_take"] = survived
             log.error("skills write did not verify: missing=%s", verification["missing"])
         return result
 
@@ -447,9 +644,23 @@ class ProfileWriter:
           omitting a row and watching it disappear. So the PATCH alone performs
           the removal, and the second stage had nothing left to do anyway.
 
-        The consequence for callers is the important part, and it is why
-        :meth:`update_skills` is add-only: any partial list sent to this
-        resource DELETES everything absent from it.
+        The consequence for callers is the important part: any partial list sent
+        to this resource DELETES everything absent from it. That is what makes
+        :meth:`update_skills` echo every surviving row back verbatim, and it is
+        also the mechanism by which its ``remove`` argument works at all.
+
+        ONE THING A NAIVE RESTORE GETS WRONG, and it is the case that matters
+        now that removal exists. A snapshot row for a skill that has since been
+        REMOVED still carries the ``id`` and ``resource_uri`` of a row the server
+        has deleted. Sending that back asks the server to update something that
+        is gone. Whether it tolerates that or rejects the whole payload is not
+        known and cannot be learned without a live removal, so this does not bet
+        on it: a snapshot row whose id is no longer present is sent in the shape
+        Instahyre's own client uses for a NEW skill -- ``{candidate, name}``,
+        no id -- which is a request the site demonstrably makes. The skill comes
+        back under a new id. That is a real difference from the pre-removal
+        state and it is reported as ``recreated`` rather than glossed as a
+        perfect rollback.
         """
         snap = self.load_snapshot(snapshot_id)
         target = snap.get("candidate_skills") or []
@@ -467,6 +678,8 @@ class ProfileWriter:
             if s.get("id") is not None and s.get("id") not in target_ids
         ]
 
+        objects, recreated = self._restorable_rows(target, current)
+
         if not confirm:
             return {
                 "executed": False,
@@ -474,6 +687,7 @@ class ProfileWriter:
                 "current_skills": current_names,
                 "would_restore_to": target_names,
                 "would_drop": will_drop,
+                "would_recreate": recreated,
                 "how": (
                     "One PATCH carrying the snapshot's rows. The resource is a full "
                     "replacement set, so anything absent from that list is removed by "
@@ -483,16 +697,17 @@ class ProfileWriter:
             }
 
         self.snapshot(label="pre-restore")
-        self.http.patch(C.EP_SKILL_MODEL, json_body={"objects": target})
+        self.http.patch(C.EP_SKILL_MODEL, json_body={"objects": objects})
 
         after = self.skill_names()
         ok = {n.lower() for n in after} == {n.lower() for n in target_names if n}
-        return {
+        result = {
             "executed": True,
             "snapshot_id": snap.get("snapshot_id"),
             "restored_to": target_names,
             "skills_now": after,
             "dropped": will_drop,
+            "recreated": recreated,
             "verified": ok,
             "verified_by": "re-read of GET " + C.EP_SKILL_MODEL + " after the restore",
             "note": (
@@ -504,6 +719,44 @@ class ProfileWriter:
                 + "/candidate/profile/ if needed."
             ),
         }
+        if recreated:
+            result["recreated_note"] = (
+                "These skills were absent from the profile and have been re-created "
+                "rather than revived: the snapshot's row ids no longer exist server-side, "
+                "so they were sent as new rows and carry NEW ids. The names are back and "
+                "that is what employers search on; the ids are not the originals."
+            )
+        return result
+
+    def _restorable_rows(
+        self, target: list[dict], current: list[dict]
+    ) -> tuple[list[dict], list[str]]:
+        """The payload that puts ``target`` back, and which rows had to be new.
+
+        A snapshot row is echoed VERBATIM when the server still has that id --
+        which is the ordinary case, and keeps a restore byte-identical to what
+        was captured. A row whose id is gone is rebuilt in the new-skill shape
+        instead, because asking the server to update a deleted row is a request
+        Instahyre's own client never makes and whose handling is unmeasured.
+        """
+        live_ids = {row.get("id") for row in current if row.get("id") is not None}
+        objects: list[dict] = []
+        recreated: list[str] = []
+        uri = self.candidate_uri()
+        for row in target:
+            row_id = row.get("id")
+            if row_id is not None and row_id not in live_ids:
+                name = row.get("name")
+                if not name:
+                    continue
+                # The candidate is the one this writer derived, never the one
+                # copied off a stale snapshot row -- the same rule a brand new
+                # skill follows.
+                objects.append({"candidate": uri, "name": name})
+                recreated.append(name)
+            else:
+                objects.append(row)
+        return objects, recreated
 
     # -- scalar fields -----------------------------------------------------
 

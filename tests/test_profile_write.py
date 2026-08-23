@@ -24,12 +24,15 @@ What is pinned here:
 1. **The confirm gate holds.** ``update_skills``, ``update_fields`` and
    ``restore_skills`` issue zero PATCH/POST/DELETE without ``confirm=True``,
    and ``confirm`` defaults to False in every signature.
-2. **The write is add-only.** The PATCH body echoes every existing row back
-   exactly as the server returned it, and new rows carry nothing but
-   ``candidate`` and ``name``. That is the whole safety argument -- the end
-   state is identical whether the server reads ``{objects: [...]}`` as a
-   replacement set or as an additive tastypie patch -- so both readings are
-   implemented in the fake below and the write is asserted under each.
+2. **The write drops exactly what it was told to drop, and nothing else.** The
+   PATCH body echoes every surviving row back exactly as the server returned
+   it, in its original order, and new rows carry nothing but ``candidate`` and
+   ``name``. When no removal is asked for, that makes the end state identical
+   whether the server reads ``{objects: [...]}`` as a replacement set or as an
+   additive tastypie patch -- so both readings are implemented in the fake
+   below and the write is asserted under each. When a removal IS asked for,
+   the property is stated as a set difference over row IDS, because a name can
+   be re-created and an id cannot: what leaves must be exactly the rows named.
 3. **Validation refuses AND allows.** Every limit is shown rejecting a value
    and passing the one next to it; a limit only ever seen refusing could be a
    blanket refusal.
@@ -39,7 +42,10 @@ What is pinned here:
    restore point still there.
 5. **A 200 is not success.** A write whose read-back disagrees reports
    ``verified: False`` with what is missing, rather than a receipt.
-6. **A restore can only ever delete what the snapshot does not contain.**
+6. **A restore can only ever delete what the snapshot does not contain**, and
+   a row the snapshot holds but the server no longer has is RE-CREATED rather
+   than echoed back with its dead id -- asserted against a fake that rejects a
+   stale id, which is the stricter of the two servers Instahyre might be.
 
 Nothing here touches the network or the real ``_state/``: conftest builds every
 client on an ``httpx.MockTransport``, makes the genuine transports raise, and
@@ -160,12 +166,22 @@ class SkillEndpoint:
         patch_status=200,
         apply_patch=True,
         on_patch=None,
+        reject_unknown_ids=False,
     ):
         self.rows = copy.deepcopy(list(SKILL_ROWS if rows is None else rows))
         self.patch_mode = patch_mode
         self.patch_status = patch_status
         self.apply_patch = apply_patch
         self.on_patch = on_patch
+        #: The STRICTER of the two possible servers. A row that names an ``id``
+        #: the collection no longer holds is a request to update something that
+        #: has been deleted; a permissive server may re-create it, a strict one
+        #: rejects the payload. Which Instahyre is cannot be learned without
+        #: removing a real skill and trying, so the module is required to work
+        #: under BOTH -- and this flag is what makes the strict reading
+        #: testable. Without it the fake silently accepts a stale id and a
+        #: restore that could never work on a strict server passes.
+        self.reject_unknown_ids = reject_unknown_ids
         self.patch_bodies = []
         self.deleted_ids = []
         self._next_id = 90000001
@@ -185,6 +201,24 @@ class SkillEndpoint:
                 return json_response(
                     {"objects": ["Rejected by the server."]}, status=self.patch_status
                 )
+            if self.reject_unknown_ids:
+                live = {row.get("id") for row in self.rows}
+                stale = [
+                    obj.get("id")
+                    for obj in (body.get("objects") or [])
+                    if obj.get("id") is not None and obj.get("id") not in live
+                ]
+                if stale:
+                    return json_response(
+                        {
+                            "candidate_skill_model": {
+                                "id": [
+                                    "No candidate_skill_model matches id %s." % stale[0]
+                                ]
+                            }
+                        },
+                        status=400,
+                    )
             if self.apply_patch:
                 self._apply(body.get("objects") or [])
             return {"objects": copy.deepcopy(self.rows)}
@@ -511,9 +545,12 @@ def test_a_new_row_names_the_candidate_the_writer_derived_not_one_copied_off_a_r
         [],
     ],
 )
-def test_no_existing_skill_is_ever_dropped_whatever_is_asked_for(add):
-    """Whatever the request does -- duplicates, rejects, cap overflow, nothing
-    at all -- the four rows already on the profile survive it untouched."""
+def test_no_existing_skill_is_ever_dropped_by_an_add_only_request(add):
+    """Whatever an ADD request does -- duplicates, rejects, cap overflow,
+    nothing at all -- the four rows already on the profile survive it
+    untouched. Scoped to the add path on purpose: removal drops rows by
+    design, and the property that holds there is a different one (only the
+    NAMED rows leave), pinned separately under Removal below."""
     plan = writer_client().profile_writer.plan_skills(add)
 
     objects = plan["would_send"]["json_body"]["objects"]
@@ -1119,6 +1156,365 @@ def test_restoring_from_an_unknown_snapshot_id_names_the_tool_that_lists_them():
 
     assert "instahyre_list_profile_snapshots" in str(excinfo.value)
     assert describe(write_requests(client)) == []
+
+
+# ---------------------------------------------------------------------------
+# Removal
+# ---------------------------------------------------------------------------
+#
+# Removal is not a new request. It is the SAME replacement-set PATCH with a row
+# left out, which means every hazard here is a hazard of omission: the wrong
+# row omitted, an extra row omitted by accident, or the omission silently doing
+# nothing. So the assertions below are almost all about the exact contents of
+# the payload rather than about the return value, and several compare row IDS
+# rather than names -- a name can be re-created, an id cannot, so ids are what
+# distinguish "these rows survived" from "an equivalent list was rebuilt".
+
+#: A pair whose names share a prefix. This is the substring trap: removing
+#: "System Design" must not also take "System Design Patterns", and a matcher
+#: written with ``in`` rather than ``==`` passes every other test in this file.
+SUBSTRING_ROWS = [
+    {
+        "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/55500001",
+        "candidate": ROW_OWNER_URI,
+        "id": 55500001,
+        "name": "System Design",
+    },
+    {
+        "resource_uri": "/api/v1/candidate_misc/profile/candidate_skill_model/55500002",
+        "candidate": ROW_OWNER_URI,
+        "id": 55500002,
+        "name": "System Design Patterns",
+    },
+]
+
+
+def payload_rows(plan):
+    return plan["would_send"]["json_body"]["objects"]
+
+
+def row_ids(rows):
+    return [row.get("id") for row in rows if row.get("id") is not None]
+
+
+def test_a_removal_omits_the_named_row_and_leaves_every_other_byte_identical():
+    """The core property. Not "the right names come back" -- the right ROWS, as
+    the exact objects the server returned, in the order it returned them."""
+    victim = SKILL_NAMES[1]
+    plan = writer_client().profile_writer.plan_skills([], [victim])
+
+    expected = [row for row in SKILL_ROWS if row["name"] != victim]
+    assert payload_rows(plan) == expected
+    assert plan["would_remove"] == [victim]
+
+
+def test_only_the_intended_rows_leave():
+    """Stated as a set difference over IDS, which is the question a full
+    replacement set actually poses: which rows did this payload stop naming?"""
+    victims = [SKILL_NAMES[0], SKILL_NAMES[2]]
+    client = writer_client()
+
+    plan = client.profile_writer.plan_skills([], victims)
+
+    before = set(row_ids(SKILL_ROWS))
+    after = set(row_ids(payload_rows(plan)))
+    departed = before - after
+    assert departed == {
+        row["id"] for row in SKILL_ROWS if row["name"] in victims
+    }, "the payload dropped rows nobody asked it to drop"
+    assert after == before - departed, "the payload invented or renumbered a row"
+
+
+def test_surviving_rows_are_not_reordered_or_renumbered():
+    """"Do not silently reorder or renumber." Under a replacement set a
+    reordered payload is not cosmetic -- it is the only record the server gets
+    of what the list is."""
+    plan = writer_client().profile_writer.plan_skills([], [SKILL_NAMES[1]])
+
+    survivors = payload_rows(plan)
+    assert row_ids(survivors) == [
+        row["id"] for row in SKILL_ROWS if row["name"] != SKILL_NAMES[1]
+    ]
+    for row in survivors:
+        assert row is not None and set(row) == C.SKILL_ELEMENT_KEYS
+
+
+def test_a_removal_matches_the_name_exactly_and_never_as_a_substring():
+    """THE trap. "System Design" is a prefix of "System Design Patterns", and a
+    matcher using ``in`` would silently delete a skill nobody named."""
+    client = writer_client(rows=SUBSTRING_ROWS)
+
+    plan = client.profile_writer.plan_skills([], ["System Design"])
+
+    assert plan["would_remove"] == ["System Design"]
+    assert [row["name"] for row in payload_rows(plan)] == ["System Design Patterns"]
+
+
+def test_a_removal_folds_case_but_nothing_else():
+    client = writer_client()
+
+    plan = client.profile_writer.plan_skills([], [SKILL_NAMES[0].upper()])
+
+    assert plan["would_remove"] == [SKILL_NAMES[0]]
+    assert SKILL_NAMES[0] not in [row["name"] for row in payload_rows(plan)]
+
+
+def test_a_removal_of_a_skill_not_on_the_profile_removes_nothing_and_says_so():
+    """A typo that quietly removes nothing is indistinguishable from a removal
+    that worked, which is the same class of failure as a silent no-op write."""
+    client = writer_client()
+
+    plan = client.profile_writer.plan_skills([], ["Fortran"])
+
+    assert plan["would_remove"] == []
+    assert plan["remove_not_on_profile"] == ["Fortran"]
+    assert payload_rows(plan) == SKILL_ROWS
+    assert "spelling" in plan["remove_not_on_profile_note"]
+
+
+def test_adding_and_removing_the_same_skill_in_one_call_is_refused():
+    """Under a replacement set this is not a no-op: it would delete the row and
+    create a new one with a different id."""
+    client = writer_client()
+
+    with pytest.raises(InvalidFilter) as excinfo:
+        client.profile_writer.plan_skills([SKILL_NAMES[0]], [SKILL_NAMES[0].lower()])
+
+    assert SKILL_NAMES[0].lower() in str(excinfo.value)
+    assert describe(write_requests(client)) == []
+
+
+def test_removing_every_skill_is_refused_and_sends_nothing():
+    """On a reverse marketplace an empty skill list is not a small profile, it
+    is an unfindable one."""
+    client = writer_client()
+
+    with pytest.raises(WriteRefused) as excinfo:
+        client.profile_writer.update_skills([], list(SKILL_NAMES), confirm=True)
+
+    assert "unfindable" in str(excinfo.value)
+    assert describe(write_requests(client)) == []
+    assert client.skills.rows == SKILL_ROWS
+
+
+def test_a_removal_frees_a_slot_under_the_platform_cap():
+    """The reason this feature exists. At the cap, an addition is impossible
+    until something leaves -- so the cap has to be computed against what
+    SURVIVES the request, not against what was there when it started.
+
+    Computed against the pre-removal list, both additions are dropped for cap
+    and the account stays stuck at 20 with the dead skills still in place.
+    """
+    rows = synthetic_rows(C.MAX_SKILLS)
+    client = writer_client(rows=rows)
+    doomed = [rows[0]["name"], rows[1]["name"]]
+
+    plan = client.profile_writer.plan_skills(["Python", "Redis"], doomed)
+
+    assert plan["would_add"] == ["Python", "Redis"]
+    assert plan["dropped_over_platform_cap"] == []
+    assert plan["resulting_skill_count"] == C.MAX_SKILLS
+    names = [row["name"] for row in payload_rows(plan)]
+    assert names[-2:] == ["Python", "Redis"]
+    for name in doomed:
+        assert name not in names
+
+
+def test_a_swap_at_the_cap_is_one_patch_and_no_delete():
+    """One request, both directions. Two requests would leave a window in which
+    the profile is genuinely short a skill."""
+    rows = synthetic_rows(C.MAX_SKILLS)
+    client = writer_client(rows=rows)
+
+    client.profile_writer.update_skills(["Python"], [rows[0]["name"]], confirm=True)
+
+    assert describe(write_requests(client)) == [
+        ("PATCH", API_PREFIX + C.EP_SKILL_MODEL)
+    ]
+    assert requests_by_method(client, "DELETE") == [], (
+        "DELETE answers 405 on this resource; removal is by omission only"
+    )
+    assert client.skills.deleted_ids == []
+    assert len(client.skills.patch_bodies) == 1
+
+
+def test_the_removal_that_goes_out_is_exactly_the_one_the_preview_promised():
+    """The preview is the consent. A body that differs from it -- in either
+    direction -- means the confirm was obtained for a different write."""
+    client = writer_client()
+    promised = payload_rows(client.profile_writer.plan_skills([NEW_SKILL], [SKILL_NAMES[1]]))
+
+    client.profile_writer.update_skills([NEW_SKILL], [SKILL_NAMES[1]], confirm=True)
+
+    assert client.skills.patch_bodies == [{"objects": promised}]
+
+
+def test_nothing_is_removed_without_confirm():
+    client = writer_client()
+
+    result = client.profile_writer.update_skills([], [SKILL_NAMES[0]])
+
+    assert result["executed"] is False
+    assert result["would_remove"] == [SKILL_NAMES[0]]
+    assert "DELETED" in result["next_step"]
+    assert describe(write_requests(client)) == []
+    assert client.skills.rows == SKILL_ROWS
+
+
+def test_a_removal_snapshots_the_rows_before_the_patch_reaches_the_wire():
+    """The removal's only way back, and it has to exist BEFORE the request --
+    not after a 200, which may never arrive."""
+    seen = {}
+
+    def on_patch(request):
+        seen["snapshots"] = [path.name for path in snapshot_files()]
+
+    client = writer_client(on_patch=on_patch)
+
+    result = client.profile_writer.update_skills([], [SKILL_NAMES[0]], confirm=True)
+
+    assert seen["snapshots"], "the PATCH went out with no restore point on disk"
+    record = snapshot_record(result["snapshot_id"])
+    assert record["skill_names"] == SKILL_NAMES
+    assert SKILL_NAMES[0] in record["skill_names"]
+
+
+def test_a_removal_that_the_server_ignores_is_reported_not_counted_as_success():
+    """The silent no-op, in its removal-shaped form. An additive server keeps
+    the row; expecting the PRE-write list would have hidden that, because the
+    surviving row would have been expected all along."""
+    client = writer_client(patch_mode="additive")
+
+    result = client.profile_writer.update_skills([], [SKILL_NAMES[0]], confirm=True)
+
+    assert result["verified"] is False
+    assert result["removal_did_not_take"] == [SKILL_NAMES[0]]
+    assert SKILL_NAMES[0] in result["skills_now"]
+    assert "DID NOT VERIFY" in result["warning"]
+
+
+def test_a_removal_that_takes_reports_verified_and_names_what_left():
+    client = writer_client()
+
+    result = client.profile_writer.update_skills([], [SKILL_NAMES[0]], confirm=True)
+
+    assert result["verified"] is True
+    assert result["removed"] == [SKILL_NAMES[0]]
+    assert "removal_did_not_take" not in result
+    assert SKILL_NAMES[0] not in result["skills_now"]
+
+
+def test_a_pure_removal_request_still_refuses_when_it_would_change_nothing():
+    client = writer_client()
+
+    with pytest.raises(WriteRefused):
+        client.profile_writer.update_skills([], ["Fortran"], confirm=True)
+
+    assert describe(write_requests(client)) == []
+
+
+def test_the_add_only_claim_is_dropped_the_moment_a_removal_is_requested():
+    """A preview that still advertised "nothing is ever removed" while removing
+    would be the tool lying about itself in the one place a caller reads before
+    consenting."""
+    client = writer_client()
+
+    adding = client.profile_writer.plan_skills([NEW_SKILL])
+    removing = client.profile_writer.plan_skills([], [SKILL_NAMES[0]])
+
+    assert "add_only" in adding and "removal" not in adding
+    assert "add_only" not in removing
+    assert removing["removal"]["rows_that_leave"] == [
+        {"name": SKILL_NAMES[0], "id": SKILL_ROWS[0]["id"]}
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Reversibility of a removal
+# ---------------------------------------------------------------------------
+
+
+def removed_then_restorable_client(**kwargs):
+    """A client that has ALREADY removed one skill, holding the snapshot from
+    just before that removal. This is the state a restore has to undo, and it
+    is the one the pre-removal tests never produced: the snapshot now holds a
+    row the server no longer has."""
+    client = writer_client(**kwargs)
+    client.profile_writer.update_skills([], [SKILL_NAMES[0]], confirm=True)
+    return client
+
+
+def test_a_restore_puts_a_removed_skill_back():
+    client = removed_then_restorable_client()
+    assert SKILL_NAMES[0] not in client.profile_writer.skill_names()
+
+    result = client.profile_writer.restore_skills(confirm=True)
+
+    assert SKILL_NAMES[0] in result["skills_now"]
+    assert sorted(result["skills_now"]) == sorted(SKILL_NAMES)
+    assert result["verified"] is True
+
+
+def test_a_restore_recreates_a_removed_row_rather_than_naming_its_dead_id():
+    """THE control for the reversibility fix, and the reason it exists.
+
+    A snapshot row for a removed skill still carries the ``id`` of a row the
+    server has deleted. Echoing it back verbatim asks the server to update
+    something that is gone. Against the strict server that is a 400 and the
+    restore fails outright -- so the row is sent in the new-skill shape
+    instead, which is a request Instahyre's own client demonstrably makes.
+
+    Sending the snapshot rows back verbatim makes this test fail with a 400.
+    """
+    client = removed_then_restorable_client(reject_unknown_ids=True)
+
+    result = client.profile_writer.restore_skills(confirm=True)
+
+    assert result["recreated"] == [SKILL_NAMES[0]]
+    assert SKILL_NAMES[0] in result["skills_now"]
+    assert result["verified"] is True
+    assert "NEW ids" in result["recreated_note"]
+
+    sent = client.skills.patch_bodies[-1]["objects"]
+    revived = [row for row in sent if row.get("name") == SKILL_NAMES[0]]
+    assert revived == [{"candidate": CANDIDATE_URI, "name": SKILL_NAMES[0]}], (
+        "the revived row must carry no dead id and no dead resource_uri"
+    )
+
+
+def test_a_restore_still_echoes_rows_the_server_kept_exactly_as_captured():
+    """The recreate path must be narrow: only the rows that are actually gone.
+    A restore that rebuilt every row would renumber the whole list."""
+    client = removed_then_restorable_client(reject_unknown_ids=True)
+
+    client.profile_writer.restore_skills(confirm=True)
+
+    sent = client.skills.patch_bodies[-1]["objects"]
+    survivors = [row for row in sent if row.get("name") != SKILL_NAMES[0]]
+    assert survivors == [row for row in SKILL_ROWS if row["name"] != SKILL_NAMES[0]]
+
+
+def test_a_restore_that_needs_no_recreation_reports_none():
+    """The ordinary case is unchanged: nothing was removed, so nothing is
+    rebuilt and the payload is the snapshot verbatim."""
+    client = restorable_client()
+
+    result = client.profile_writer.restore_skills(confirm=True)
+
+    assert result["recreated"] == []
+    assert "recreated_note" not in result
+    assert client.skills.patch_bodies == [{"objects": SKILL_ROWS}]
+
+
+def test_the_restore_preview_names_what_it_would_recreate_and_sends_nothing():
+    client = removed_then_restorable_client()
+    before = len(write_requests(client))
+
+    preview = client.profile_writer.restore_skills()
+
+    assert preview["executed"] is False
+    assert preview["would_recreate"] == [SKILL_NAMES[0]]
+    assert len(write_requests(client)) == before
 
 
 # ---------------------------------------------------------------------------

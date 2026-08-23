@@ -821,7 +821,19 @@ def instahyre_server_info() -> dict:
             "applicant_counts": "no competition signal is published",
             "hybrid_vs_onsite": "only 'Work From Home' is modelled; the rest is unlabelled",
             "saved_jobs": "no bookmark feature exists; only saved SEARCHES, and no job-side equivalent",
-            "message_bodies": "the inbox exposes an unread count only; threads need a conv_id no endpoint lists",
+            # This entry used to read "the inbox exposes an unread count only;
+            # threads need a conv_id no endpoint lists". That was retired by
+            # inbox.py, which found the conversation list at
+            # /inbox_page/candidate_conversation -- so the conv_id IS listed and
+            # bodies ARE readable. A stale "cannot" in this block is the same
+            # defect as a false "can": both send a caller somewhere untrue.
+            "message_bodies": (
+                "READABLE, contrary to what this field said before 2026-08-23: "
+                "instahyre_list_conversations lists threads and instahyre_read_conversation "
+                "returns their bodies. What is genuinely absent is a not-found signal -- a "
+                "conv_id that is not his answers 200 with an empty list, so the id is "
+                "cross-checked against his own conversation list rather than trusted."
+            ),
             "opportunity_detail_route": "there is none; a queue record is found by scanning the queue",
         },
         "deliberately_not_built": {
@@ -1318,34 +1330,54 @@ def instahyre_inbox_counts() -> dict:
 
 @mcp.tool()
 @handled
-def instahyre_update_skills(add: list[str], confirm: bool = False) -> dict:
-    """Add skills to his live Instahyre profile. This is the highest-leverage write.
+def instahyre_update_skills(
+    add: list[str], remove: Optional[list[str]] = None, confirm: bool = False
+) -> dict:
+    """Add and remove skills on his live Instahyre profile. The highest-leverage write.
 
     Instahyre is a reverse marketplace: employers search for candidates, so the
-    skill list is the surface he is found ON. A short list throttles every
-    future match cycle rather than one application.
+    skill list is the surface he is found ON. A short or badly-chosen list
+    throttles every future match cycle rather than one application.
 
-    ADD-ONLY, and deliberately so. Existing skills are echoed back exactly as
-    the server returned them and nothing is ever removed. That makes the result
-    identical whether Instahyre treats the payload as a full replacement set or
-    as an ordinary additive patch -- an ambiguity in their contract that this
-    designs around instead of testing on his live profile.
+    THE PLATFORM CAPS THE LIST AT 20 AND HE IS AT THE CAP, so in practice every
+    addition is a SWAP -- which is why ``remove`` exists and why both happen in
+    one request. Removing a skill that appears in none of his matched jobs to
+    make room for one that appears in most of them is the single cheapest move
+    available on this platform.
+
+    Both directions run through the same mechanism: the resource is a full
+    replacement set, so a skill is removed by being left out of the list. There
+    is no delete request (DELETE answers 405 here), and every skill that is
+    meant to survive is echoed back exactly as the server returned it, in its
+    original order.
+
+    The rails on removal, since it is the destructive direction:
+      * names match EXACTLY, case-insensitively -- never as a substring, so
+        removing "System Design" cannot also take "System Design Patterns";
+      * a name that is not on the profile is reported, never silently ignored;
+      * adding and removing the same skill in one call is refused outright;
+      * removing every skill is refused -- a profile with no skills is not a
+        short profile, it is an unfindable one.
 
     With ``confirm=False`` (the default) nothing is sent: it returns the exact
-    request, what would be added, and what was skipped. A snapshot is written to
-    disk before any write, and instahyre_restore_profile puts it back.
+    request, what would be added, what would be REMOVED, and what was skipped. A
+    snapshot is written to disk before any write, and instahyre_restore_profile
+    puts it back -- a removed skill returns under a new id, since its original
+    row is gone.
 
-    The platform caps skills at 20 and each name at 50 characters. Anything over
-    the cap is dropped from the request and reported, not silently truncated.
+    Each name is capped at 50 characters. Anything over the platform cap is
+    dropped from the request and reported, not silently truncated.
 
     The write verifies itself by re-reading the profile afterwards -- a 200 is
-    not treated as success.
+    not treated as success, and a removal that did not take is named as such.
 
     Args:
-        add: Skill names to add, e.g. ["Express.js", "MongoDB", "Docker"].
+        add: Skill names to add, e.g. ["Python", "Express.js", "MongoDB"].
+        remove: Skill names to remove, e.g. ["Backend Development"]. Exact
+            names as they appear in instahyre_get_profile.
         confirm: Must be True to actually write. False returns a preview.
     """
-    return get_client().profile_writer.update_skills(add, confirm=confirm)
+    return get_client().profile_writer.update_skills(add, remove, confirm=confirm)
 
 
 @mcp.tool()
@@ -1389,11 +1421,21 @@ def instahyre_update_profile(
 def instahyre_restore_profile(snapshot_id: Optional[str] = None, confirm: bool = False) -> dict:
     """Put his skill list back to a snapshot taken before a write.
 
-    Restoring is the one operation that must REMOVE rows, so it runs in two
-    stages: the snapshot's rows are written back, then anything present that the
-    snapshot does not contain is deleted individually by id. That delete is
-    bounded hard -- it can only ever touch an id absent from the snapshot, so a
-    restore cannot remove a skill that predates this server.
+    ONE PATCH does the whole job, in both directions. The resource is a full
+    replacement set, so writing the snapshot's rows back simultaneously restores
+    what is missing and removes what is extra. No delete request is made or
+    needed -- DELETE answers 405 on this resource, so the two-stage version this
+    tool once described could never have worked and has been removed.
+
+    A skill that was REMOVED since the snapshot comes back as a NEW row: its
+    original id no longer exists server-side, so it is sent in the same shape
+    Instahyre's own client uses for a newly typed skill. The name is restored,
+    which is what employers search on; the id is not the original, and the
+    result says so under ``recreated``.
+
+    With ``confirm=False`` it shows exactly what would be restored, dropped and
+    re-created, and sends nothing. Restoring is itself a write, so it takes its
+    own snapshot first.
 
     Args:
         snapshot_id: From instahyre_list_profile_snapshots. Defaults to the newest.
@@ -1471,6 +1513,13 @@ def instahyre_skill_gap(
     ``skill_slots`` says whether you have room at all. ``duplicate_slots``
     catches two of your rows that normalise to the same skill -- they cost two
     slots and buy one.
+
+    THE MOVE THIS TOOL EXISTS TO SET UP: take the top row of
+    ``missing_skills``, take a row of ``dead_weight_skills``, and hand both to
+    instahyre_update_skills in ONE call -- ``add=[...]``, ``remove=[...]``. That
+    is the swap, it is a single request, and it is reversible via
+    instahyre_restore_profile. Reading this tool and then only ever adding is
+    what leaves an account stuck at the cap with dead rows in it.
 
     One request. Scored with the shared ``jobcore`` taxonomy, so "Node.js" on
     your profile and "nodejs" on a job are the same skill and never show up as
