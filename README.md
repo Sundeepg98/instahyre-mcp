@@ -11,7 +11,7 @@ is the tool that answers that in one call.
 
 ## The architecture: httpx by default, browser where the API cannot reach
 
-**35 of the 38 tools are plain `httpx`. Three use a browser, and all three say so.**
+**43 of the 46 tools are plain `httpx`. Three use a browser, and all three say so.**
 
 Instahyre's `/api/v1/*` is exempt from Cloudflare bot management. It answers a
 cold, unauthenticated, honestly-identified HTTP client on the first request --
@@ -40,7 +40,7 @@ not join the data path.**
 | `instahyre_login_browser` | yes, visible window | Google OAuth is a redirect dance no HTTP client can complete. |
 | `instahyre_verify_apply_target` | yes, visible window | Reads a server-injected page flag that decides **which endpoint an application posts to**. No API exposes it, and the page is Cloudflare-gated. Applications cannot be withdrawn, so this is worth a browser rather than an assumption. |
 | `instahyre_reauth` | yes, **headless**, never visible | Re-harvests the persistent profile's own long-lived `sessionid`, which outlives the copy saved on disk. It loads `/candidate/opportunities/` -- **never** the login page: a tool whose claim is "this is not a login" should not fetch the login URL, and sending a browser carrying a live session to a sign-in page is a needless risk. Headless is the guarantee, not an optimisation: no window means no human can be waited for. |
-| everything else (35 tools) | no | Plain `httpx`. |
+| everything else (43 tools) | no | Plain `httpx`. |
 
 The two *visible-window* browser tools abort **every** non-GET request at the router, except
 Cloudflare's own `/cdn-cgi/` challenge handshake -- which mutates nothing in the
@@ -78,7 +78,7 @@ install, with no "already satisfied" line to warn you.
 
 Playwright's browser binary is only needed by the three browser tools
 (`instahyre_login_browser`, `instahyre_verify_apply_target`,
-`instahyre_reauth`). The other 35 work without it -- and `instahyre_reauth`
+`instahyre_reauth`). The other 43 work without it -- and `instahyre_reauth`
 reports "no silent renew was possible" and names the fallback rather than
 raising, so a checkout with no chromium is degraded, not broken:
 
@@ -149,6 +149,45 @@ tested, because the inbox currently holds zero conversations.
 | `instahyre_restore_profile` | Put the skill list back to a snapshot. | 2-3 |
 | `instahyre_list_profile_snapshots` | Restore points on disk. | 0 |
 | `instahyre_verify_apply_target` | **Opens a browser.** Re-measures which endpoint an application would post to. | 0 (browser) |
+
+### The captured write tier -- measured before it was built
+
+Every request in this tier was recorded before a line of the tool was written.
+Five other write surfaces were commissioned on 2026-08-23 and refused on the
+spot, because not one of them had a recorded request body -- and a write with a
+guessed body is worse than no tool. A wrong guess usually 400s harmlessly; a
+half-right guess succeeds and does something nobody chose, and on this platform
+the second case is permanent.
+
+`scripts/capture_write_contracts.py` is how they were unblocked. It opens the
+real signed-in browser, aborts every non-GET at the router, and **records what
+it aborted** -- method, URL, body, headers. It refuses to drive anything until
+it has fired a POST from inside the page and watched the router block it, so
+"nothing was sent" is a measurement rather than an assumption.
+
+| Tool | What it does | Contract measured |
+|---|---|---|
+| `instahyre_support_ticket` | Raise a ticket. A person reads it; there is no delete. Preview unless `confirm=True`. | **Wire** -- recorded and aborted |
+| `instahyre_toggle_job_alert` | Alerts on/off for one saved search. Reversible. Sends the query string alongside the flag, like the site does. | Shipped source, whole functions |
+| `instahyre_referral_link` | Ask for his own referral link. Contacts nobody. | Shipped source |
+| `instahyre_referral_contacts` | Who Instahyre would offer as invitees. A **read** -- it is a GET in their client too. | Shipped source |
+| `instahyre_send_referral_invites` | Invite people. **IRREVERSIBLE.** Preview names every recipient. | Shipped source |
+
+`instahyre_send_referral_invites` is the one with real consequences: the mail
+carries his name, it reaches people who know him, and Instahyre has no unsend
+anywhere in its product. So `confirm=False` prints the full recipient list,
+malformed addresses are refused rather than attempted, duplicates are removed
+before the count, and one call will not send more than ten.
+
+**Two surfaces are still not built, and the reason is in
+`constants.UNVERIFIED_WRITE_SURFACES`.** A screening questionnaire can only be
+opened by pressing Apply on a real opportunity -- the one action this server
+must never take -- so the capture technique is closed off by the rule it exists
+to serve. The workex PUT has no caller in any shipped bundle and no control on
+the signed-in profile page; it appears to be onboarding-only, so there is
+nothing to intercept. The profile-image contract WAS captured (it is JSON, not
+multipart) but no tool is built on it: reproducing the browser's body needs a
+WebP encoder at width<=800 that this package has no dependency for.
 
 ### Session
 

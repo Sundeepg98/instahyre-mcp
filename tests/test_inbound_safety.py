@@ -545,15 +545,19 @@ def test_no_registered_tool_has_bulk_in_its_name(tools):
 # ---------------------------------------------------------------------------
 
 
-def test_every_post_call_site_in_the_package_targets_apply_or_login():
+def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
     """The airtight half of the bulk argument, and the write-surface census.
 
-    Two POST call sites exist in the whole package: the guarded apply in
-    inbound.py and the login handshake in session.py. Both name their endpoint
-    as a bare constant, so attribution is exact rather than inferred. A call
-    site whose first argument is not a plain ``C.<NAME>`` is reported as
-    unattributable and fails -- an ambiguous write path is a finding, not a
-    rounding error.
+    Every POST call site names its endpoint as a bare constant, so attribution
+    is exact rather than inferred. A call site whose first argument is not a
+    plain ``C.<NAME>`` is reported as unattributable and fails -- an ambiguous
+    write path is a finding, not a rounding error.
+
+    THE LIST GREW ON 2026-08-23 and the growth is the point of the census: three
+    referral/support endpoints entered the package the same day their request
+    bodies were captured. Each addition here is a deliberate re-ratification --
+    a new constant appearing in this list without a matching entry in
+    ``constants.CAPTURED_WRITE_CONTRACTS`` is a write nobody measured.
     """
     sites = post_call_sites(package_sources())
 
@@ -565,9 +569,31 @@ def test_every_post_call_site_in_the_package_targets_apply_or_login():
     )
 
     targets = sorted({target for _, _, target in sites})
-    assert targets == ["C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"], (
-        "a new write path appeared in the package: %s" % (sites,)
-    )
+    assert targets == [
+        "C.EP_APPLY_ES",
+        "C.EP_APPLY_LEGACY",
+        "C.EP_LOGIN",
+        "C.EP_REFERRAL",
+        "C.EP_REFERRAL_INVITES",
+        "C.EP_SUPPORT_QUERY",
+    ], "a new write path appeared in the package: %s" % (sites,)
+
+    # The re-ratification, asserted rather than trusted to review: every POST
+    # target that is not apply or login has to be a surface whose contract was
+    # captured. This is what stops the list above from being widened by simply
+    # adding a name to it.
+    measured = {
+        "C.EP_SUPPORT_QUERY": "support_tickets",
+        "C.EP_REFERRAL": "referrals",
+        "C.EP_REFERRAL_INVITES": "referrals",
+    }
+    for target in targets:
+        if target in ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"):
+            continue
+        assert target in measured, (
+            "%s posts to an endpoint with no captured contract" % target
+        )
+        assert measured[target] in C.CAPTURED_WRITE_CONTRACTS
 
 
 def test_the_post_call_site_scanner_sees_every_textual_post_in_the_package():
@@ -599,13 +625,18 @@ def test_the_post_call_site_scanner_reports_a_write_to_another_endpoint():
     assert [target for _, _, target in sites] == ["C.EP_SOMETHING_ELSE", None]
 
 
-def test_the_only_module_that_issues_patch_or_delete_is_profile_write():
+def test_only_the_two_write_modules_issue_patch_or_delete():
     """The write surface grew, so the census had to grow with it.
 
     ``.post(`` was once the whole write surface. Profile writes added PATCH and
     DELETE, and a census that still counted only POSTs would have reported a
     complete write surface while two more verbs went unwatched -- which is
     exactly how a census stops being one.
+
+    ``writes.py`` joined on 2026-08-23 with the saved-search alert toggle, which
+    is a PATCH. It is named here rather than folded into a wildcard: the value
+    of this test is that the set of modules holding a write verb is SHORT and
+    ENUMERATED, and a third name appearing without a reason is the finding.
     """
     verbs = ("patch", "delete")
     callers = {}
@@ -622,7 +653,7 @@ def test_the_only_module_that_issues_patch_or_delete_is_profile_write():
     # http.py DEFINES these verbs but never calls one as an attribute, so it
     # does not appear here -- which is the point: the definition is the door and
     # profile_write.py is the only room with a key.
-    assert sorted(callers) == ["profile_write.py"], (
+    assert sorted(callers) == ["profile_write.py", "writes.py"], (
         "a module outside profile_write.py now issues PATCH/DELETE: %s" % (callers,)
     )
 

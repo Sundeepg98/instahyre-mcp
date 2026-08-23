@@ -367,9 +367,15 @@ def test_each_saved_search_says_whether_its_alert_is_switched_on():
 
 
 def test_a_saved_search_record_is_passed_through_rather_than_renamed():
-    """Only ``job_alert_enabled_at`` has evidence behind it. Every other key is
-    unmeasured, so the row is forwarded whole instead of reshaped into names
-    nobody has seen on a live record."""
+    """The row is forwarded whole rather than reshaped into a tidy contract.
+
+    Five field NAMES now have shipped source behind them -- id, name,
+    search_string, job_alert_enabled_at, created_at, all read out of the
+    authenticated-tier bundle on 2026-08-23 -- but a name read from their
+    JavaScript is not a captured payload, and this account holds zero saved
+    searches, so no live record has ever been seen. Forwarding whole is what
+    keeps the difference honest.
+    """
     payload = fixture_json("saved_searches_populated.json")
     client = make_client({SAVED: payload})
 

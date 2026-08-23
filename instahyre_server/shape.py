@@ -622,15 +622,23 @@ def shape_resume(raw: dict, *, now: Optional[datetime] = None) -> dict:
 
 
 def shape_saved_search(row: dict) -> dict:
-    """One saved search, with the one field whose meaning is established.
+    """One saved search, forwarded whole with one derived key added.
 
-    The row is forwarded WHOLE and a single derived key is added, which is the
-    opposite of what every other shaper in this file does. The reason is
-    evidence, not laziness: this account has ZERO saved searches, so no live
-    record has ever been captured, and ``job_alert_enabled_at`` -- read off the
-    frontend bundle beside ``toggleSavedJobSearchAlerts($event)`` -- is the
-    only field name with anything behind it. Renaming keys nobody has seen into
-    a tidy shape would publish a contract this server has not measured.
+    The row is forwarded WHOLE, which is the opposite of what every other
+    shaper in this file does. The reason is evidence, not laziness: this
+    account has ZERO saved searches, so no live record has ever been captured,
+    and renaming keys nobody has seen into a tidy shape would publish a
+    contract this server has not measured.
+
+    WHAT IS KNOWN ABOUT THE ROW, as of the 2026-08-23 capture pass. Four field
+    NAMES now have shipped source behind them rather than one: the
+    authenticated-tier bundle's ``getSavedJobSearches`` reads ``id``, ``name``
+    and ``search_string`` off each row, ``toggleAlerts`` writes
+    ``job_alert_enabled_at``, and ``showRecommendedJobs`` reads ``created_at``.
+    ``search_string`` is an HTTP-query-serialized STRING, not an object -- the
+    client parses it with its own deserializer. That is still a reading of
+    their JavaScript, not a captured payload, so the row keeps being forwarded
+    rather than reshaped.
     """
     out = dict(row)
     # An "_at" field: present and non-null means the toggle is on. There is no

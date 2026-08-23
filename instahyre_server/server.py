@@ -1677,6 +1677,137 @@ def instahyre_watch_forget(stream: str, confirm: bool = False) -> dict:
     return client.watch.forget(stream)
 
 
+# ---------------------------------------------------------------------------
+# TIER 3 -- the writes whose contracts were captured on 2026-08-23.
+# ---------------------------------------------------------------------------
+#
+# Each of these was blocked until its real request had been recorded, because a
+# write with a guessed body is worse than no tool: a wrong guess usually 400s
+# harmlessly, a half-right guess succeeds and does something nobody chose, and
+# on this platform the second case is permanent.
+#
+# ``constants.CAPTURED_WRITE_CONTRACTS`` says, per surface, whether the body was
+# recorded off the wire or read out of Instahyre's shipped JavaScript, and every
+# preview below carries that stamp. Two of the original six are still NOT here:
+# a screening questionnaire can only be opened by pressing Apply on a real
+# opportunity, and the workex PUT has no caller and no control to intercept.
+
+
+@mcp.tool()
+@handled
+def instahyre_support_ticket(message: str, confirm: bool = False) -> dict:
+    """Raise a support ticket with Instahyre. A person reads it; there is no delete.
+
+    The whole request was recorded off the wire, which settled two details a
+    guess would have got wrong: the candidate is named by RESOURCE URI rather
+    than by integer id, and the URL carries no trailing slash even though the
+    site's own factory declares one.
+
+    With ``confirm=False`` (the default) NOTHING is sent -- it returns the exact
+    request, including the message text as it would arrive. Attachments are
+    always empty: the site's form takes files, this tool does not send them.
+
+    Args:
+        message: What to tell support. An empty message is refused rather than
+            opening a blank ticket in a human queue.
+        confirm: Must be True to actually raise it.
+    """
+    return get_client().writer.support_ticket(message, confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_toggle_job_alert(
+    saved_search_id: int, enable: bool, confirm: bool = False
+) -> dict:
+    """Turn email alerts on or off for one saved search. Reversible.
+
+    A job alert is not an object on this platform -- it is one boolean on a
+    saved search -- so this reads the row first and sends the query string back
+    alongside the flag, which is what Instahyre's own toggle does. A flag-only
+    update is a request the site never makes.
+
+    Two platform constraints, both measured and neither this server's
+    invention: alerts need a search carrying at least three filters, and there
+    is NO frequency field anywhere in the product. Do not offer a daily-or-
+    weekly choice; none exists.
+
+    Zero saved searches is a normal answer here and comes back with a diagnosis
+    that separates a real zero from a failed read, plus where to create one.
+
+    Args:
+        saved_search_id: The id from instahyre_saved_searches.
+        enable: True to turn alerts on, False to turn them off.
+        confirm: Must be True to actually apply it. False previews the exact
+            PATCH and changes nothing.
+    """
+    return get_client().writer.toggle_job_alert(
+        saved_search_id, enable, confirm=confirm
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_referral_link(confirm: bool = False) -> dict:
+    """Ask Instahyre for his own referral link. Contacts nobody.
+
+    It is a POST, so it is gated like every other write here, but nothing
+    leaves his account: the response hands back a referral URL. Use this before
+    inviting anyone -- the link is what a referral is actually made of.
+
+    Args:
+        confirm: Must be True to send the request.
+    """
+    return get_client().writer.referral_link(confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_referral_contacts() -> dict:
+    """Who Instahyre would offer as invitees, from his Google contacts. A READ.
+
+    This exists so that inviting people can be an informed decision rather than
+    a typed guess. It is a GET in Instahyre's own client -- reading the list
+    sends nothing to anyone -- and it reports the ``preselect`` flag Instahyre
+    attaches to some contacts WITHOUT acting on it. A default-selected
+    recipient is a recipient nobody chose.
+
+    An empty list comes back with a diagnosis separating "never granted Google
+    access" from "granted but empty" from "shape changed". This server never
+    drives the Google consent screen.
+    """
+    return get_client().writer.referral_contacts()
+
+
+@mcp.tool()
+@handled
+def instahyre_send_referral_invites(
+    emails: list[str], confirm: bool = False
+) -> dict:
+    """Invite people to Instahyre from his account. IRREVERSIBLE -- read this.
+
+    These are real people who know him. The mail carries his name and his
+    address, and Instahyre has no unsend anywhere in its product. Unlike an
+    application, which at worst wastes a slot, there is no version of a wrong
+    invitation that costs nothing.
+
+    So: with ``confirm=False`` (the default) NOTHING is sent, and the result
+    names every single recipient. Show that list to him and get an explicit yes
+    before calling again with ``confirm=True``. A malformed address is refused
+    rather than attempted, duplicates are removed before the count, and one
+    call will not send more than ten.
+
+    Names are sent as null, because that is exactly what Instahyre's own typed-
+    invite path does. Use instahyre_referral_contacts to see the names it holds.
+
+    Args:
+        emails: The addresses to invite.
+        confirm: Must be True to actually send. False returns the recipient
+            list and sends nothing.
+    """
+    return get_client().writer.send_referral_invites(emails, confirm=confirm)
+
+
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
     mcp.run()

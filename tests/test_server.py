@@ -24,6 +24,13 @@ from instahyre_server.errors import (
 from instahyre_server.server import handled, mcp
 
 EXPECTED_TOOLS = {
+    # The 2026-08-23 write tier: five tools, each on a surface whose
+    # request body was captured before the tool was written.
+    "instahyre_support_ticket",
+    "instahyre_toggle_job_alert",
+    "instahyre_referral_link",
+    "instahyre_referral_contacts",
+    "instahyre_send_referral_invites",
     "instahyre_search_jobs",
     "instahyre_get_job",
     "instahyre_get_company",
@@ -177,8 +184,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_forty_one_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 41
+def test_the_server_registers_exactly_forty_six_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 46
 
 
 def test_every_tool_name_is_namespaced(tools):

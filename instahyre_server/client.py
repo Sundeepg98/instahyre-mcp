@@ -54,6 +54,14 @@ class InstahyreClient:
 
         self.profile_writer = ProfileWriter(self.http, self.store, self.inbound)
 
+        # The four write surfaces whose contracts were captured on 2026-08-23.
+        # Kept apart from ProfileWriter because they are a different kind of
+        # write: those change the profile that drives his match queue, these
+        # reach a support queue, a saved-search row and other people's inboxes.
+        from .writes import Writer
+
+        self.writer = Writer(self.http, self.store, self.inbound)
+
         # "What changed since I last looked", over the two inbound streams. It
         # reads THROUGH inbound rather than issuing its own requests, so a
         # diagnosis written once is carried rather than restated, and it holds
