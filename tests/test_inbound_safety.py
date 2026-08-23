@@ -52,7 +52,7 @@ import pathlib
 import httpx
 import pytest
 
-from conftest import fixture_json, make_client
+from conftest import assert_no_credential, fixture_json, make_client
 from instahyre_server import constants as C
 from instahyre_server import server as server_module
 from instahyre_server.errors import InvalidFilter
@@ -452,14 +452,21 @@ def test_the_preview_names_the_role_and_the_employer():
 def test_the_preview_never_carries_a_real_csrf_token():
     """The preview is shown to a human and may be logged. The header is
     described, never populated -- so a real session token cannot ride out in a
-    transcript."""
+    transcript.
+
+    Checked with the shared walker rather than ``json.dumps``. Serialising
+    first collapses the payload to one string, which loses the field path a
+    failure needs, and it can only see values that survive a JSON round trip --
+    a token carried on an object, in bytes, or base64-encoded is invisible to
+    it. ``test_credential_leak.py`` holds the controls for each of those.
+    """
     client = queue_client(csrf=CSRF_VALUE)
 
     preview = client.inbound.apply_preview(OPPORTUNITY_ID, is_interested=True)
 
     header = preview["would_send"]["headers"]["X-CSRFToken"]
     assert header.startswith("<") and header.endswith(">"), header
-    assert CSRF_VALUE not in json.dumps(preview)
+    assert_no_credential(preview, CSRF_VALUE, where="apply_preview")
 
 
 # ---------------------------------------------------------------------------

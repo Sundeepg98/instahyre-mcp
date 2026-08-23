@@ -39,7 +39,14 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FakeClock, HTML_CHALLENGE_BODY, html_response, json_response, make_http
+from conftest import (
+    FakeClock,
+    HTML_CHALLENGE_BODY,
+    assert_no_credential,
+    html_response,
+    json_response,
+    make_http,
+)
 from instahyre_server import auth, cookie_jar, lifecycle
 from instahyre_server import server as server_module
 from instahyre_server.session import CSRF_COOKIE, SESSION_COOKIE, SessionStore
@@ -213,13 +220,26 @@ def strings_in(payload, _trail="") -> list:
 
 
 def assert_no_secret(payload) -> None:
-    hits = [
-        "%s = %r" % (where, text)
-        for where, text in strings_in(payload)
-        for secret in (SECRET_SESSION_VALUE, SECRET_CSRF_VALUE)
-        if secret in text
-    ]
-    assert not hits, "a cookie VALUE reached a tool result:\n  " + "\n  ".join(hits)
+    """No cookie value, in any spelling, anywhere in ``payload``.
+
+    Delegates to the shared walker in ``conftest.py``. It used to be a local
+    substring search over a str-only walk, and on 2026-08-23 that combination
+    was measured blind to six of eight leak shapes carrying the whole cookie --
+    bytes, an object's repr, a set, base64, and both spellings of the sealed
+    blob. ``test_credential_leak.py`` holds the controls.
+
+    ``SECRET_ENCRYPTED_BLOB`` is in this list, and that is the point of the
+    change. ``build_jar`` has always planted it in every row so that a reader
+    which selected a wildcard would be caught -- and nothing had ever hunted
+    it, so the trap was set and the alarm was disconnected. It is bytes, so it
+    also needed the wider walk before naming it here would have meant anything.
+    """
+    assert_no_credential(
+        payload,
+        SECRET_SESSION_VALUE,
+        SECRET_CSRF_VALUE,
+        SECRET_ENCRYPTED_BLOB,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +683,15 @@ class TestSessionInfoLeaksNothing:
         assert_no_secret(out)
 
     def test_no_cookie_value_reaches_a_log_line_or_an_error(self, tmp_path, caplog):
+        """Over the RECORDS, not over ``caplog.text``.
+
+        ``caplog.text`` is the rendered form, and a value passed as a logging
+        ARG rather than interpolated into the message reaches every handler
+        while never appearing in a text search of the format string -- a
+        ``LogRecord``'s own repr shows ``"value: %s"`` and hides the arg. The
+        control for that is in ``test_credential_leak.py``; this call site is
+        one of the ones it protects.
+        """
         with caplog.at_level(logging.DEBUG):
             lifecycle.session_info(
                 store=saved_store(tmp_path),
@@ -677,8 +706,7 @@ class TestSessionInfoLeaksNothing:
                 http=None,
                 verify_live=False,
             )
-        assert SECRET_SESSION_VALUE not in caplog.text
-        assert SECRET_CSRF_VALUE not in caplog.text
+        assert_no_secret(list(caplog.records))
 
     def test_no_absolute_local_path_reaches_any_field(self, tmp_path):
         """THREE fields render a path, and one of them does it inside prose.
