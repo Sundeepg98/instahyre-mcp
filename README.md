@@ -11,7 +11,7 @@ is the tool that answers that in one call.
 
 ## The architecture: httpx by default, browser where the API cannot reach
 
-**31 of the 33 tools are plain `httpx`. Two use a browser, and both say so.**
+**35 of the 38 tools are plain `httpx`. Three use a browser, and all three say so.**
 
 Instahyre's `/api/v1/*` is exempt from Cloudflare bot management. It answers a
 cold, unauthenticated, honestly-identified HTTP client on the first request --
@@ -39,9 +39,10 @@ not join the data path.**
 |---|---|---|
 | `instahyre_login_browser` | yes, visible window | Google OAuth is a redirect dance no HTTP client can complete. |
 | `instahyre_verify_apply_target` | yes, visible window | Reads a server-injected page flag that decides **which endpoint an application posts to**. No API exposes it, and the page is Cloudflare-gated. Applications cannot be withdrawn, so this is worth a browser rather than an assumption. |
-| everything else (31 tools) | no | Plain `httpx`. |
+| `instahyre_reauth` | yes, **headless**, never visible | Re-harvests the persistent profile's own long-lived `sessionid`, which outlives the copy saved on disk. Headless is the guarantee, not an optimisation: no window means no human can be waited for, so a silent renew cannot quietly become an interactive login. |
+| everything else (35 tools) | no | Plain `httpx`. |
 
-Both browser tools abort **every** non-GET request at the router, except
+The two *visible-window* browser tools abort **every** non-GET request at the router, except
 Cloudflare's own `/cdn-cgi/` challenge handshake -- which mutates nothing in the
 account, and without which verification can never complete. Neither clicks
 anything.
@@ -75,9 +76,11 @@ the scorer -- and the `requirements-ci.txt` one otherwise. Do **not** run the
 second after the first: a direct-URL requirement silently uninstalls an editable
 install, with no "already satisfied" line to warn you.
 
-Playwright's browser binary is only needed by the two browser tools
-(`instahyre_login_browser`, `instahyre_verify_apply_target`). The other 31 work
-without it:
+Playwright's browser binary is only needed by the three browser tools
+(`instahyre_login_browser`, `instahyre_verify_apply_target`,
+`instahyre_reauth`). The other 35 work without it -- and `instahyre_reauth`
+reports "no silent renew was possible" and names the fallback rather than
+raising, so a checkout with no chromium is degraded, not broken:
 
 ```bash
 venv/Scripts/python -m playwright install chromium
@@ -152,9 +155,11 @@ tested, because the inbox currently holds zero conversations.
 | Tool | What it does |
 |---|---|
 | `instahyre_login` | Email + password, over plain HTTP. No browser. |
-| `instahyre_login_browser` | Opens a window for Google sign-in. One of two tools that start a browser. |
+| `instahyre_login_browser` | Opens a window for Google sign-in. One of three tools that start a browser. |
 | `instahyre_auth_status` | Asks the server whether the session is live. Can honestly return `false`. |
-| `instahyre_logout` | Clears the locally saved cookies. |
+| `instahyre_session_info` | What the credential is, when it expires, and how to renew it. `verify_live=False` costs no network and no browser. |
+| `instahyre_reauth` | Silent renew from the browser profile -- headless, no password, no window. Try this first when a tool says `auth_required`. |
+| `instahyre_logout` | Clears the locally saved cookies. Leaves the browser profile alone, so `instahyre_reauth` usually gets straight back in. |
 
 ## What this platform does not have
 

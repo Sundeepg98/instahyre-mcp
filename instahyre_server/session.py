@@ -35,9 +35,23 @@ def session_path() -> Path:
     return default_db_path().parent / "session.json"
 
 
-def browser_profile_path() -> Path:
+def browser_profile_path(create: bool = True) -> Path:
+    """Where the persistent Chrome profile lives.
+
+    ``create=False`` asks the question without answering it: it returns the
+    path and makes no directory. That matters for ``instahyre_session_info``,
+    which reports where the profile WOULD be and reads its cookie jar. Creating
+    an empty directory there would turn the reader's honest "no profile has
+    ever been signed in" into the far more confusing "the profile is there but
+    holds no cookie database", which reads like corruption rather than absence.
+
+    THE PATH IS DEFINED ONCE, here, for both branches. A caller computing
+    ``default_db_path().parent / "browser_profile"`` for itself is how two
+    spellings of one directory start to drift apart.
+    """
     path = default_db_path().parent / "browser_profile"
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 

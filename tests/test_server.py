@@ -37,6 +37,11 @@ EXPECTED_TOOLS = {
     "instahyre_login",
     "instahyre_login_browser",
     "instahyre_logout",
+    # The auth lifecycle, added 2026-08-23 to the four-server contract in
+    # _audit/2026-08-23-auth-contract.md. session_info reports the credential
+    # and its expiry; reauth renews it silently from the browser profile.
+    "instahyre_session_info",
+    "instahyre_reauth",
     "instahyre_server_info",
     "instahyre_config",
     # Tier 2 -- authenticated.
@@ -166,8 +171,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_thirty_six_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 36
+def test_the_server_registers_exactly_thirty_eight_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 38
 
 
 def test_every_tool_name_is_namespaced(tools):

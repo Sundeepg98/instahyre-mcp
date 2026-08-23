@@ -17,13 +17,19 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from . import buildinfo, constants as C
-from . import policy, scoring, shape, skillgap
+from . import lifecycle, policy, scoring, shape, skillgap
 from .cache import Store, default_db_path
 from .paths import display_path
 from .client import InstahyreClient
 from .errors import InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
-from .session import SESSION_COOKIE, SessionStore, check_auth, login_with_password
+from .session import (
+    SESSION_COOKIE,
+    SessionStore,
+    browser_profile_path,
+    check_auth,
+    login_with_password,
+)
 
 log = logging.getLogger("instahyre.server")
 
@@ -634,16 +640,98 @@ def instahyre_login_browser(wait_seconds: int = 300) -> dict:
 
 @mcp.tool()
 @handled
+def instahyre_session_info(verify_live: bool = True) -> dict:
+    """What the session is, how long it has left, and how to renew it.
+
+    THE FIELD TO READ FIRST IS ``live_check``, not ``authenticated``.
+    ``authenticated`` is true or false only when the endpoint actually
+    answered; it is **null** whenever the check could not be completed, and a
+    null is not a no. ``live_check.why_not`` says which it is.
+
+    ``credential.expires_at`` comes from a place worth knowing about. The saved
+    cookie jar this server sends from stores names and values only -- it holds
+    no dates at all -- so the expiry is read out of the persistent browser
+    profile's own SQLite cookie jar, from a COPY, with no browser launched and
+    no cookie value ever fetched. Those are two different stores and they can
+    hold two different sessions; ``credential.expiry_source`` says so in full
+    rather than blurring them. ``expired`` is null, never false, when no date
+    could be read.
+
+    No credential VALUE is returned by this tool, in any field, ever. Name,
+    presence, format and expiry only.
+
+    Args:
+        verify_live: True spends ONE request asking Instahyre for a verdict.
+            False costs nothing at all -- no network, no browser -- and reports
+            the on-disk facts with ``authenticated`` null. Use False when the
+            question is "what have I got saved", True when it is "does it work".
+    """
+    if not verify_live:
+        # Deliberately NOT get_client(). The offline answer must cost nothing,
+        # and building the client would open sqlite, restore the cookies and
+        # install a process-wide global -- changing the thing being described.
+        return lifecycle.session_info(
+            store=_sessions if _sessions is not None else SessionStore(),
+            profile_dir=browser_profile_path(create=False),
+            http=None,
+            verify_live=False,
+        )
+    client = get_client()
+    return lifecycle.session_info(
+        store=get_sessions(),
+        profile_dir=browser_profile_path(create=False),
+        http=client.http,
+        verify_live=True,
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_reauth() -> dict:
+    """Renew the session silently from the browser profile. No password, no window.
+
+    Use this FIRST when a tool reports auth_required. The persistent Chrome
+    profile that instahyre_login_browser signed in to keeps its own long-lived
+    ``sessionid``, and that one outlives the copy saved beside this server. This
+    re-opens that profile HEADLESS, re-harvests its cookies and puts them to
+    the live endpoint. It takes no arguments, opens no window, types nothing,
+    and cannot wait for a human -- there would be nowhere for one to act.
+
+    ``renewed: true`` requires the endpoint to have answered 200. A fresh
+    ``sessionid`` appearing is NOT enough and is never treated as enough:
+    Instahyre issues one to signed-out visitors, which is exactly the bug this
+    server shipped once and now tests against.
+
+    On any other outcome the previously saved session is put back byte for
+    byte, so a failed renew cannot cost a session that was already working, and
+    ``reason`` names instahyre_login_browser as the way back in.
+    """
+    client = get_client()
+    return lifecycle.reauth(
+        http=client.http,
+        store=get_sessions(),
+        profile_dir=browser_profile_path(create=False),
+    )
+
+
+@mcp.tool()
+@handled
 def instahyre_logout() -> dict:
     """Forget the saved session cookies on this machine.
 
-    Local only -- it clears the cookie jar, it does not end the session on
-    Instahyre's side or touch the browser profile.
+    Local only. It clears the saved cookie jar and this process's cookies; it
+    does NOT end the session on Instahyre's side -- this server has no sign-out
+    call -- and it does NOT touch the persistent browser profile.
+
+    That last part is why ``recover_by`` names instahyre_reauth first: the
+    profile still holds a live sessionid, so getting back in usually costs one
+    silent headless re-harvest and no password.
     """
-    client = get_client()
-    had = get_sessions().clear()
-    client.http.cookies.clear()
-    return {"cleared": had, "authenticated": False}
+    return lifecycle.logout(
+        http=get_client().http,
+        store=get_sessions(),
+        profile_dir=browser_profile_path(create=False),
+    )
 
 
 @mcp.tool()

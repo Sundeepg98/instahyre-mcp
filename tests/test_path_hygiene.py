@@ -337,9 +337,20 @@ def offline_tool_payloads(monkeypatch) -> dict:
     and so does ``instahyre_inbound_digest``. A leak that enters through that
     shared block surfaces in a SCORING tool, which is the last place a reader
     would think to look for the machine's directory layout.
+
+    ``instahyre_session_info(verify_live=False)`` is in here because it renders
+    THREE paths by hand -- the saved session file, the browser profile, and
+    whatever the cookie-jar reader says when it cannot read one -- and the
+    third arrives inside composed prose (``"...%s..." % profile_dir``) where no
+    field rename can reach it. That is the same shape as the ``{exc}`` leak
+    measured on 2026-08-22. It is also the only offline payload here that runs
+    with no client at all, which is the mode it will actually be called in.
     """
     payloads = {
         "instahyre_config()": server_module.instahyre_config(),
+        "instahyre_session_info(verify_live=False)": (
+            server_module.instahyre_session_info(verify_live=False)
+        ),
     }
     for section in policy.SECTIONS:
         payloads["instahyre_config(section=%r)" % section] = (
