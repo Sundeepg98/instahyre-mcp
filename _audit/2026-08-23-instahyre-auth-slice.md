@@ -1,7 +1,7 @@
 # instahyre auth-lifecycle slice -- delivered 2026-08-23
 
 Contract: `mcp-servers/_audit/2026-08-23-auth-contract.md`, sections 1, 2 and 3.
-Commit: **`19f2627974ebb2172926a90c0e4f56549a3153dc`** on `master`, NOT pushed.
+Commit: **`a6522ef8364b33b6d3b53d9f8170877d398f2172`** on `master`, NOT pushed.
 
 ## 1. What shipped, and where
 
@@ -189,7 +189,7 @@ items 1 and 2 (which seam `reauth` drives) and item 3 (the two extra fields).
 
 # Review round 2 -- four wave-lead rulings, 2026-08-23
 
-All four folded into one rework, across commits `94fdc54` (rulings 1-3) and the
+All four folded into one rework, across commits `f383323` (rulings 1-3) and the
 one recorded at the foot of this section (ruling 4). **Nothing pushed** -- see
 section R2.7.
 
