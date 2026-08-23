@@ -22,6 +22,11 @@ WHAT THESE TESTS HOLD
    constant-length ``0.6`` -> ``0.8`` edit that an mtime trigger misses.
 4. The scoring path still never reads a file -- the policy is injected.
 5. jobcore missing is a loud ImportError, not a quiet second opinion.
+6. Nothing in this package can run unattended, and nothing reaches an apply or
+   a decline without a human confirm -- asserted as BEHAVIOUR by walking the
+   package's AST, replacing a check that read filenames and was defeated by
+   ``git mv``. Section 7b, which states its own deviation from the brief it
+   was written to.
 
 EVERY GUARD HERE HAS A CONTROL. A test named ``*__CONTROL`` exists to show the
 guard above it is capable of failing: the weight assertions are re-run against
@@ -34,8 +39,12 @@ And the whole file has been RUN against a permissive build -- one that accepts
 the policy and discards it, which is precisely the bug it exists to catch::
 
     PYTHONPATH=scripts pytest tests/test_scoring_policy.py -p permissive_scorer_control
-    # 6 failed, 50 passed  (re-measured 2026-08-22; the same six, ten new tests
-    #                       added by the account-profile fallback all survive it)
+    # 6 failed, 65 passed  (re-measured 2026-08-23; the same six. The fifteen
+    #                       new tests in section 7b survive it, and are meant
+    #                       to: they read SOURCE, not scores, so a scorer that
+    #                       discards its policy is invisible to them. They have
+    #                       their own controls instead -- each scanner is run
+    #                       against a synthetic offender in the same class.)
 
 ``scripts/permissive_scorer_control.py`` ships that plugin and lists which six,
 and why the other forty are supposed to survive it.
@@ -44,6 +53,8 @@ and why the other forty are supposed to survive it.
 from __future__ import annotations
 
 import ast
+import asyncio
+import inspect
 import json
 import os
 import re
@@ -55,6 +66,7 @@ from pathlib import Path
 import pytest
 from conftest import make_client
 from fastmcp.exceptions import ToolError
+from test_inbound_safety import package_sources, post_call_sites
 
 from instahyre_server import constants as C
 from instahyre_server import policy, scoring
@@ -926,9 +938,512 @@ class TestTheConfigCannotGrantApplyAuthorityHere:
 
         Stated as a test rather than a comment so that adding one is a visible
         red line rather than a quiet afternoon.
+
+        THIS IS NOW ONE CLAUSE AMONG SEVERAL, and the weakest of them. It reads
+        FILENAMES, so ``git mv scheduler.py watcher.py`` walks straight past it
+        -- a rename, not a redesign, and the red line goes green. It is kept
+        because it is free and it still catches the lazy version; the argument
+        it used to carry alone now lives in
+        ``TestNothingInThisPackageCanRunUnattended`` below, which asserts the
+        BEHAVIOUR a filename was standing in for.
         """
         names = {p.stem for p in (REPO / "instahyre_server").glob("*.py")}
         assert "agent" not in names and "scheduler" not in names
+
+
+# ---------------------------------------------------------------------------
+# 7b. Nothing in this package can run unattended
+#
+# The clause above this one used to be the WHOLE of that argument, and it was a
+# check on SPELLING: a set of module stems with "agent" and "scheduler" absent
+# from it. ``git mv scheduler.py watcher.py`` defeats it completely -- the
+# rename costs one command, changes no behaviour, and turns the red line green.
+# A guard that certifies a filename certifies a filename.
+#
+# What that clause was actually protecting is BEHAVIOURAL: nothing in this
+# package may run without a caller waiting for it, and no path may reach apply
+# or decline without a human confirm. That is what is asserted here, by reading
+# the package's own source off disk and walking its AST. The filename clause is
+# KEPT above as one clause among these rather than deleted -- it is cheap, it
+# still catches the lazy version, and a strictly stronger check is not a reason
+# to give up a free one.
+#
+# The scanners are pointed at ``package_sources()``, imported from
+# tests/test_inbound_safety.py rather than re-implemented. That file already
+# owns the write-surface census, and two enumerations of the same surface
+# drift: the moment they disagree, both stop being evidence. Importing it also
+# means these clauses glob whatever modules are present, so a module added
+# after this file was written is scanned without anyone remembering to add it.
+#
+# DEVIATION, STATED OUT LOUD (2026-08-23). The loop clause was specified as
+# "no module defines a ``while True:``". Measured against the tree, that is
+# FALSE TODAY: ``auth.py`` line 165 defines one, inside
+# ``_wait_for_signed_in_session``. It is not an autonomous loop -- it is a
+# synchronous poll that blocks the caller of ``instahyre_login_browser`` while
+# a human types a password into a visible browser window, and it breaks on
+# ``elapsed >= wait_seconds``, on the window closing, and on a Cloudflare
+# challenge. Written literally the clause could not land at all. It is written
+# here instead as a CENSUS, which is the idiom this repo already uses for the
+# write surface ("a new write path appeared in the package"): the package holds
+# EXACTLY the loops listed, named by file and function, and any other one --
+# an added agent cycle, a renamed scheduler that kept its loop -- fails. That
+# catches the thing the clause exists to catch without asserting something the
+# tree contradicts. It is a census, not a carve-out: it grants no module a
+# licence, and a SECOND loop in auth.py fails it exactly as loudly as one in a
+# new file would.
+# ---------------------------------------------------------------------------
+
+
+#: Import roots that exist to run code with nobody waiting on the result.
+#: ``threading`` is deliberately NOT here -- see ``THREADING_DETACHERS``.
+UNATTENDED_ROOTS = ("asyncio", "sched", "concurrent")
+
+#: Callables that detach work from the calling stack. A name is enough: these
+#: are checked as call sites, so ``threading.Thread(...)`` and a bare
+#: ``Thread(...)`` after a ``from`` import are both caught by the same rule.
+DETACHING_CALLS = ("Thread", "Timer", "create_task", "run_in_executor", "ensure_future")
+
+#: The members of ``threading`` that start something. Everything else in that
+#: module -- ``Lock``, ``RLock``, ``Condition``, ``local`` -- is a LOCK, not a
+#: loop, and two live sites depend on staying legal: ``cache.py`` guards a
+#: sqlite connection opened with ``check_same_thread=False`` and ``http.py``
+#: guards the rate limiter's last-request clock. A check that banned
+#: ``import threading`` outright would be red on the tree the day it landed.
+THREADING_DETACHERS = tuple("threading." + name for name in DETACHING_CALLS)
+
+#: The apply endpoints, as ``post_call_sites`` reports them. ``C.EP_LOGIN`` is
+#: the third POST target in the package and is deliberately absent: signing in
+#: is not applying, and a login needs no confirm gate.
+APPLY_POST_TARGETS = ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY")
+
+
+def _call_name(node):
+    """The bare callee name of a ``Call`` node, or None.
+
+    ``inbound.submit_interest(...)`` and ``submit_interest(...)`` both answer
+    ``"submit_interest"``. The receiver is dropped on purpose: what matters is
+    which function is entered, not which object it was reached through.
+    """
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return None
+
+
+def _is_unattended(dotted):
+    root = dotted.split(".")[0]
+    return root in UNATTENDED_ROOTS or dotted in THREADING_DETACHERS
+
+
+def unattended_imports(sources):
+    """``(filename, lineno, dotted)`` for every import of a scheduling mechanism.
+
+    Both import forms are resolved to the same dotted string before the test,
+    so ``from threading import Thread as T`` is judged as ``threading.Thread``
+    and the alias buys nothing.
+    """
+    hits = []
+    for name, text in sources.items():
+        tree = ast.parse(text, filename=name)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if _is_unattended(alias.name):
+                        hits.append((name, node.lineno, alias.name))
+            elif isinstance(node, ast.ImportFrom):
+                base = ("." * node.level) + (node.module or "")
+                if _is_unattended(base):
+                    hits.append((name, node.lineno, base))
+                for alias in node.names:
+                    dotted = "%s.%s" % (base, alias.name)
+                    if _is_unattended(dotted):
+                        hits.append((name, node.lineno, dotted))
+    return sorted(hits)
+
+
+def detaching_calls(sources):
+    """``(filename, lineno, callee)`` for every call that would detach work.
+
+    Walked as AST rather than searched as text, so the long explanatory prose
+    this repo writes cannot trip it: a docstring that says the word Thread is
+    documentation. The text/AST divergence guard below is what stops that
+    precision from quietly becoming blindness.
+    """
+    hits = []
+    for name, text in sources.items():
+        tree = ast.parse(text, filename=name)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _call_name(node) in DETACHING_CALLS:
+                hits.append((name, node.lineno, _call_name(node)))
+    return sorted(hits)
+
+
+def _enclosing_function(tree, lineno):
+    """The name of the INNERMOST function containing *lineno*, or None.
+
+    Innermost by taking the latest ``lineno`` among the candidates that span
+    the line, so a nested helper is reported as itself rather than as the
+    method it happens to sit inside.
+    """
+    best = None
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        end = getattr(node, "end_lineno", None)
+        if node.lineno <= lineno and (end is None or lineno <= end):
+            if best is None or node.lineno > best.lineno:
+                best = node
+    return best.name if best else None
+
+
+def forever_loops(sources):
+    """``(filename, function)`` for every ``while <truthy constant>:`` loop.
+
+    Keyed on the function rather than the line number on purpose: a line number
+    churns on every edit above it, which would turn this census into a chore
+    that gets updated without being read. A function name moves only when
+    something real moves. ``while 1:`` counts -- it is the same loop with a
+    different spelling, and this whole section exists because a spelling is not
+    a property.
+    """
+    hits = []
+    for name, text in sources.items():
+        tree = ast.parse(text, filename=name)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.While)
+                and isinstance(node.test, ast.Constant)
+                and node.test.value
+            ):
+                hits.append((name, _enclosing_function(tree, node.lineno)))
+    return sorted(hits)
+
+
+def writer_functions(sources):
+    """The names of the functions that hold a POST to an apply endpoint.
+
+    Derived from ``post_call_sites`` -- test_inbound_safety.py's write-surface
+    census -- rather than from a second hardcoded list of function names. That
+    is the whole point: the set of things that can send an application is
+    established in ONE place, and this clause asks that place who they are.
+    """
+    trees = {name: ast.parse(text, filename=name) for name, text in sources.items()}
+    names = set()
+    for name, lineno, target in post_call_sites(sources):
+        if target in APPLY_POST_TARGETS:
+            enclosing = _enclosing_function(trees[name], lineno)
+            if enclosing:
+                names.add(enclosing)
+    return names
+
+
+def _function_def(tree, name):
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return node
+    return None
+
+
+def calls_any(node, names):
+    """The subset of *names* that *node*'s body calls, sorted."""
+    return sorted(
+        {
+            _call_name(child)
+            for child in ast.walk(node)
+            if isinstance(child, ast.Call) and _call_name(child) in names
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def registered_tools():
+    """The MCP tool list, read the way tests/test_inbound_safety.py reads it.
+
+    ``list_tools`` is a coroutine, so this is the one place in the file that
+    touches asyncio -- in the TEST, never in the package, which is precisely
+    what the clause below forbids of ``instahyre_server``.
+    """
+    return asyncio.run(server_module.mcp.list_tools())
+
+
+class TestNothingInThisPackageCanRunUnattended:
+    """The behavioural red line: no detached execution, and no ungated write.
+
+    Four clauses, each with a control. The controls are not decoration -- six
+    bugs in this family this week were checks that could not fail, and a
+    scanner that has never been shown catching anything certifies nothing. Each
+    control feeds the scanner a SYNTHETIC offending source built as a string in
+    the test; nothing writes a bad ``.py`` into the package, because a scanner
+    proved by planting evidence in the tree is one crash away from leaving the
+    evidence behind.
+    """
+
+    # --- clause 1: no mechanism for running code with nobody waiting --------
+
+    def test_no_module_imports_a_scheduling_or_concurrency_mechanism(self):
+        found = unattended_imports(package_sources())
+        assert found == [], (
+            "a module imported something that can run code with no caller "
+            "waiting on it: %s" % (found,)
+        )
+
+    def test_no_module_calls_anything_that_detaches_work(self):
+        found = detaching_calls(package_sources())
+        assert found == [], (
+            "a call site would detach work from the calling stack: %s" % (found,)
+        )
+
+    def test_a_lock_is_not_a_loop_and_stays_legal(self):
+        """The half that stops clause 1 from being a ban on ``threading``.
+
+        Two modules import it today for locks and neither may be flagged. This
+        is asserted as a property rather than as a list of two filenames: a
+        third module that adds a lock tomorrow is not a safety event, and a
+        census that failed on one would be a chore rather than a guard.
+        """
+        sources = package_sources()
+        holders = sorted(name for name, text in sources.items() if "threading" in text)
+        assert holders, (
+            "no module mentions threading at all, so this test is vacuous and "
+            "proves nothing about what the scanner permits"
+        )
+        flagged = {name for name, _, _ in unattended_imports(sources)}
+        assert [name for name in holders if name in flagged] == []
+
+    def test_the_import_scanner_catches_each_banned_mechanism__CONTROL(self):
+        """One synthetic offender per mechanism, so no single one is assumed."""
+        synthetic = {
+            "rogue_asyncio.py": "import asyncio\n",
+            "rogue_futures.py": "from concurrent.futures import ThreadPoolExecutor\n",
+            "rogue_sched.py": "import sched\n",
+            "rogue_thread.py": "from threading import Thread\n",
+            "rogue_alias.py": "from threading import Thread as T\n",
+        }
+
+        flagged = sorted({name for name, _, _ in unattended_imports(synthetic)})
+
+        assert flagged == [
+            "rogue_alias.py",
+            "rogue_asyncio.py",
+            "rogue_futures.py",
+            "rogue_sched.py",
+            "rogue_thread.py",
+        ]
+
+    def test_the_import_scanner_lets_a_plain_lock_through__CONTROL(self):
+        """The other direction, and the one that would have bitten first.
+
+        A check written as "no module imports threading" passes every control
+        above and is red on the tree, which is a check that cannot ship. Both
+        live spellings are exercised.
+        """
+        synthetic = {
+            "locky.py": (
+                "import threading\n"
+                "\n"
+                "GUARD = threading.RLock()\n"
+                "CLOCK = threading.Lock()\n"
+            )
+        }
+
+        assert unattended_imports(synthetic) == []
+        assert detaching_calls(synthetic) == []
+
+    def test_the_call_scanner_catches_every_detaching_call__CONTROL(self):
+        synthetic = {
+            "rogue.py": (
+                "def cycle(loop, work):\n"
+                "    Thread(target=work).start()\n"
+                "    Timer(60, work).start()\n"
+                "    loop.create_task(work())\n"
+                "    loop.run_in_executor(None, work)\n"
+                "    asyncio.ensure_future(work())\n"
+            )
+        }
+
+        assert [callee for _, _, callee in detaching_calls(synthetic)] == [
+            "Thread", "Timer", "create_task", "run_in_executor", "ensure_future"
+        ]
+
+    def test_the_call_scanner_sees_every_textual_detaching_call__CONTROL(self):
+        """Guards the guard, the way the POST census guards its own AST walk.
+
+        The AST walk is precise, and precision is how a scanner goes silently
+        blind: if it ever stops matching how a call is written, it reports zero
+        and zero looks like success. A plain text count is a second opinion
+        that cannot share the AST's blind spot.
+        """
+        sources = package_sources()
+        textual = sum(
+            text.count(token + "(") for text in sources.values() for token in DETACHING_CALLS
+        )
+
+        assert len(detaching_calls(sources)) == textual, (
+            "the AST scan and a text count of the detaching calls disagree; a "
+            "call site is hiding from the scanner, or one of these names now "
+            "appears in prose"
+        )
+
+    # --- clause 2: the loop census -----------------------------------------
+
+    def test_the_package_holds_exactly_one_forever_loop_and_it_is_the_login_wait(self):
+        """Every ``while True:`` in the package, named. There is one.
+
+        ``auth._wait_for_signed_in_session`` polls the API while a human signs
+        in to a browser window this server opened for them. It blocks the tool
+        call that started it, it is bounded by the caller's ``wait_seconds``,
+        and it breaks when the window closes or Cloudflare challenges. That is
+        a WAIT, and a wait is the opposite of running unattended -- the caller
+        is on the other end of it.
+
+        A second entry here means a loop was added, and the only thing this
+        server would loop over is a queue of applications that cannot be
+        withdrawn. Read the new one before making this test green again.
+        """
+        assert forever_loops(package_sources()) == [
+            ("auth.py", "_wait_for_signed_in_session")
+        ]
+
+    def test_the_loop_census_reports_a_loop_in_a_new_module__CONTROL(self):
+        """The rename attack, run against the scanner.
+
+        ``scheduler.py`` renamed to ``watcher.py`` walks straight past the
+        filename clause. It does not walk past this one, and the name of the
+        file it is called does not appear in the assertion at all.
+        """
+        synthetic = {
+            "watcher.py": (
+                "def run_forever(queue):\n"
+                "    while True:\n"
+                "        for item in queue.pending():\n"
+                "            apply_to(item)\n"
+            )
+        }
+
+        assert forever_loops(synthetic) == [("watcher.py", "run_forever")]
+
+    def test_the_loop_census_is_not_fooled_by_the_other_spelling__CONTROL(self):
+        """``while 1:`` is the same loop. A guard on the words ``while True``
+        would miss it, which is the exact failure this section replaced."""
+        synthetic = {"rogue.py": "def cycle():\n    while 1:\n        apply_to_everything()\n"}
+
+        assert forever_loops(synthetic) == [("rogue.py", "cycle")]
+
+    def test_a_bounded_loop_is_not_reported__CONTROL(self):
+        """The permitting half: an ordinary loop must not be flagged, or the
+        census would be noise and would be silenced rather than read."""
+        synthetic = {
+            "ordinary.py": (
+                "def scan(rows):\n"
+                "    n = 0\n"
+                "    while n < len(rows):\n"
+                "        n += 1\n"
+            )
+        }
+
+        assert forever_loops(synthetic) == []
+
+    # --- clause 4: every write-reaching apply tool is gated ----------------
+
+    def test_every_apply_or_decline_tool_that_can_write_defaults_confirm_to_false(
+        self, registered_tools
+    ):
+        """Keyed on reaching the POST, not on the name.
+
+        ``instahyre_verify_apply_target`` has "apply" in its name, opens a
+        browser, and reads a page flag; it sends nothing and takes no
+        arguments, so demanding a ``confirm`` of it would be demanding a gate
+        on a door that does not exist. The write-reaching set is therefore
+        DERIVED: test_inbound_safety.py's POST census names the call sites,
+        the enclosing function of the apply-endpoint ones is the writer, and a
+        tool qualifies by calling it.
+
+        Both partitions are asserted non-empty. A classifier that put all three
+        tools on one side would pass a one-sided assertion while having
+        measured nothing.
+        """
+        sources = package_sources()
+        writers = writer_functions(sources)
+        assert writers == {"submit_interest"}, (
+            "the apply POST moved out of submit_interest, or a second function "
+            "can now send an application: %s" % (sorted(writers),)
+        )
+
+        server_tree = ast.parse(sources["server.py"], filename="server.py")
+        candidates = sorted(
+            tool.name
+            for tool in registered_tools
+            if "apply" in tool.name.lower() or "decline" in tool.name.lower()
+        )
+        assert candidates, "no apply/decline tool is registered -- the filter is broken"
+
+        writes, reads = [], []
+        for name in candidates:
+            node = _function_def(server_tree, name)
+            assert node is not None, "registered tool %s has no def in server.py" % name
+            (writes if calls_any(node, writers) else reads).append(name)
+
+        assert writes == ["instahyre_apply", "instahyre_decline_opportunity"]
+        assert reads == ["instahyre_verify_apply_target"], (
+            "a tool changed sides: %s" % (reads,)
+        )
+
+        for name in writes:
+            parameters = inspect.signature(getattr(server_module, name)).parameters
+            assert "confirm" in parameters, "%s can write and has no gate" % name
+            assert parameters["confirm"].default is False, (
+                "%s defaults confirm to %r; omission must mean refusal"
+                % (name, parameters["confirm"].default)
+            )
+
+    def test_the_writer_scan_names_the_function_holding_the_post__CONTROL(self):
+        """Attribution, shown working: the census reports call sites by line,
+        and this is the step that turns a line into a function name."""
+        synthetic = {
+            "rogue.py": (
+                "class Inbound:\n"
+                "    def blast(self, ids):\n"
+                "        for one in ids:\n"
+                "            self.http.post(C.EP_APPLY_ES, json_body={})\n"
+            )
+        }
+
+        assert writer_functions(synthetic) == {"blast"}
+
+    def test_the_writer_scan_ignores_a_post_that_is_not_an_apply__CONTROL(self):
+        """The login POST is a write and is not an application. If this
+        returned ``handshake`` the clause would start demanding a confirm gate
+        on signing in, and a guard that cries wolf gets deleted."""
+        synthetic = {
+            "rogue.py": "def handshake(http):\n    http.post(C.EP_LOGIN, json_body={})\n"
+        }
+
+        assert writer_functions(synthetic) == set()
+
+    def test_the_gate_scan_catches_a_write_reaching_tool_with_no_confirm__CONTROL(self):
+        """The bulk-apply tool this server refuses to have, fed to the scanner.
+
+        It is apply-named, it reaches the writer, and it has no ``confirm``
+        parameter at all -- exactly the shape clause 4 exists to catch. The
+        signature is read off the AST because the offender is a string: there
+        is no such function to import, and there is never going to be one.
+        """
+        synthetic = {
+            "server.py": (
+                "def instahyre_apply_all(opportunity_ids):\n"
+                "    for one in opportunity_ids:\n"
+                "        inbound.submit_interest(one, is_interested=True, confirm=True)\n"
+            )
+        }
+        tree = ast.parse(synthetic["server.py"], filename="server.py")
+        node = _function_def(tree, "instahyre_apply_all")
+
+        assert calls_any(node, {"submit_interest"}) == ["submit_interest"]
+        assert [arg.arg for arg in node.args.args] == ["opportunity_ids"], (
+            "the synthetic offender is supposed to have no confirm parameter"
+        )
 
 
 # ---------------------------------------------------------------------------

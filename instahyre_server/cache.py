@@ -55,6 +55,29 @@ CREATE TABLE IF NOT EXISTS corpus (
     max_id       INTEGER,
     PRIMARY KEY (ts, label)
 );
+
+-- The inbound watch: what has already been shown to a human, per stream.
+--
+-- DELIBERATELY NOT THE ``kv`` TABLE, which is a TTL cache. A watermark that
+-- silently expires makes the next read report the whole queue as new, so the
+-- one time the operator most needs a small honest answer he gets 227 items and
+-- learns to ignore the tool. This is bookkeeping, not a cache; it never expires
+-- and it is only ever cleared on request.
+CREATE TABLE IF NOT EXISTS watch_seen (
+    stream      TEXT NOT NULL,
+    identity    TEXT NOT NULL,
+    first_seen  REAL NOT NULL,
+    PRIMARY KEY (stream, identity)
+);
+CREATE INDEX IF NOT EXISTS watch_seen_stream_idx ON watch_seen (stream, first_seen);
+
+CREATE TABLE IF NOT EXISTS watch_meta (
+    stream        TEXT PRIMARY KEY,
+    baselined_at  REAL,
+    last_checked  REAL,
+    last_advanced REAL,
+    last_new      INTEGER
+);
 """
 
 
@@ -260,6 +283,150 @@ class Store:
                 (label, limit),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # -- inbound watch -----------------------------------------------------
+    #
+    # A watermark, not a cache. See the ``watch_seen`` comment in the schema
+    # for why these are separate tables from ``kv``.
+
+    def watch_baselined(self, stream: str) -> Optional[float]:
+        """When this stream was first baselined, or None if it never was.
+
+        THE DISTINCTION THIS EXISTS FOR: a stream with no rows in
+        ``watch_seen`` is ambiguous between "never looked" and "looked, and the
+        stream was genuinely empty". Those want opposite answers -- the first
+        must not report its whole backlog as news, the second must report a
+        real zero -- and a row count cannot tell them apart. The timestamp can.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT baselined_at FROM watch_meta WHERE stream=?", (stream,)
+            ).fetchone()
+        return row["baselined_at"] if row else None
+
+    def watch_unseen(self, stream: str, identities: Iterable[str]) -> list[str]:
+        """Which of ``identities`` this stream has never recorded, IN ORDER.
+
+        Order is the caller's, not the database's: the queue arrives ranked and
+        a watcher that reshuffled it would be answering a different question.
+        Duplicates within one call are collapsed, since the same item twice is
+        one piece of news.
+        """
+        wanted = list(dict.fromkeys(str(i) for i in identities))
+        if not wanted:
+            return []
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT identity FROM watch_seen WHERE stream=? AND identity IN (%s)"
+                % ",".join("?" * len(wanted)),
+                [stream] + wanted,
+            ).fetchall()
+        known = {r["identity"] for r in rows}
+        return [i for i in wanted if i not in known]
+
+    def watch_record(self, stream: str, identities: Iterable[str]) -> int:
+        """Mark ``identities`` seen. Returns how many were NEW to the table.
+
+        ``INSERT OR IGNORE`` keeps the ORIGINAL ``first_seen`` for anything
+        already there. Refreshing it would erase the only date this server has
+        for when an opportunity actually arrived -- the API publishes none --
+        and that date is the whole reason the table exists.
+
+        AN EMPTY ``identities`` STILL MARKS THE STREAM BASELINED, and that is
+        the load-bearing half. "I looked and there was nothing" is a baseline;
+        treating it as a no-op leaves ``baselined_at`` null, so every later call
+        re-baselines -- and the FIRST opportunity ever to arrive gets swallowed
+        as "the baseline" instead of reported as the news it is. An account
+        whose queue starts empty is exactly the account that most needs to hear
+        about its first match, so the early return this replaces was worst
+        precisely where it mattered most.
+        """
+        rows = list(dict.fromkeys(str(i) for i in identities))
+        now = time.time()
+        with self._lock:
+            written = 0
+            if rows:
+                cur = self._conn.executemany(
+                    "INSERT OR IGNORE INTO watch_seen (stream, identity, first_seen) "
+                    "VALUES (?,?,?)",
+                    [(stream, identity, now) for identity in rows],
+                )
+                written = cur.rowcount or 0
+            self._conn.execute(
+                "INSERT INTO watch_meta (stream, baselined_at, last_advanced) "
+                "VALUES (?,?,?) "
+                "ON CONFLICT(stream) DO UPDATE SET "
+                "  baselined_at = COALESCE(watch_meta.baselined_at, excluded.baselined_at), "
+                "  last_advanced = excluded.last_advanced",
+                (stream, now, now),
+            )
+            self._conn.commit()
+        return written if written > 0 else 0
+
+    def watch_touch(self, stream: str, new_count: int) -> None:
+        """Record that the stream was CHECKED, whether or not anything moved.
+
+        Separate from :meth:`watch_record` on purpose. "Last checked" and "last
+        advanced" answer different questions -- a watcher read ten times with
+        nothing new has one recent check and one old advance -- and collapsing
+        them would make a quiet week look like a broken tool.
+        """
+        now = time.time()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO watch_meta (stream, last_checked, last_new) VALUES (?,?,?) "
+                "ON CONFLICT(stream) DO UPDATE SET "
+                "  last_checked = excluded.last_checked, last_new = excluded.last_new",
+                (stream, now, int(new_count)),
+            )
+            self._conn.commit()
+
+    def watch_stats(self, stream: str) -> dict:
+        """Everything recorded about one stream's watch state."""
+        with self._lock:
+            meta = self._conn.execute(
+                "SELECT baselined_at, last_checked, last_advanced, last_new "
+                "FROM watch_meta WHERE stream=?",
+                (stream,),
+            ).fetchone()
+            counted = self._conn.execute(
+                "SELECT COUNT(*) AS n, MIN(first_seen) AS oldest, MAX(first_seen) AS newest "
+                "FROM watch_seen WHERE stream=?",
+                (stream,),
+            ).fetchone()
+        out = {
+            "stream": stream,
+            "baselined_at": None,
+            "last_checked": None,
+            "last_advanced": None,
+            "last_new": None,
+            "known": counted["n"] if counted else 0,
+            "oldest_first_seen": counted["oldest"] if counted else None,
+            "newest_first_seen": counted["newest"] if counted else None,
+        }
+        if meta:
+            out.update(
+                {
+                    "baselined_at": meta["baselined_at"],
+                    "last_checked": meta["last_checked"],
+                    "last_advanced": meta["last_advanced"],
+                    "last_new": meta["last_new"],
+                }
+            )
+        return out
+
+    def watch_forget(self, stream: str) -> int:
+        """Drop everything remembered for one stream. Returns rows removed.
+
+        The next read after this reports a fresh baseline, NOT a flood of news
+        -- which is the behaviour that makes forgetting safe to offer at all.
+        """
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM watch_seen WHERE stream=?", (stream,))
+            removed = cur.rowcount or 0
+            self._conn.execute("DELETE FROM watch_meta WHERE stream=?", (stream,))
+            self._conn.commit()
+        return removed
 
 
 def _job_row_to_dict(row: sqlite3.Row) -> dict:

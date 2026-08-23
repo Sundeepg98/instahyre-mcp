@@ -72,6 +72,12 @@ EXPECTED_TOOLS = {
     "instahyre_restore_profile",
     "instahyre_list_profile_snapshots",
     "instahyre_verify_apply_target",
+    # The inbound watch. Three tools, none of which runs unattended -- see
+    # instahyre_server/inbound_watch.py for why that is a design decision and
+    # not an omission.
+    "instahyre_whats_new",
+    "instahyre_watch_status",
+    "instahyre_watch_forget",
 }
 
 
@@ -171,8 +177,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_thirty_eight_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 38
+def test_the_server_registers_exactly_forty_one_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 41
 
 
 def test_every_tool_name_is_namespaced(tools):

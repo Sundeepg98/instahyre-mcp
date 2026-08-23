@@ -54,6 +54,16 @@ class InstahyreClient:
 
         self.profile_writer = ProfileWriter(self.http, self.store, self.inbound)
 
+        # "What changed since I last looked", over the two inbound streams. It
+        # reads THROUGH inbound rather than issuing its own requests, so a
+        # diagnosis written once is carried rather than restated, and it holds
+        # no state of its own -- the watermark lives in the store. It runs only
+        # when called; see the inbound_watch docstring for why that is a design
+        # decision and not an omission.
+        from .inbound_watch import InboundWatch
+
+        self.watch = InboundWatch(self.inbound, self.store)
+
     def close(self) -> None:
         self.http.close()
         self.store.close()

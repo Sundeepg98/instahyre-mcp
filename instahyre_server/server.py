@@ -1558,6 +1558,125 @@ def instahyre_saved_searches() -> dict:
     return get_client().inbound.saved_searches()
 
 
+# ---------------------------------------------------------------------------
+# TIER 2 -- the inbound watch. What changed since he last looked.
+# ---------------------------------------------------------------------------
+#
+# The queue holds hundreds of records and publishes no arrival date, so
+# "list it again" cannot answer "what is different today". These three tools
+# do, by remembering identities rather than timestamps -- the recruiter feed's
+# only date is human prose that changes spelling as it ages.
+#
+# NONE OF THESE RUNS UNATTENDED. There is no poll and no timer anywhere in this
+# package; an application here cannot be withdrawn, so nothing is allowed to
+# act while nobody is watching. See instahyre_server/inbound_watch.py.
+
+
+@mcp.tool()
+@handled
+def instahyre_whats_new(
+    stream: str = "opportunities",
+    limit: int = 50,
+    advance: bool = True,
+) -> dict:
+    """What arrived in the inbound queue since you last looked. Start here daily.
+
+    This is the tool for the question the queue cannot answer by itself. The
+    pending queue runs to hundreds of records and Instahyre publishes no
+    arrival date on any of them, so re-listing it tells you what exists, never
+    what changed. This diffs against what has already been reported to you.
+
+    THE FIRST CALL ON A STREAM REPORTS ZERO, deliberately. It records what is
+    there as a baseline instead of announcing the whole backlog as news --
+    a first answer of "227 new" is a backlog, and a reader who learns to ignore
+    it is also ignoring the second answer, which was the real one. The reply
+    says so in `baseline_established`.
+
+    Nothing is destroyed by advancing. The bookmark moves; every opportunity
+    stays fully readable through instahyre_list_opportunities.
+
+    Args:
+        stream: "opportunities" for the curated pending queue -- roles employers
+            matched to him. "activity" for recruiters who opened the resume,
+            which is the most perishable signal on the platform.
+        limit: How many records to pull. The queue is ranked, so arrivals land
+            near the head; the default covers a normal day comfortably.
+        advance: Mark what is returned as seen, so the next call reports only
+            what came after it. Pass False to look without consuming.
+
+    A zero always carries a `diagnosis` naming which silence it is: everything
+    already seen, the stream itself empty (with the underlying reason carried
+    through), or a first baseline. A dead session raises rather than returning
+    a quiet zero.
+
+    On "activity": a repeat view by the same recruiter on the same role does
+    not count as new. The feed publishes no per-event id and its only date is
+    prose that changes as it ages ("13 hours ago" becomes "Aug 22 at ..."), so
+    novelty is keyed on who acted on what. This is a measured limit of their
+    API, not a choice about what matters.
+    """
+    return get_client().watch.whats_new(stream, limit=limit, advance=advance)
+
+
+@mcp.tool()
+@handled
+def instahyre_watch_status(stream: Optional[str] = None) -> dict:
+    """What the watch remembers, and when it last ran. Makes no request.
+
+    Answers "when did I last look at this" without touching the network, which
+    matters because that question is usually asked when something seems wrong
+    with the session -- and a status tool that needed a live session to report
+    on a dead one would be useless exactly when it is needed.
+
+    `last_checked` and `last_advanced` are different facts and are reported
+    separately: a stream read ten times with nothing new has a recent check and
+    an old advance, and collapsing the two would make a quiet week look like a
+    broken tool.
+
+    Args:
+        stream: Narrow to "opportunities" or "activity". Omit for both.
+    """
+    return get_client().watch.status(stream)
+
+
+@mcp.tool()
+@handled
+def instahyre_watch_forget(stream: str, confirm: bool = False) -> dict:
+    """Drop one stream's memory so the next look re-baselines. Confirm-gated.
+
+    Gated because it destroys something that cannot be recovered. This server's
+    record of when an opportunity first appeared is the ONLY arrival date that
+    will ever exist for it -- Instahyre publishes none -- so forgetting a stream
+    discards history the platform cannot re-supply. The queue itself is
+    untouched; only the watch's own bookkeeping is deleted.
+
+    It re-baselines rather than floods: the next call records what is there and
+    reports zero new. That is what makes it safe to offer at all.
+
+    Args:
+        stream: "opportunities" or "activity".
+        confirm: Must be True to delete. False returns what WOULD be deleted
+            and removes nothing.
+    """
+    client = get_client()
+    if not confirm:
+        stats = client.watch.status(stream)["streams"][stream]
+        return {
+            "stream": stream,
+            "confirmed": False,
+            "would_forget": stats["known"],
+            "forgotten": 0,
+            "warning": (
+                "Nothing was deleted. This would discard %d remembered identity(ies) "
+                "and the first-seen dates attached to them, which Instahyre cannot "
+                "re-supply. Re-run with confirm=True to proceed."
+                % stats["known"]
+            ),
+            "current": stats,
+        }
+    return client.watch.forget(stream)
+
+
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
     mcp.run()
