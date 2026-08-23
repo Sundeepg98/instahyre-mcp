@@ -51,36 +51,51 @@ HOW TO RUN IT
     # PowerShell
     $env:PYTHONPATH="scripts"; venv/Scripts/python -m pytest tests/test_auth_lifecycle.py -p presence_is_auth_control
 
-MEASURED 2026-08-23, against the commit that introduced the lifecycle surface::
+MEASURED 2026-08-23, first against the commit that introduced the lifecycle
+surface (``5 failed, 46 passed``), and RE-MEASURED after the wave lead's three
+bounces moved the seam to ``reharvest_from_profile``, made a partial logout
+report null, and added the session-lapse keys::
 
-    5 failed, 46 passed
+    8 failed, 57 passed
 
     FAILED TestSessionInfoLive::test_a_401_is_reported_as_a_measured_false
     FAILED TestSessionInfoLive::test_an_undetermined_check_is_null_not_false__HONESTY
     FAILED TestReauth::test_a_harvested_cookie_the_endpoint_rejects_is_NOT_a_renewal__HONESTY
     FAILED TestReauth::test_a_failed_renew_leaves_no_file_where_there_was_none
     FAILED TestReauth::test_the_failure_reason_names_the_fallback_tool
+    FAILED TestReauthSaysWhichFailureItWas::test_endpoint_said_no
+    FAILED TestReauthSaysWhichFailureItWas::test_endpoint_inconclusive_is_null_not_false__HONESTY
+    FAILED TestReauthSaysWhichFailureItWas::test_every_failure_names_the_fallback_and_never_returns_an_empty_reason
 
-Read the list, because WHICH five is the point:
+Read the list, because WHICH eight is the point:
 
-* the two ``__HONESTY`` tests are the contract's rules 1 and 4, and they are the
-  reason this file exists;
+* the three ``__HONESTY`` tests are the contract's rules 1 and 4, and they are
+  the reason this file exists;
 * ``test_a_401_is_reported_as_a_measured_false`` catches the same substitution
   from the other side -- the endpoint says no and the cookie says yes;
-* the two remaining reauth tests are the DAMAGE, not just the misreport: under
-  this build a failed renew saves the anonymous cookie over the operator's
-  working session (``leaves_no_file`` finds a file) and then reports success
-  instead of naming the fallback tool.
+* two reauth tests are the DAMAGE, not just the misreport: under this build a
+  failed renew saves the anonymous cookie over the operator's working session
+  (``leaves_no_file`` finds a file) and then reports success instead of naming
+  the fallback tool;
+* the three ``SaysWhichFailureItWas`` entries are the per-outcome reasons that
+  depend on a real verdict. Under this build ``endpoint_said_no`` and
+  ``endpoint_inconclusive`` both come back as ``renewed``, so the operator is
+  told a stale profile was refreshed.
 
-And WHICH 46 survive is equally the point:
+And WHICH 57 survive is equally the point:
 
 * ``verify_live=False`` stays green throughout -- it makes no check at all, so
   a broken check cannot reach it. That guard is real but it is a different
   guard, with its own fakes that raise;
-* every ``expired``-is-null test stays green, because expiry is read from the
-  cookie jar and has nothing to do with the auth verdict;
+* every ``expired``-is-null and ``session_lapses``-is-null test stays green,
+  because expiry is read from the cookie jar and has nothing to do with the
+  auth verdict;
 * the whole ``cookie_jar`` and ``logout`` sections stay green for the same
-  reason.
+  reason;
+* ``playwright_missing``, ``no_profile``, ``browser_failed`` and
+  ``no_session_cookie`` stay green because every one of them RETURNS BEFORE
+  the endpoint is ever asked. A control that broke those too would be a
+  control that breaks everything, which points at nothing.
 
 That asymmetry is the property worth having. If the live check is ever
 short-circuited again, the honesty tests go red and the rest stay green,
@@ -89,7 +104,7 @@ pointing at the defect instead of at everything.
 WHOLE-SUITE MEASUREMENT, same build, same day::
 
     venv/Scripts/python -m pytest tests -q -p presence_is_auth_control
-    21 failed, 787 passed
+    24 failed, 798 passed
 
 The extra sixteen are all in ``test_auth.py``: the guards written when this bug
 was first fixed on the login paths. They are supposed to fail here -- this is

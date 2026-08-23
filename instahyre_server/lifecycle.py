@@ -44,9 +44,17 @@ WHY A RENEW IS POSSIBLE AT ALL HERE
 Because those two layers really are two layers. The contract ruled instahyre a
 YES for ``reauth`` on measured evidence (2026-08-23): the persistent profile's
 jar holds ``sessionid`` at +57.7 days and ``csrftoken`` at +363.6 days, both
-persistent rows, and ``login_via_browser(headless=True)`` is already documented
-as "only useful for re-checking an already-live persistent profile". That is
-the seam :func:`reauth` drives -- headless, no password, no window, no human.
+persistent rows.
+
+The seam :func:`reauth` drives is
+:func:`~instahyre_server.auth.reharvest_from_profile` -- headless, no password,
+no window, no human, and it loads the candidate opportunities page rather than
+the login form. That last part is a ruling, not a detail (wave lead,
+2026-08-23): a tool whose entire claim is "this is not a login" should not
+fetch the login URL, and sending a browser that is carrying a live session to a
+sign-in page is a needless risk against the one profile the operator depends
+on. The first draft of this module drove ``login_via_browser(headless=True)``
+instead, which was safe by every test but went to ``/login/`` to do it.
 """
 
 from __future__ import annotations
@@ -56,7 +64,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import cookie_jar
-from .auth import AUTH_ENDPOINT_NOTE, login_via_browser
+from .auth import AUTH_ENDPOINT_NOTE, reharvest_from_profile
 from .errors import InstahyreError
 from .paths import display_path, relativise_prose
 from .session import (
@@ -69,12 +77,6 @@ from .session import (
 
 #: The contract's ``server`` field. One spelling, shared by all three tools.
 SERVER = "instahyre"
-
-#: How long :func:`reauth` leaves the headless profile open. Short on purpose:
-#: a live profile is confirmed on the first poll, and nothing a HUMAN could do
-#: is being waited for here -- there is no window to do it in. The only thing a
-#: longer wait buys is more requests spent proving a dead profile is dead.
-REAUTH_WAIT_S = 20
 
 #: Said in the same words wherever it is said, because it is the sentence this
 #: whole module exists to enforce.
@@ -334,7 +336,30 @@ def _durability(store: SessionStore) -> dict:
     }
 
 
-def _renewal(profile_dir: Any) -> dict:
+def _renewal(
+    profile_dir: Any, *, credential: dict, jar_error: Optional[str]
+) -> dict:
+    """How the credential renews, and the date past which it cannot.
+
+    ``session_lapses_at`` is a DIFFERENT QUESTION from
+    ``credential.expires_at`` and the contract gives it its own key for that
+    reason (wave lead, 2026-08-23, uniform across all four servers). The
+    credential date says when THIS cookie dies; the lapse date says when no
+    silent renew can help any more and a human has to sign in. On naukri those
+    two are five orders of magnitude apart -- ``nauk_at`` measured at +0.02
+    days against a refresh cookie good for +188 -- so a client that treated
+    them as one field would rank the family badly wrong.
+
+    ON INSTAHYRE THEY COINCIDE, and the reason is worth more than the number.
+    The profile's ``sessionid`` is simultaneously the expiry this tool can read
+    AND the thing :func:`reauth` would renew FROM. When it lapses there is
+    nothing left to re-harvest, so the silent path dies with it.
+
+    The value is REUSED from the credential block rather than re-read from the
+    jar. Two reads of the same row can return different answers -- the browser
+    may write between them -- and a payload whose two dates disagree with each
+    other is worse than one that carries neither.
+    """
     return {
         "silent_renew_available": True,
         "tool": "instahyre_reauth",
@@ -347,7 +372,37 @@ def _renewal(profile_dir: Any) -> dict:
             "before believing any of it. No password, no window, no human."
             % display_path(str(profile_dir))
         ),
+        "session_lapses_at": credential["expires_at"],
+        "session_lapses_in_days": credential["expires_in_days"],
+        "session_lapses_source": _session_lapses_source(
+            profile_dir, jar_error=jar_error, expires_at=credential["expires_at"]
+        ),
     }
+
+
+def _session_lapses_source(
+    profile_dir: Any, *, jar_error: Optional[str], expires_at: Optional[str]
+) -> str:
+    """Which credential governs the lapse, BY NAME, and what the date is not."""
+    if expires_at is None:
+        return (
+            "unknown -- the date past which no silent renew can help is the "
+            "expiry of the persistent browser profile's sessionid, and that "
+            "row could not be read: %s"
+            % (jar_error or "the profile holds no persistent sessionid row")
+        )
+    return (
+        "the persistent browser profile's own sessionid -- the SAME row "
+        "credential.expires_at reports, which is why the two dates are equal "
+        "here rather than by coincidence. That row governs the lapse because "
+        "it is both the expiry this tool can see AND the thing instahyre_reauth "
+        "renews FROM: once it is gone there is nothing left to re-harvest and a "
+        "human must sign in through instahyre_login_browser. THE SAME CAVEAT AS "
+        "credential.expiry_source APPLIES -- this is a fact about the PROFILE's "
+        "session, while the cookie this server actually sends comes from the "
+        "saved store, which records no expiry at all. Do not read this date as "
+        "a guarantee about the credential currently in use."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +435,7 @@ def session_info(
         http: the live client. Required only when ``verify_live`` is true.
         verify_live: whether to spend one request on the live check.
     """
-    credential, supporting, _ = _credential_blocks(store, profile_dir)
+    credential, supporting, jar_error = _credential_blocks(store, profile_dir)
 
     authenticated: Optional[bool] = None
     live_check: dict
@@ -444,7 +499,9 @@ def session_info(
             "see credential.expiry_source"
         ),
         "durability": _durability(store),
-        "renewal": _renewal(profile_dir),
+        "renewal": _renewal(
+            profile_dir, credential=credential, jar_error=jar_error
+        ),
         "on_expiry": _ON_EXPIRY,
     }
 
@@ -497,6 +554,15 @@ def logout(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
     runs there is no credential left to make an authenticated request WITH, so
     the false is provable from here rather than measured over there.
 
+    THAT ARGUMENT ONLY HOLDS WHEN THE CLEAR ACTUALLY SUCCEEDED. If any part of
+    it failed -- a locked session file is the realistic case -- then something
+    IS left, an authenticated request could still be made with it, and the
+    false loses the very thing that justified it. So a partial clear reports
+    ``authenticated: null`` (wave lead ruling, 2026-08-23, taken across all
+    four servers). The first draft returned false here beside a reason that
+    said "treat the credential as present until this is fixed": the prose was
+    right and the field contradicted it in the same object.
+
     Never raises. A logout that fails with a traceback leaves the operator not
     knowing whether their credential is gone, which is the worst of the three
     possible outcomes.
@@ -526,15 +592,20 @@ def logout(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
                 % (type(exc).__name__, exc)
             )
 
-    reason = (
-        "no credential is left in this process or on disk, so no authenticated "
-        "request can be made from here. That is why this false needs no live "
-        "check: there is nothing left to check with."
-    )
     if problems:
+        # NOT false. Something survived, so an authenticated request may still
+        # be possible and nobody measured whether it is.
+        authenticated = None
         reason = (
             "PARTIAL: %s. Anything that survived is still usable, so treat the "
             "credential as present until this is fixed." % "; ".join(problems)
+        )
+    else:
+        authenticated = False
+        reason = (
+            "no credential is left in this process or on disk, so no authenticated "
+            "request can be made from here. That is why this false needs no live "
+            "check: there is nothing left to check with."
         )
 
     return {
@@ -546,8 +617,11 @@ def logout(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
             "sign-out call and does not pretend to."
             % (display_path(str(store.path)), display_path(str(profile_dir)))
         ),
-        "authenticated": False,
+        "authenticated": authenticated,
         "reason": reason,
+        # The same facts as the reason prose, in a form a caller can branch on
+        # without parsing English. Empty list on a clean clear.
+        "problems": problems,
         "what_is_lost": (
             "the httpx client's way in. Every authenticated tool -- the inbound "
             "queue, the inbox, the profile, applications -- reports "
@@ -577,9 +651,9 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
 
     1. SNAPSHOT the saved session file, as bytes, before anything runs.
     2. Re-open the persistent profile HEADLESS through
-       :func:`~instahyre_server.auth.login_via_browser` -- the seam already
-       documented as "only useful for re-checking an already-live persistent
-       profile" -- and harvest its cookies.
+       :func:`~instahyre_server.auth.reharvest_from_profile`, which loads the
+       candidate opportunities page -- NOT the login form -- and harvests the
+       profile's cookies.
     3. VERIFY them against the live endpoint. That seam does this itself, and
        it is the reason this function drives it rather than harvesting alone:
        a harvested ``sessionid`` is a reason to ASK, never an answer.
@@ -588,29 +662,27 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
        client's cookies back with it. A failed renew must never cost a session
        that was already working.
 
-    ``headless=True`` is not an optimisation, it is the guarantee: no window
-    can open, so no human can be waited for, so this can never quietly become
-    an interactive login wearing a different name. It takes no credential
-    parameter for the same reason.
+    Headless is not an optimisation, it is the guarantee: no window can open,
+    so no human can be waited for, so this can never quietly become an
+    interactive login wearing a different name. It takes no credential
+    parameter for the same reason, and the seam never visits a sign-in page.
+
+    Step 5 is done here as well as in the seam. The seam restores the client's
+    cookies on the paths that touched them, and never writes the store except
+    on a proven success -- but this function's contract is that the snapshot
+    goes back, and a guarantee that rests on a callee's internals is not a
+    guarantee. The two are idempotent together.
     """
     snapshot = _snapshot_bytes(store.path)
     cookies_before = _cookie_names(http)
 
     record: dict
     try:
-        record = login_via_browser(
-            http,
-            store,
-            wait_seconds=REAUTH_WAIT_S,
-            headless=True,
-        )
-    except InstahyreError as exc:
-        # Playwright missing, or the browser died mid-wait. That is a failure
-        # to ASK, not an answer -- so authenticated stays null and the tool
-        # returns the contract shape instead of an isError, because "I could
-        # not renew, here is what to run instead" IS the useful answer.
+        record = reharvest_from_profile(http, store)
+    except InstahyreError as exc:  # pragma: no cover - the seam returns, never raises
         record = {
             "authenticated": None,
+            "outcome": "seam_raised",
             "reason": _scrub(
                 "[%s] %s" % (exc.kind, exc.message), store.path, profile_dir
             ),
@@ -627,10 +699,6 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
     if renewed:
         restored = False
     else:
-        # login_via_browser only writes the store on success and restores the
-        # client jar itself on failure. Both are redone here anyway: this
-        # function's contract is that the snapshot is put back, and a guarantee
-        # that depends on a callee's internals is not a guarantee.
         restored = _restore_store(store.path, snapshot)
         _restore_cookies(http, cookies_before)
 
@@ -640,12 +708,17 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
         "renewed": renewed,
         "authenticated": authenticated,
         "method": (
-            "re-opened the persistent browser profile headless and re-harvested "
-            "its cookies, then put them to the live endpoint. No password was "
-            "used, no window was opened and no sign-in form was filled in."
+            "re-opened the persistent browser profile headless, loaded the "
+            "candidate opportunities page -- never the login form -- and "
+            "re-harvested its cookies, then put them to the live endpoint. No "
+            "password was used, no window was opened, and no sign-in page was "
+            "visited."
         ),
-        "stage": "profile_reharvest",
-        "checked_against": AUTH_ENDPOINT_NOTE,
+        "stage": record.get("stage") or "profile_reharvest",
+        # The same fact as the reason prose, in a form a caller can branch on
+        # without parsing English. One of auth.REHARVEST_OUTCOMES.
+        "outcome": record.get("outcome"),
+        "checked_against": record.get("checked_against") or AUTH_ENDPOINT_NOTE,
         "reason": _reauth_reason(record, renewed=renewed),
         "previous_credential_restored": restored,
         "credential": credential,
@@ -654,16 +727,24 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
 
 
 def _reauth_reason(record: dict, *, renewed: bool) -> str:
-    """Why the renew landed where it did, naming the fallback when it failed."""
+    """Why the renew landed where it did, naming the fallback when it failed.
+
+    The seam supplies a distinct reason for every distinct outcome, so this
+    passes it through rather than replacing it with a generic sentence -- the
+    difference between "install Playwright", "sign in once so a profile
+    exists" and "the profile went stale" is the whole value of the field. The
+    fallback tools are named on every failure, whichever one it was.
+    """
+    detail = record.get("reason")
     if renewed:
-        return (
-            "the profile's cookies were put to %s and it answered 200, so the "
-            "saved session was replaced with a credential that is measured, not "
-            "merely harvested." % AUTH_ENDPOINT_NOTE
+        return detail or (
+            "the profile's cookies were put to %s and it answered 200."
+            % AUTH_ENDPOINT_NOTE
         )
-    detail = record.get("reason") or "the endpoint did not accept the profile's cookies"
+    if not detail:  # pragma: no cover - the seam always supplies one
+        detail = "the endpoint did not accept the profile's cookies"
     return (
-        "no silent renew was possible: %s. The previous saved session was put "
+        "no silent renew was possible: %s The previous saved session was put "
         "back exactly as it was, so nothing was lost. Run "
         "instahyre_login_browser -- it opens a window so a real sign-in can "
         "happen -- or instahyre_login with an email and password." % detail

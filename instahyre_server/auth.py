@@ -21,13 +21,14 @@ the same endpoint ``instahyre_auth_status`` measures against.
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
 from typing import Any, Callable, Optional
 
 from .errors import InstahyreError
 from .http import InstahyreHTTP
-from .paths import display_path
+from .paths import display_path, relativise_prose
 from .session import (
     SESSION_COOKIE,
     SessionStore,
@@ -354,26 +355,111 @@ def login_via_browser(
     }
 
 
-def refresh_from_profile(http: InstahyreHTTP, store: SessionStore) -> Optional[dict]:
-    """Silently re-harvest cookies from the persistent profile, if one is live.
+#: The distinct ways a silent re-harvest can end. Each one is its own tag
+#: because each one calls for a different move by whoever reads it: install
+#: Playwright, sign in once so a profile exists, look at a browser that would
+#: not start, sign in again because the profile went stale, or wait out a
+#: Cloudflare challenge. A single "it did not work" collapses five different
+#: problems into one shrug, and ``instahyre_reauth`` has a ``reason`` field
+#: precisely so that it does not have to.
+REHARVEST_OUTCOMES = (
+    "renewed",                # the endpoint answered 200
+    "endpoint_said_no",       # it answered 401 -- the profile is stale
+    "endpoint_inconclusive",  # it answered neither way (challenge, transport)
+    "no_session_cookie",      # the profile handed over no sessionid at all
+    "browser_failed",         # the profile would not open, or would not load
+    "no_profile",             # there is no persistent profile yet
+    "playwright_missing",     # no browser is installed to open it with
+)
 
-    This is the transparent-refresh path: no window is shown, and a failure is
-    reported as None rather than raised, because the caller always has the
-    interactive path to fall back on.
 
-    Same rule as the interactive path -- a dead profile still holds an
-    anonymous ``sessionid``, so the cookies are verified against the API before
-    anything is applied or saved, and the jar is put back if they do not check
-    out.
+def _reharvest_record(
+    outcome: str, reason: str, *, profile_dir: Any = None, **extra: Any
+) -> dict:
+    """One outcome record, with every path in ``reason`` relativised.
+
+    Module level rather than a closure so that the Playwright import can be
+    checked BEFORE ``browser_profile_path()`` is ever called -- that function
+    creates the directory, and a box with no browser must not acquire a
+    browser profile just for asking.
+    """
+    out: dict[str, Any] = {
+        "authenticated": None,
+        "outcome": outcome,
+        "reason": relativise_prose(
+            reason, known=[str(profile_dir)] if profile_dir else []
+        ),
+        "stage": "profile_reharvest",
+        "checked_against": AUTH_ENDPOINT_NOTE,
+        "session_cookie_harvested": False,
+        "verified_by": None,
+    }
+    out.update(extra)
+    return out
+
+
+def reharvest_from_profile(http: InstahyreHTTP, store: SessionStore) -> dict:
+    """Re-harvest the persistent profile's cookies, headless, and say what happened.
+
+    THE SILENT RENEW, and the whole of it. No window, no password, no typing,
+    and -- the part that is a promise rather than an implementation detail --
+    **it never fetches the login page.** It loads :data:`HOME_URL`, an ordinary
+    authenticated read. A tool whose entire claim is "this is not a login" must
+    not go to the login URL, and sending a browser that is carrying a live
+    session to a sign-in page is a needless risk against the one profile the
+    operator actually depends on.
+
+    THE VERDICT IS NEVER THE HARVEST. A dead profile still holds an anonymous
+    ``sessionid`` -- Django issues one to every visitor -- so the cookies are
+    put to the API before anything is applied or saved, and the jar is put back
+    if they do not check out. ``authenticated`` is therefore true, false, or
+    **null**, and the three are not interchangeable: false means the endpoint
+    said no, and null means the question never got an answer. Only a proven
+    true reaches ``store.save_from``.
+
+    Returns:
+        Always a record, never a raise::
+
+            {"authenticated": True|False|None,
+             "outcome": one of REHARVEST_OUTCOMES,
+             "reason": str,                  # never empty, for any outcome
+             "stage": "profile_reharvest",
+             "checked_against": str,
+             "session_cookie_harvested": bool,
+             "verified_by": str|None}
+
+    :func:`refresh_from_profile` is the older, narrower view of this same work
+    and is kept exactly as it was for its existing callers.
     """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        return None
+        # BEFORE browser_profile_path(), which creates the directory. A box
+        # with no browser installed has no business acquiring a browser
+        # profile as a side effect of being asked whether it can renew.
+        return _reharvest_record(
+            "playwright_missing",
+            "Playwright is not installed, so the browser profile cannot be "
+            "opened to re-harvest it. Either run `pip install playwright && "
+            "playwright install chromium`, or use instahyre_login with an "
+            "email and password, which needs no browser at all.",
+        )
 
     profile_dir = browser_profile_path()
-    if not any(profile_dir.iterdir()):
-        return None
+    record = functools.partial(_reharvest_record, profile_dir=profile_dir)
+
+    try:
+        profile_is_empty = not any(profile_dir.iterdir())
+    except OSError:
+        profile_is_empty = True
+    if profile_is_empty:
+        return record(
+            "no_profile",
+            "there is no persistent browser profile at %s yet -- nothing has "
+            "ever signed in there, so there is no session to re-harvest."
+            % display_path(str(profile_dir)),
+        )
+
     before = _snapshot(http)
     try:
         with sync_playwright() as pw:
@@ -387,23 +473,81 @@ def refresh_from_profile(http: InstahyreHTTP, store: SessionStore) -> Optional[d
                 _close_quietly(context)
     except Exception as exc:  # a silent refresh must never take the server down
         log.info("silent session refresh failed: %s", exc)
-        return None
+        return record(
+            "browser_failed",
+            "the browser profile could not be opened, or %s could not be "
+            "loaded (%s: %s). Nothing was harvested and nothing was changed."
+            % (HOME_URL, type(exc).__name__, exc),
+        )
 
     if SESSION_COOKIE not in harvested:
-        return None
-
-    status = _verify(http, harvested)
-    if status.get("authenticated") is not True:
-        _restore(http, before)
-        log.info(
-            "the browser profile holds no live session (%s)",
-            status.get("reason") or status.get("error") or "endpoint said no",
+        return record(
+            "no_session_cookie",
+            "the browser profile opened but handed over no %s cookie for "
+            "instahyre.com at all, so there was nothing to put to the endpoint."
+            % SESSION_COOKIE,
         )
-        return None
+
+    # From here on the cookies HAVE been applied to the client, by _verify, so
+    # every path below restores the jar. The branches above never touched it,
+    # which is why they do not -- and why ``before`` is snapshotted only here.
+    # ``lifecycle.reauth`` additionally snapshots and restores unconditionally,
+    # on its own, so the guarantee does not rest on this reasoning holding.
+    status = _verify(http, harvested)
+    authenticated = status.get("authenticated")
+
+    if authenticated is not True:
+        _restore(http, before)
+        detail = status.get("reason") or status.get("error") or "endpoint said no"
+        log.info("the browser profile holds no live session (%s)", detail)
+        if authenticated is False:
+            return record(
+                "endpoint_said_no",
+                "the profile's cookies were put to %s and it answered 401: %s. "
+                "The profile itself is signed out, or its session was revoked."
+                % (AUTH_ENDPOINT_NOTE, detail),
+                authenticated=False,
+                session_cookie_harvested=True,
+            )
+        return record(
+            "endpoint_inconclusive",
+            "the profile's cookies were put to %s and it answered neither way "
+            "(%s), so whether they still work is UNKNOWN -- this is not "
+            "Instahyre saying no." % (AUTH_ENDPOINT_NOTE, detail),
+            session_cookie_harvested=True,
+        )
 
     store.save_from(http, method="browser-refresh")
+    return record(
+        "renewed",
+        "the profile's cookies were put to %s and it answered 200, so the "
+        "saved session was replaced with a credential that is measured, not "
+        "merely harvested." % AUTH_ENDPOINT_NOTE,
+        authenticated=True,
+        session_cookie_harvested=True,
+        verified_by=status.get("checked_against"),
+    )
+
+
+def refresh_from_profile(http: InstahyreHTTP, store: SessionStore) -> Optional[dict]:
+    """Silently re-harvest cookies from the persistent profile, if one is live.
+
+    The transparent-refresh path as its original callers see it: the success
+    payload, or ``None`` for every way it can fail. UNCHANGED on purpose --
+    :func:`reharvest_from_profile` above does the work and now says WHICH
+    failure it was, but a caller that only wants "did it work" should not have
+    to learn a seven-way outcome tag in order to ask.
+
+    Same rule as the interactive path -- a dead profile still holds an
+    anonymous ``sessionid``, so the cookies are verified against the API before
+    anything is applied or saved, and the jar is put back if they do not check
+    out.
+    """
+    result = reharvest_from_profile(http, store)
+    if result.get("authenticated") is not True:
+        return None
     return {
         "authenticated": True,
         "method": "browser-refresh",
-        "verified_by": status.get("checked_against"),
+        "verified_by": result.get("verified_by"),
     }

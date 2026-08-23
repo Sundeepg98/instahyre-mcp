@@ -107,6 +107,11 @@ def build_jar(profile_dir: Path, rows) -> Path:
     """
     jar = profile_dir / "Default" / "Network" / "Cookies"
     jar.parent.mkdir(parents=True, exist_ok=True)
+    # Rebuilt from scratch every time. A test that builds two profiles under
+    # one tmp_path would otherwise hit "table cookies already exists", which
+    # is a defect in the harness masquerading as a defect in the reader.
+    if jar.exists():
+        jar.unlink()
     con = sqlite3.connect(str(jar))
     try:
         con.executescript(_CHROME_SCHEMA)
@@ -716,6 +721,88 @@ class TestSessionInfoLeaksNothing:
         assert "instahyre_reauth" in out["on_expiry"]
         assert "instahyre_login_browser" in out["on_expiry"]
 
+
+class TestWhenTheSessionLapsesForGood:
+    """``session_lapses_at`` -- a different question from ``credential.expires_at``.
+
+    The credential date says when THIS cookie dies. The lapse date says when no
+    silent renew can help any more and a human must sign in. The contract gives
+    them separate keys because on naukri they are five orders of magnitude
+    apart. On instahyre they coincide, which is exactly why the field has to be
+    explicit: a reader who inferred the rule from this server alone would infer
+    the wrong rule.
+    """
+
+    def test_the_three_keys_are_present_and_shaped(self, tmp_path):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        renewal = out["renewal"]
+        assert set(renewal) == {
+            "silent_renew_available",
+            "tool",
+            "why",
+            "session_lapses_at",
+            "session_lapses_in_days",
+            "session_lapses_source",
+        }
+        assert renewal["session_lapses_at"].endswith("Z")
+        assert isinstance(renewal["session_lapses_in_days"], float)
+
+    def test_it_equals_the_credential_date_because_it_is_the_same_row(
+        self, tmp_path
+    ):
+        """Reused, not re-read. Two reads of one row can disagree, and a
+        payload whose own two dates contradict each other is worse than one
+        carrying neither."""
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        assert out["renewal"]["session_lapses_at"] == out["credential"]["expires_at"]
+        assert (
+            out["renewal"]["session_lapses_in_days"]
+            == out["credential"]["expires_in_days"]
+        )
+
+    def test_an_unreadable_jar_leaves_both_dates_null_and_says_why(self, tmp_path):
+        """Never a false, never a zero -- the same rule as ``expired``."""
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=tmp_path / "no_such_profile",
+            http=None,
+            verify_live=False,
+        )
+        renewal = out["renewal"]
+        assert renewal["session_lapses_at"] is None
+        assert renewal["session_lapses_in_days"] is None
+        assert renewal["session_lapses_source"].startswith("unknown")
+        assert "could not be read" in renewal["session_lapses_source"]
+        assert renewal["silent_renew_available"] is True, (
+            "an unreadable jar says nothing about whether a renew is possible"
+        )
+
+    def test_the_source_names_the_governing_credential_and_the_dependency(
+        self, tmp_path
+    ):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        source = out["renewal"]["session_lapses_source"]
+        assert "sessionid" in source
+        assert "instahyre_reauth" in source
+        assert "instahyre_login_browser" in source
+        assert "PROFILE" in source, "the two-stores caveat did not carry forward"
+        assert len(source) > 200
+
     def test_every_contract_key_is_present(self, tmp_path):
         out = lifecycle.session_info(
             store=saved_store(tmp_path),
@@ -829,13 +916,17 @@ class TestReauth:
         http = auth_http()
         http.cookies.set(SESSION_COOKIE, LIVE_SESSION, domain="www.instahyre.com")
 
-        def vandalising_seam(client, session_store, **kwargs):
+        def vandalising_seam(client, session_store):
             session_store.path.write_text("{}", encoding="utf-8")
             client.cookies.clear()
             client.cookies.set(SESSION_COOKIE, ANON_SESSION, domain="www.instahyre.com")
-            return {"authenticated": False, "reason": "no session appeared"}
+            return {
+                "authenticated": False,
+                "outcome": "endpoint_said_no",
+                "reason": "no session appeared.",
+            }
 
-        monkeypatch.setattr(lifecycle, "login_via_browser", vandalising_seam)
+        monkeypatch.setattr(lifecycle, "reharvest_from_profile", vandalising_seam)
 
         out = lifecycle.reauth(http=http, store=store, profile_dir=profile)
 
@@ -864,11 +955,11 @@ class TestReauth:
         store = saved_store(tmp_path)
         before_bytes = store.path.read_bytes()
 
-        def exploding_seam(client, session_store, **kwargs):
+        def exploding_seam(client, session_store):
             session_store.path.write_text("{}", encoding="utf-8")
             raise ValueError("a real bug, not a login failure")
 
-        monkeypatch.setattr(lifecycle, "login_via_browser", exploding_seam)
+        monkeypatch.setattr(lifecycle, "reharvest_from_profile", exploding_seam)
 
         with pytest.raises(ValueError):
             lifecycle.reauth(
@@ -877,15 +968,8 @@ class TestReauth:
 
         assert store.path.read_bytes() == before_bytes
 
-    def test_it_never_opens_a_visible_window_and_never_waits_for_a_human(
-        self, tmp_path, monkeypatch, clock
-    ):
-        """The two properties that stop this becoming a login in disguise.
-
-        ``headless=True`` means there is nowhere for a human to type, and a
-        bounded wait means nothing is waiting for one to try. Asserted at the
-        launch call, which is where a regression would actually show up.
-        """
+    def test_it_never_opens_a_visible_window(self, tmp_path, monkeypatch, clock):
+        """Headless is the guarantee: there is nowhere for a human to type."""
         browser = FakeBrowser(clock, [LIVE_COOKIES])
         install_fake_playwright(monkeypatch, browser)
         profile = live_profile(tmp_path)
@@ -900,9 +984,39 @@ class TestReauth:
         assert browser.launch_kwargs.get("headless") is True, (
             "reauth opened a VISIBLE window: %r" % (browser.launch_kwargs,)
         )
-        assert lifecycle.REAUTH_WAIT_S <= 30, (
-            "a long wait is a wait for a human, and there is no window for one "
-            "to act in"
+
+    def test_it_never_fetches_the_login_page__RULING(
+        self, tmp_path, monkeypatch, clock
+    ):
+        """Wave lead, 2026-08-23, overturning the first draft of this slice.
+
+        The first version drove ``login_via_browser(headless=True)``, which was
+        safe by every test in this file and still navigated to ``/login/`` to
+        do it. Two things were wrong with that. A tool whose entire claim is
+        "this is not a login" should not fetch the login URL -- that gap
+        between what a tool says and what it does is one this codebase has paid
+        for before. And sending a browser that is carrying a LIVE session to a
+        sign-in page is a needless risk against the operator's one real
+        profile.
+
+        The URL is asserted directly, because that is the only place the
+        difference is visible.
+        """
+        browser = FakeBrowser(clock, [LIVE_COOKIES])
+        install_fake_playwright(monkeypatch, browser)
+        profile = live_profile(tmp_path)
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+
+        lifecycle.reauth(
+            http=auth_http(),
+            store=SessionStore(tmp_path / "session.json"),
+            profile_dir=profile,
+        )
+
+        assert browser.goto_urls == [auth.HOME_URL]
+        assert auth.HOME_URL.endswith("/candidate/opportunities/")
+        assert not any("login" in url for url in browser.goto_urls), (
+            "a silent renew navigated to a sign-in page: %r" % (browser.goto_urls,)
         )
 
     def test_it_takes_no_credential_parameter_at_all(self):
@@ -970,6 +1084,170 @@ class TestReauth:
         assert LIVE_SESSION not in json.dumps(out)
 
 
+class TestReauthSaysWhichFailureItWas:
+    """One reason per distinct outcome, because they call for different moves.
+
+    A bare "it did not work" collapses five different problems -- install
+    Playwright, sign in once so a profile exists, look at a browser that would
+    not start, sign in again because the profile went stale, wait out a
+    Cloudflare challenge -- into one shrug. The contract gives ``reason`` a
+    field of its own precisely so that it does not have to, and an empty or
+    generic reason is the regression these tests exist to catch.
+    """
+
+    def run(self, tmp_path, monkeypatch, profile, http=None, store=None):
+        store = store or SessionStore(tmp_path / "session.json")
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+        return lifecycle.reauth(
+            http=http if http is not None else auth_http(),
+            store=store,
+            profile_dir=profile,
+        )
+
+    def test_playwright_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+        out = self.run(tmp_path, monkeypatch, live_profile(tmp_path))
+
+        assert out["outcome"] == "playwright_missing"
+        assert out["authenticated"] is None
+        assert "playwright install chromium" in out["reason"]
+
+    def test_playwright_missing_does_not_create_a_browser_profile(
+        self, tmp_path, monkeypatch, isolated_state_home
+    ):
+        """A box with no browser must not acquire a profile just for asking."""
+        from instahyre_server.session import browser_profile_path
+
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+        path = browser_profile_path(create=False)
+        assert not path.exists()
+
+        record = auth.reharvest_from_profile(auth_http(), SessionStore(tmp_path / "s.json"))
+
+        assert record["outcome"] == "playwright_missing"
+        assert not path.exists(), "the no-browser path created a browser profile"
+
+    def test_no_profile(self, tmp_path, monkeypatch, clock):
+        install_fake_playwright(monkeypatch, FakeBrowser(clock, [LIVE_COOKIES]))
+        empty = tmp_path / "browser_profile"
+        empty.mkdir()
+
+        out = self.run(tmp_path, monkeypatch, empty)
+
+        assert out["outcome"] == "no_profile"
+        assert out["authenticated"] is None
+        assert "nothing has ever signed in there" in out["reason"]
+        assert str(tmp_path) not in out["reason"], "the reason leaked a local path"
+
+    def test_browser_failed_carries_the_exception_text(
+        self, tmp_path, monkeypatch, clock
+    ):
+        browser = FakeBrowser(
+            clock, [LIVE_COOKIES], goto_raises=RuntimeError("chromium would not start")
+        )
+        install_fake_playwright(monkeypatch, browser)
+
+        out = self.run(tmp_path, monkeypatch, live_profile(tmp_path))
+
+        assert out["outcome"] == "browser_failed"
+        assert out["authenticated"] is None
+        assert "chromium would not start" in out["reason"]
+        assert "RuntimeError" in out["reason"]
+
+    def test_no_session_cookie_harvested(self, tmp_path, monkeypatch, clock):
+        """The profile opened and handed over nothing worth asking about."""
+        install_fake_playwright(
+            monkeypatch, FakeBrowser(clock, [{CSRF_COOKIE: "csrf-only"}])
+        )
+
+        out = self.run(tmp_path, monkeypatch, live_profile(tmp_path))
+
+        assert out["outcome"] == "no_session_cookie"
+        assert out["authenticated"] is None, (
+            "no request was made, so there is no verdict to report -- null, "
+            "not false"
+        )
+        assert "handed over no sessionid cookie" in out["reason"]
+
+    def test_endpoint_said_no(self, tmp_path, monkeypatch, clock):
+        install_fake_playwright(monkeypatch, FakeBrowser(clock, [ANON_COOKIES]))
+
+        out = self.run(tmp_path, monkeypatch, live_profile(tmp_path))
+
+        assert out["outcome"] == "endpoint_said_no"
+        assert out["authenticated"] is False, "the endpoint DID answer, and it said no"
+        assert "answered 401" in out["reason"]
+
+    def test_endpoint_inconclusive_is_null_not_false__HONESTY(
+        self, tmp_path, monkeypatch, clock
+    ):
+        """A Cloudflare challenge during a renew is not a logged-out verdict."""
+        install_fake_playwright(monkeypatch, FakeBrowser(clock, [LIVE_COOKIES]))
+        challenged = make_http({CATEGORY: html_response(HTML_CHALLENGE_BODY, status=403)})
+
+        out = self.run(tmp_path, monkeypatch, live_profile(tmp_path), http=challenged)
+
+        assert out["outcome"] == "endpoint_inconclusive"
+        assert out["authenticated"] is None, "unknown must not collapse into a no"
+        assert out["renewed"] is False
+        assert "UNKNOWN" in out["reason"]
+        assert "not Instahyre saying no" in out["reason"]
+
+    def test_every_failure_names_the_fallback_and_never_returns_an_empty_reason(
+        self, tmp_path, monkeypatch, clock
+    ):
+        """The whole table at once, so a new outcome cannot ship reasonless.
+
+        Every branch is exercised in one test as well as individually, because
+        an outcome added next month gets a reason only if something walks the
+        set. ``REHARVEST_OUTCOMES`` is the set, and it is asserted covered.
+        """
+        seen = {}
+        cases = {
+            "no_profile": lambda: (tmp_path / "empty_profile", None, None),
+            "no_session_cookie": lambda: (
+                live_profile(tmp_path),
+                {CSRF_COOKIE: "csrf-only"},
+                None,
+            ),
+            "endpoint_said_no": lambda: (live_profile(tmp_path), ANON_COOKIES, None),
+            "endpoint_inconclusive": lambda: (
+                live_profile(tmp_path),
+                LIVE_COOKIES,
+                make_http({CATEGORY: html_response(HTML_CHALLENGE_BODY, status=403)}),
+            ),
+            "browser_failed": lambda: (live_profile(tmp_path), "boom", None),
+        }
+        (tmp_path / "empty_profile").mkdir(exist_ok=True)
+
+        for name, build in cases.items():
+            profile, cookies, http = build()
+            browser = FakeBrowser(
+                clock,
+                [cookies] if isinstance(cookies, dict) else [LIVE_COOKIES],
+                goto_raises=RuntimeError("boom") if cookies == "boom" else None,
+            )
+            install_fake_playwright(monkeypatch, browser)
+            out = self.run(tmp_path, monkeypatch, profile, http=http)
+            seen[name] = out
+
+        for name, out in seen.items():
+            assert out["outcome"] == name, "%s produced %r" % (name, out["outcome"])
+            assert out["renewed"] is False
+            assert out["reason"].strip(), "%s shipped an empty reason" % name
+            assert "instahyre_login_browser" in out["reason"], (
+                "%s does not name the fallback" % name
+            )
+            assert "put back exactly as it was" in out["reason"]
+            assert out["stage"] == "profile_reharvest"
+
+        # playwright_missing and renewed are covered by their own tests above;
+        # asserting the union here is what makes this table exhaustive.
+        assert set(seen) | {"playwright_missing", "renewed"} == set(
+            auth.REHARVEST_OUTCOMES
+        ), "an outcome exists that nothing in this file exercises"
+
+
 # ===========================================================================
 # 4. logout
 # ===========================================================================
@@ -994,11 +1272,13 @@ class TestLogout:
             "scope",
             "authenticated",
             "reason",
+            "problems",
             "what_is_lost",
             "recover_by",
         }
         assert out["cleared"] is True
         assert out["authenticated"] is False
+        assert out["problems"] == []
         assert not store.path.exists()
         assert http.cookies.get(SESSION_COOKIE) is None
 
@@ -1056,7 +1336,18 @@ class TestLogout:
         assert "not ended" in out["scope"]
         assert "session.json" in out["scope"]
 
-    def test_it_never_raises_even_when_the_file_cannot_be_removed(self, tmp_path):
+    def test_a_partial_clear_is_null_not_false__HONESTY(self, tmp_path):
+        """Wave lead ruling, 2026-08-23, taken across all four servers.
+
+        The first draft returned ``false`` here beside a reason that said
+        "treat the credential as present until this is fixed". The prose was
+        right and the field contradicted it in the same object: something
+        survived the clear, so an authenticated request may still be possible,
+        and nobody measured whether it is.
+
+        ``is None`` and not a falsy check, deliberately -- ``False`` passes a
+        falsy check, and ``False`` is precisely the bug.
+        """
         store = saved_store(tmp_path)
 
         def refuse():
@@ -1068,9 +1359,25 @@ class TestLogout:
             http=auth_http(), store=store, profile_dir=live_profile(tmp_path)
         )
 
-        assert out["authenticated"] is False
+        assert out["authenticated"] is None, (
+            "a clear that failed cannot prove the credential is gone"
+        )
         assert out["reason"].startswith("PARTIAL")
         assert "still usable" in out["reason"]
+        assert out["problems"], "the failure is reported in prose only"
+        assert "could not be removed" in out["problems"][0]
+
+    def test_a_clean_clear_is_still_a_provable_false(self, tmp_path):
+        """The null is for the partial case ONLY. A clear that worked really
+        does leave nothing to make a request with, and that false is the one
+        the contract blesses."""
+        out = lifecycle.logout(
+            http=auth_http(),
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+        )
+        assert out["authenticated"] is False
+        assert out["problems"] == []
 
     def test_it_leaks_no_cookie_value(self, tmp_path):
         http = auth_http()
