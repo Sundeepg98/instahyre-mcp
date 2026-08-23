@@ -26,3 +26,8 @@ htmlcov/
 .env
 .env.*
 !.env.example
+
+# Raw browser captures. Scrubbed, but they are page dumps and analytics URLs
+# carrying tracking identifiers -- the distilled, guarded contracts live in
+# tests/fixtures/write_contracts/ instead.
+_audit/_data/

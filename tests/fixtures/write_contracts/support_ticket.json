@@ -1,0 +1,19 @@
+{
+  "_provenance": "WIRE. Recorded by scripts/capture_write_contracts.py on 2026-08-23 from the real signed-in browser and ABORTED at the router before it left the machine. Not a guess and not a reading of shipped source: this is the serialized request the page itself built.",
+  "_never_sent": "The router aborts every non-GET. The abort is proven per run by _prove_the_router_aborts, which fires a POST from inside the page and requires that it was blocked.",
+  "_scrubbed": "Identifiers replaced at capture time. Credential headers (cookie, x-csrftoken) were DROPPED, never recorded.",
+  "method": "POST",
+  "url": "https://www.instahyre.com/api/v1/candidate_misc/support/candidate_query",
+  "content_type": "application/json;",
+  "sends_csrf_header": true,
+  "body": {
+    "candidate": "/api/v1/candidate_misc/profile/limited_candidate/<CANDIDATE_ID>",
+    "message": "CAPTURE PROBE -- this request was aborted at the router and never sent.",
+    "attachments": []
+  },
+  "body_keys": [
+    "attachments",
+    "candidate",
+    "message"
+  ]
+}

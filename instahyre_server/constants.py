@@ -530,51 +530,190 @@ FORBIDDEN_ENDPOINTS = frozenset(
 # These six are UNBUILT PENDING MEASUREMENT. Capture the real request in a
 # signed-in browser, record the body here, and they become ordinary work.
 UNVERIFIED_WRITE_SURFACES = {
-    "saved_search_alert_toggle": (
-        "No method, path or body for the WRITE exists anywhere in this tree. The "
-        "only trace is an HTML template binding toggleSavedJobSearchAlerts($event), "
-        "and the 2026-08-22 parity pass records that this function appears in no "
-        "captured bundle -- a call site with no callee. The account also holds ZERO "
-        "saved searches, so there is nothing to toggle and the populated row shape "
-        "has never been on the wire. The >=3-filter gate and the cap of 5 above are "
-        "reported by an earlier reading of a bundle this tree no longer contains; "
-        "they are carried as stated, not as re-verified."
-    ),
-    "referrals": (
-        "ONE table row: /candidate_misc/refer/referral/ with 'get_link', "
-        "'import_gmail_contacts' and 'send_invites' listed under a shared "
-        "'POST/GET' cell. No per-action method, no per-action URL, no body for any "
-        "of the three. send_invites mails REAL THIRD PARTIES from his account and "
-        "no unsend appears anywhere in the evidence. A confirm gate for it cannot "
-        "be built honestly either: naming who would be contacted requires the "
-        "import_gmail_contacts contract, which is equally absent, so the gate would "
-        "be showing a fabricated list -- the appearance of informed consent without "
-        "the substance."
-    ),
     "screening_questionnaires": (
         "POST /questionnaires/answer is a name with an explicitly UNVERIFIED body, "
         "and there is no READ route for the questions at all -- so there is no way "
         "to know what is being answered. It rides an application that cannot be "
-        "withdrawn."
+        "withdrawn. The 2026-08-23 capture pass did NOT advance it and could not: "
+        "across all ten shipped bundles there is no $resource factory and no "
+        "caller, only an HTTP error interceptor that matches the URL as a "
+        "substring to raise its upload size limit from 8MB to 100MB. That "
+        "establishes the route exists and takes files. It yields no method and no "
+        "field. Reaching the questionnaire in a browser means pressing Apply on a "
+        "real opportunity, and that is the one action this server must never take, "
+        "so the capture technique that unblocked the others cannot be pointed at "
+        "this one."
     ),
     "workex_put": (
         "A PUT is a full replacement, and not even the READ shape of a candidate "
         "workex record exists here: the profile fixture carries 42 keys and none is "
         "a work-experience block. Every workex_* hit in this package is a job-side "
         "field, not a candidate one. An omitted key in a PUT silently deletes a "
-        "field nobody has ever seen."
+        "field nobody has ever seen. The 2026-08-23 capture pass measured the "
+        "method and URL -- PUT /candidate_misc/profile/onboarding_workex/:id, from "
+        "the candidateService factory -- and then stalled on the part that "
+        "matters: NO CALLER exists in any of the ten shipped bundles, and the "
+        "signed-in profile page renders no work-experience control at all (its "
+        "editors are preference, skills, current_company, internship, education, "
+        "social and diversity_info). The route appears to be onboarding-only, so "
+        "there is no control to intercept and the field list stays unmeasured."
     ),
-    "profile_image": (
-        "The GET record is captured, so the resource is real. The UPLOAD is not: "
-        "multipart versus JSON, the field name, and the content type are all "
-        "absent. APPLY_CONTENT_TYPE above is an ordinary-POST default and does not "
-        "apply to a file upload."
-    ),
-    "support_tickets": (
-        "One table row and nothing else. No body, no read-back, no retraction -- "
-        "and the destination is a human support queue, where a guessed body "
-        "succeeds VISIBLY rather than failing safely."
-    ),
+}
+
+# --- Writes whose contract WAS captured, 2026-08-23 -------------------------
+#
+# Four of the six above came off this list on 2026-08-23, by the route the
+# register itself named: "capture the real request in a signed-in browser,
+# record the body here, and they become ordinary work."
+#
+# TWO EVIDENCE CLASSES, and they are not the same thing. Every entry says which
+# it is, because the difference decides how much a caller may lean on it.
+#
+#   WIRE       -- the serialized request the page itself built, recorded by
+#                 scripts/capture_write_contracts.py and ABORTED at the router
+#                 before it left the machine. Nothing was sent. This is the
+#                 strongest evidence short of a response.
+#   SHIPPED    -- read out of Instahyre's own JavaScript: the whole $resource
+#                 factory plus the whole calling function, quoted verbatim. It
+#                 is what the browser WOULD build. It is the same class of
+#                 evidence that corrected the apply contract twice, and it is
+#                 strictly weaker than WIRE because it has never been
+#                 serialized.
+#
+# ONE MEASUREMENT THAT APPLIES TO ALL OF THEM. AngularJS 1.x $resource defaults
+# to stripTrailingSlashes:true, and this was MEASURED here rather than
+# remembered: the candidate_query factory declares the URL with a trailing
+# slash, and the wire capture shows the request going to
+# .../candidate_query with NO trailing slash. So every URL below is the
+# stripped spelling. This client does not follow redirects, so guessing wrong
+# in this direction surfaces as a 301, not as a silent mutation -- the safe
+# failure.
+CONTRACT_WIRE = "WIRE"
+CONTRACT_SHIPPED = "SHIPPED"
+
+#: Support tickets. WIRE-captured whole.
+EP_SUPPORT_QUERY = "/candidate_misc/support/candidate_query"
+SUPPORT_QUERY_CONTENT_TYPE = "application/json;"
+#: The candidate is named by RESOURCE URI, not by integer id. Tastypie style,
+#: and getting this wrong is a 400 rather than a wrong write.
+EP_LIMITED_CANDIDATE = "/candidate_misc/profile/limited_candidate/"
+SUPPORT_QUERY_BODY_KEYS = ("attachments", "candidate", "message")
+#: Field errors come back nested under this key, e.g.
+#: {"candidate_query": {"attachments": ["..."]}}
+SUPPORT_QUERY_ERROR_ENVELOPE = "candidate_query"
+
+#: Saved-search job alerts. SHIPPED, whole functions verbatim.
+EP_SAVED_SEARCH_DETAIL = "/candidate_opportunities/saved_job_searches/"
+SAVED_SEARCH_TOGGLE_METHOD = "PATCH"
+#: toggleAlerts sends the flag ALONGSIDE search_string -- it is not a flag-only
+#: PATCH, and a PATCH that omitted search_string is a request the site never
+#: makes.
+SAVED_SEARCH_TOGGLE_BODY_KEYS = ("id", "job_alert_enabled_at", "search_string")
+#: Named like a timestamp column; the client treats it as a strict boolean
+#: (it sends `!current`, and the gate assigns the literal false). Which of the
+#: two the SERVER stores is not determined by this evidence.
+SAVED_SEARCH_ALERT_IS_BOOLEAN_CLIENT_SIDE = True
+SAVED_SEARCH_ERROR_ENVELOPE = "saved_job_searches"
+#: canEnableJobAlerts, measured: at least three non-empty sidebar filters, with
+#: job_categories always excluded from the count and job_type excluded unless
+#: the candidate is a fresher. Failing the gate forces the flag false.
+SAVED_SEARCH_ALERT_GATE_EXCLUDES = ("job_categories", "job_type")
+
+#: Referrals. SHIPPED, both callers quoted whole.
+EP_REFERRAL = "/candidate_misc/refer/referral"
+EP_REFERRAL_INVITES = "/candidate_misc/refer/referral/send_invites"
+EP_REFERRAL_CONTACTS = "/candidate_misc/refer/referral/import_gmail_contacts"
+#: get_link posts the referral object itself and the response returns it
+#: populated; referral_url round-trips, empty on the way out.
+REFERRAL_LINK_BODY_KEYS = ("email", "name", "referral_url")
+#: send_invites carries BOTH the structured list and the raw string. `name` and
+#: `email` at the top level are the REFERRER, not an invitee -- reading them as
+#: the recipient is the misreading this comment exists to prevent.
+REFERRAL_INVITE_BODY_KEYS = ("email", "email_list", "friends", "name")
+#: constructInvitationsDict strips EVERY space from an address, not just the
+#: ends: `item.replace(/ /g,'')`.
+REFERRAL_STRIPS_ALL_SPACES = True
+#: import_gmail_contacts is a GET. That matters: the "who would be contacted"
+#: list can be read without sending anything, so a confirm gate for invites can
+#: name real people from a real source instead of a fabricated one.
+REFERRAL_CONTACTS_IS_GET = True
+
+#: Profile image. WIRE-captured on the REPLACE branch only.
+EP_PROFILE_IMAGE = "/profiles/profile_image"
+#: The service picks its URL by method: POST goes to the collection, PUT goes
+#: to `data.resource_uri` -- the existing image's own detail URL. This account
+#: already has an image, so the wire capture is the PUT.
+PROFILE_IMAGE_PUT_BODY_KEYS = ("file_b64", "profile", "resource_uri", "title")
+#: file_b64 is a DATA URL, not bare base64: canvas.toDataURL("image/webp",0.7)
+#: after downscaling to width <= 800 (aspect preserved, smaller images left
+#: alone). MAX_WIDTH=800 and QUALITY_PARAMETER=0.7 are shipped constants.
+PROFILE_IMAGE_ENCODING = "data:image/webp;base64, width<=800, quality 0.7"
+PROFILE_IMAGE_MAX_WIDTH = 800
+PROFILE_IMAGE_QUALITY = 0.7
+
+CAPTURED_WRITE_CONTRACTS = {
+    "support_tickets": {
+        "evidence": CONTRACT_WIRE,
+        "method": "POST",
+        "path": EP_SUPPORT_QUERY,
+        "body_keys": SUPPORT_QUERY_BODY_KEYS,
+        "note": (
+            "Recorded from the real signed-in browser on 2026-08-23 and aborted at "
+            "the router. Content-Type is 'application/json;' with Angular's literal "
+            "trailing semicolon, and the request carries X-CSRFToken. The body is "
+            "{candidate: <limited_candidate resource uri>, message, attachments: []}. "
+            "The wire URL has NO trailing slash even though the factory declares "
+            "one."
+        ),
+    },
+    "saved_search_alert_toggle": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": SAVED_SEARCH_TOGGLE_METHOD,
+        "path": EP_SAVED_SEARCH_DETAIL + ":id",
+        "body_keys": SAVED_SEARCH_TOGGLE_BODY_KEYS,
+        "note": (
+            "The callee that the 2026-08-22 parity pass could not find ships in the "
+            "AUTHENTICATED-tier bundle, which no earlier pass had downloaded: "
+            "toggleSavedJobSearchAlerts validates and opens a modal, and toggleAlerts "
+            "performs the PATCH. NOT wire-confirmed, and it cannot be on this "
+            "account: it holds ZERO saved searches, and the save-search control "
+            "renders hidden on /candidate/opportunities/ and is absent from "
+            "/search-jobs, so there is no row to toggle and no control to intercept."
+        ),
+    },
+    "referrals": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "path": EP_REFERRAL_INVITES,
+        "body_keys": REFERRAL_INVITE_BODY_KEYS,
+        "note": (
+            "Per-action method and URL from the referralService factory; bodies from "
+            "the two callers, both quoted whole. send_invites still mails REAL THIRD "
+            "PARTIES and still has no unsend -- capturing the contract changed what "
+            "we know, not what it does. What DID change is that the confirm gate can "
+            "now be built honestly: import_gmail_contacts is a GET, so the list of "
+            "who would be contacted is readable without sending anything, and the "
+            "typed path's list is simply what the caller supplied."
+        ),
+    },
+    "profile_image": {
+        "evidence": CONTRACT_WIRE,
+        "method": "PUT",
+        "path": EP_PROFILE_IMAGE + "/:id",
+        "body_keys": PROFILE_IMAGE_PUT_BODY_KEYS,
+        "note": (
+            "Wire-captured 2026-08-23 by handing the page's own #image-input a 1x1 "
+            "fake PNG and letting it build the request; the router threw it away. "
+            "This settles the question the register raised -- it is JSON, not "
+            "multipart, and the otherData keys are {profile, resource_uri}. The "
+            "CREATE branch (POST to the collection, no resource_uri) is NOT "
+            "measured: this account already has an image, so the page took the PUT "
+            "branch. NO TOOL IS BUILT ON THIS. Reproducing the browser's body needs "
+            "a WebP encoder at width<=800, which this package has no dependency "
+            "for, and sending a differently-encoded payload would be exactly the "
+            "guessed variant this whole register exists to refuse."
+        ),
+    },
 }
 
 # --- Profile writes --------------------------------------------------------
