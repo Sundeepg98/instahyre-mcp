@@ -291,6 +291,15 @@ class Writer:
                 "The candidate compose form has no subject field -- the literal has zero "
                 "hits in the inbox controller. A reply carries body text only."
             ),
+            "content_type_differs_from_the_capture": (
+                "This client sends 'application/json'; the browser sends "
+                "'application/json;charset=utf-8', which is AngularJS $resource's default "
+                "rather than anything Instahyre asked for -- the bundle sets no header and "
+                "overrides no transform. The charset is a parameter with a utf-8 default, "
+                "so the two are the same request to a Django server. Recorded because a "
+                "reader comparing this preview against the captured contract would "
+                "otherwise find a difference and have to guess whether it mattered."
+            ),
         }
         if not confirm:
             preview["confirmed"] = False

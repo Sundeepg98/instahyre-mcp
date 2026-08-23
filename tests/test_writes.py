@@ -1191,6 +1191,21 @@ def test_the_body_carries_exactly_the_three_captured_keys():
     assert sorted(body) == ["attachments", "content", "conv_id"]
 
 
+def test_the_preview_states_the_content_type_this_client_actually_sends():
+    """Not the one the browser sends. The capture records
+    ``application/json;charset=utf-8`` -- AngularJS $resource's default, not
+    something Instahyre asked for -- while this client sends the bare value.
+    A preview that quoted the capture would be describing a request it is not
+    about to make, on the one surface where the preview IS the consent.
+    """
+    writer, _, _ = detonating_reply_writer()
+
+    preview = writer.reply_to_conversation(REPLY_CONV_ID, "hello")
+
+    assert preview["would_send"]["content_type"] == "application/json"
+    assert "charset=utf-8" in preview["content_type_differs_from_the_capture"]
+
+
 def test_attachments_are_always_empty_because_the_element_shape_is_unmeasured():
     writer, _, _ = detonating_reply_writer()
 

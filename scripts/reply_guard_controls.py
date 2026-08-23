@@ -122,6 +122,13 @@ PLANTS = [
         "test_line_breaks_survive_as_paragraphs_rather_than_being_reflowed",
     ),
     case(
+        "the preview quotes the browser's Content-Type, not this client's",
+        WRITES,
+        '                "content_type": "application/json",',
+        '                "content_type": "application/json;charset=utf-8",',
+        "test_the_preview_states_the_content_type_this_client_actually_sends",
+    ),
+    case(
         "attachments invented rather than left empty",
         WRITES,
         '            "attachments": [],\n        }\n        # The doorway.',
