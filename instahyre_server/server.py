@@ -835,6 +835,23 @@ def instahyre_server_info() -> dict:
                 "cross-checked against his own conversation list rather than trusted."
             ),
             "opportunity_detail_route": "there is none; a queue record is found by scanning the queue",
+            # Added 2026-08-24. It sits HERE, not under deliberately_not_built,
+            # because the two blocks answer different questions: this one says
+            # what the platform cannot do, that one says what we chose not to
+            # build. "Edit work experience" fails at the first question, and a
+            # reader who only checked the second would come away thinking it
+            # was a judgement call.
+            "work_experience": (
+                "There is NO work-experience record on this platform to read or edit. The "
+                "profile payload carries 42 keys and none is a work-experience block, and "
+                "the signed-in profile page renders no control for one -- its editors are "
+                "preference, skills, current_company, internship, education, social and "
+                "diversity_info. A route spelled PUT .../onboarding_workex/:id does exist "
+                "and misleads: its only caller passes the ENTIRE candidate object and reads "
+                "back current_company and companies_to_block, so it writes the candidate, "
+                "not a workex row. Those fields are already writable, sparsely, through "
+                "instahyre_update_profile. See deliberately_not_built.work_experience_edit."
+            ),
         },
         "deliberately_not_built": {
             "apply_bulk": (
@@ -887,19 +904,28 @@ def instahyre_server_info() -> dict:
                 "mutating path markers including send_message, so a reader cannot reach "
                 "the send path by editing a constant. Bulk apply remains permanently out "
                 "of scope. Worth knowing about this resource: mark_all_read is a GET that "
-                "mutates, which is why both guards key on the PATH and never on the "
-                "verb. STARRING AND MARKING READ ARE NOW MEASURED AND STILL NOT BUILT "
-                "-- a different statement from the one above, and the honest one: "
-                "inboxService.toggleStarConversation, .markUnstarred and .markUnread "
-                "all ship as callers, both are POST, so the evidence gap that closed "
-                "reply is closed for these too. They stay unbuilt on VALUE, not on "
-                "evidence. Starring is a private bookmark on a queue this account can "
-                "already sort and filter locally, marking read destroys the only "
-                "signal that distinguishes a new recruiter message from an old one, "
-                "and both would cost the same thing: SENDABLE_INBOX_PATHS is an "
-                "allowlist of exactly one, and each addition widens the only write "
-                "channel this server has into the inbox. That perimeter is worth more "
-                "than a bookmark."
+                "MUTATES -- confirmed in the factory itself, "
+                "mark_all_read:{method:'GET',url:url+'mark_all_read'} -- which is why "
+                "both guards key on the PATH and never on the verb. STARRING AND "
+                "MARKING READ ARE NOW MEASURED AND STILL NOT BUILT -- a different "
+                "statement from the one above, and the honest one. Both actions are "
+                "POST (star_conversation and toggle_message_read, declared in the "
+                "messageService factory) and both have shipped callers: "
+                "inboxService.markUnstarred sends {star_conv, job_id}, the star "
+                "toggle sends {starred, can_user, job_id}, and inboxService.markUnread "
+                "sends {conversation, mark_unread}. So the evidence gap that closed "
+                "reply is closed for these too, and they stay unbuilt on VALUE. "
+                "THE DECIDING FACT: his inbox holds ZERO conversations (measured "
+                "2026-08-23, authenticated, 200). There is nothing to star and nothing "
+                "to mark read, and both payloads dereference a selected conversation "
+                "that does not exist. Building them would add two write paths that "
+                "cannot currently do anything, at a real cost: SENDABLE_INBOX_PATHS is "
+                "an allowlist of exactly ONE, and each addition widens the only write "
+                "channel this server has into the inbox. Even on a full inbox the "
+                "trade stays bad -- starring is a private bookmark on a queue that can "
+                "already be sorted and filtered locally, and marking read DESTROYS the "
+                "only signal separating a new recruiter message from an old one. That "
+                "perimeter is worth more than a bookmark."
             ),
         },
         "irreversible_tools": [
