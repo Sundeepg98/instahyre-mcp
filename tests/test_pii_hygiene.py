@@ -23,6 +23,62 @@ Assertion messages never print a full identifier. CI logs are readable by
 anyone who can read the build, so a guard that prints what it found has
 merely moved the leak.
 
+WHAT THIS GUARD COVERS
+----------------------
+Eight checks, in two families.
+
+SHAPED VALUES (checks 1-5). Things a human recognises on sight: an email
+address, a phone number, a LinkedIn profile slug, an opaque LinkedIn company
+id or member urn, a JWT or session cookie. Check 6 is structural rather than
+shaped: it hunts the pair table that would reverse any redaction.
+
+SHAPELESS IDENTIFIERS (checks 7-8). Added after a sibling repository was
+scrubbed, certified clean by a guard built exactly like this one, and still
+published a live account primary key. It survived because it has NO SHAPE --
+no at-sign, no dialling code, no human name, just an opaque integer sitting
+next to an account-ish key. Every one of checks 1-5 would pass it. Check 7
+therefore keys on the KEY PATH rather than the value, and demands that an
+account-scoped record id be provably synthetic. Check 8 is its wider,
+shape-free net for anything token-like standing next to an account-ish key.
+
+WHAT THIS GUARD DOES NOT COVER
+------------------------------
+Stated plainly, because a guard that is silent about its blind spots buys a
+green tick with someone else's privacy.
+
+  * PERSONAL NAMES. A name has no shape. "Priya Sharma" and "Fairmount
+    Institute" are the same regex, and so are a real name and an invented
+    one. Nothing here can tell them apart, and nothing here tries. Names are
+    scrubbed by hand and verified by a human reading the diff.
+
+  * THE RE-IDENTIFICATION TUPLE. Employer, institute, graduation year, city
+    and skill list are each individually innocuous and jointly a fingerprint
+    that names one person. This module checks values one at a time and so is
+    constitutionally unable to see a tuple. A fixture can pass all eight
+    checks and still identify its subject.
+
+  * SHARED-TAXONOMY ROWS THAT POINT AT A BIOGRAPHY -- PARTLY. A university,
+    degree, specialisation or language id is a row in a table shared by every
+    user, so the key-path test that separates account-scoped from public would
+    let all four through. But such a row is CHOSEN by the account holder, which
+    makes it a reverse lookup back into the tuple above: scrubbing an institute
+    NAME while leaving its numeric id in place undoes the scrub for anyone who
+    can resolve the id.
+    `universities` was moved into scope on 2026-08-24 and is now checked. The
+    order that made it possible is the transferable part: the DATA was fixed
+    first, so a synthetic value existed to allowlist; only then could the id be
+    guarded. Fix the data, then move the id -- never the reverse, or the check
+    goes red with nothing to admit and gets reverted.
+    `degrees`, `specializations` and `language` are still let through, and that
+    is a decision rather than an oversight: their cardinality is tiny, so a
+    degree id is shared with millions and re-identifies nobody. The institute
+    was the sharp one, because a small institute in one year is a small cohort.
+
+  * TOKENS SEPARATED FROM THEIR KEY BY A NEWLINE. Check 8 reads one line at a
+    time, so a token whose account-ish key sits on a previous line is not
+    seen. The fixtures here are pretty-printed one key per line, which is why
+    this is affordable today.
+
 FILE LIST
 ---------
 `git ls-files` from the repository root, so a file is covered the day it is
@@ -35,6 +91,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -631,4 +688,388 @@ def test_no_mapping_table_of_real_values():
         "tracked in this repo. That is a de-anonymisation key: it reverses "
         "whatever redaction was applied elsewhere. Delete the TABLE. Do not "
         "add its values to any allowlist here.\n%s" % _report(hits)
+    )
+
+
+# --------------------------------------------------------------------------
+# Check 7 -- account-scoped record ids
+# --------------------------------------------------------------------------
+#
+# Checks 1-5 all hunt a value that LOOKS like something. A durable record id
+# looks like nothing: 7770001 and 4412093 are the same object to every regex
+# above, and only one of them names a real row in Instahyre's database. So
+# this check inverts the question. It does not ask "does this value look
+# dangerous"; it asks "is this value provably invented", and it decides which
+# values must answer by reading the KEY PATH they sit under.
+#
+# THE PUBLIC/PRIVATE LINE IS DRAWN ON THE KEY, NEVER ON THE NUMBER.
+# A job id, an employer id, an industry id, a location id, a job_function id
+# and a skill-taxonomy id are all real, all durable, and all harmless: they
+# identify a posting or a company, not a person, and every user of the site
+# sees the same ones. Flagging them would make this check unrunnable and
+# would teach the next reader to disable it. Only rows scoped to the account
+# holder HIMSELF are in scope -- his profile, his resume, his education
+# entry, his opportunities. Those are the rows whose ids are, in effect, his
+# customer number.
+
+#: Path segments naming a row that belongs to the account holder. Longest
+#: first so the alternation cannot match a prefix of a longer sibling.
+#:
+#: NOTE THE TRAP THIS ORDERING AND THE ANCHORED "/" DEFEND AGAINST:
+#: "candidate_opportunity" is his own opportunity row and IS in scope, while
+#: "candidate_opportunity_employer" is the EMPLOYER on that opportunity and is
+#: public. One is a prefix of the other. Matching by substring would flag
+#: every employer on the board; matching whole slash-delimited segments does
+#: not. The same trap guards "candidate" against "candidate_misc",
+#: "candidate_settings", "candidate_conversation" and "candidatejob".
+ACCOUNT_SCOPED_RESOURCES = (
+    "candidate_skill_model",
+    "profile_field_updates",
+    "candidate_opportunity",
+    "social_accounts_user",
+    "candidate_matching",
+    "limited_candidate",
+    "diversity_info",
+    "candidate_jsp",
+    "profile_image",
+    "education",
+    "candidate",
+    "resume",
+    # ADMITTED 2026-08-24, and it is the one entry here that is not his row.
+    # A `universities` id is shared by every alumnus, so by the key-path test
+    # that separates this list from PUBLIC_RESOURCE_IDS it belongs below, not
+    # here. It is here anyway, because the test that matters is not "who owns
+    # the row" but "does this value point back at him" -- and this one does:
+    # it is SELECTED by him, sits inside his education record, and resolves to
+    # his institute even after the institute NAME has been scrubbed. Leaving
+    # it public made the name scrub cosmetic.
+    # This module previously argued the id could not be moved here because
+    # doing so "would demand a synthetic value for a row this repo does not
+    # own". That objection was correct and is now spent: the data was fixed
+    # first, the value in the fixtures is invented, and it is declared below.
+    # Fix the data, then move the id -- in that order, never the reverse.
+    "universities",
+)
+
+#: Deliberately NOT checked, recorded so the omission is a decision rather
+#: than an oversight. Each names a row shared by every user of the site:
+#:   job_search, candidatejob, employer_public_jobs -- a posting
+#:   candidate_opportunity_employer, anon_employer_limited -- a company
+#:   industry_type, job_function, job_category -- taxonomy
+#:   universities, degrees, specializations, language -- taxonomy
+#: `universities` USED TO BE ON THIS LIST and was moved up on 2026-08-24. The
+#: argument for keeping it here was sound and is worth preserving: the id names
+#: a shared taxonomy row, not his, and moving it up "would demand a synthetic
+#: value for a row this repo does not own". What retired that argument was
+#: doing the data fix first -- the institute id in the fixtures is now invented
+#: and declared in SYNTHETIC_ACCOUNT_IDS, so the demand is met and the id can
+#: be guarded. The ordering is the lesson: fix the data, then move the id.
+#:
+#: `degrees` and `specializations` stay here deliberately. They are selected by
+#: him in the same way, but their cardinality is tiny -- a degree id is shared
+#: with millions and re-identifies nobody. The institute was the sharp one.
+PUBLIC_RESOURCE_IDS = (
+    "job_search", "candidatejob", "employer_public_jobs",
+    "candidate_opportunity_employer", "anon_employer_limited",
+    "industry_type", "job_function", "job_category",
+    "degrees", "specializations", "language",
+)
+
+ACCOUNT_SCOPED_ID_IN_PATH = re.compile(
+    r"/(%s)/([^/\"'\s?]+)" % "|".join(ACCOUNT_SCOPED_RESOURCES)
+)
+
+#: The spelling already used in tests/fixtures/write_contracts/ for an id the
+#: capture scripts refused to write down: <CANDIDATE_ID>, <PROFILE_IMAGE_ID>.
+SYNTHETIC_ID_PLACEHOLDER = re.compile(r"^<[A-Z][A-Z0-9_]*>$")
+
+#: Invented ids, and the ONLY non-placeholder non-repdigit values admitted.
+#: Safe to commit precisely because none of them names anything: they were
+#: made up to replace the real ids this repo used to carry. They are listed
+#: one by one rather than matched by a "starts with a repeated digit" shape
+#: on purpose -- a shape rule would silently admit 7778234 as well, and the
+#: entire point of this check is that a NEW id cannot arrive unnoticed.
+#: Adding an entry here is a claim that the value was INVENTED. Never add a
+#: value merely because the check fired on it; that rebuilds the key this
+#: module exists to refuse.
+SYNTHETIC_ACCOUNT_IDS = frozenset(
+    {
+        # profile rows
+        "7770001", "7770002", "7770003", "7770004", "7770005", "7770006",
+        # profile_field_updates rows
+        "7770011", "7770012", "7770013", "7770014", "7770015", "7770016",
+        # candidate_skill_model rows
+        "88880001", "88880002", "88880003", "88880004",
+        # candidate_opportunity / candidate_matching rows
+        "6100000001", "6100000002", "6100000003",
+        "6100000004", "6100000005", "6100000006",
+        # the classic ascending stand-in, used as a candidate id
+        "1234567",
+        # the university row, invented 2026-08-24 -- see the note beside
+        # "universities" in ACCOUNT_SCOPED_RESOURCES for why that id is
+        # treated as account-scoped despite naming a shared taxonomy row.
+        "41007",
+    }
+)
+
+
+def _synthetic_account_id(value) -> bool:
+    """True when `value` is provably invented rather than merely opaque."""
+    text = str(value).strip()
+    if not text:
+        return True
+    if SYNTHETIC_ID_PLACEHOLDER.match(text):
+        return True
+    if text.isdigit() and len(set(text)) == 1:
+        return True
+    return text in SYNTHETIC_ACCOUNT_IDS
+
+
+def _account_id_hits(node, path):
+    """Yield (key path, resource, value) for every in-scope id under `node`."""
+    if isinstance(node, dict):
+        resource_uri = node.get("resource_uri")
+        if isinstance(resource_uri, str) and "id" in node:
+            match = ACCOUNT_SCOPED_ID_IN_PATH.search(resource_uri)
+            if match is not None:
+                yield path + ".id", match.group(1), node["id"]
+        for key, value in node.items():
+            if isinstance(value, str):
+                for match in ACCOUNT_SCOPED_ID_IN_PATH.finditer(value):
+                    yield path + "." + key, match.group(1), match.group(2)
+            for hit in _account_id_hits(value, path + "." + key):
+                yield hit
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            for hit in _account_id_hits(value, "%s[%d]" % (path, index)):
+                yield hit
+
+
+def test_account_scoped_record_ids_are_synthetic():
+    """Every id naming one of the account holder's own rows is invented.
+
+    THE HAZARD. A sibling repository was scrubbed of names, emails and phone
+    numbers, certified clean by a guard of this exact design, and published
+    anyway with a live account primary key in a test fixture. Nobody caught
+    it because there was nothing to catch by eye: it was a seven-digit
+    integer under a key called "id". A record id is not noise. It is the
+    durable, stable, server-side handle for one human being's row, it does
+    not rotate the way a session token does, and anyone holding it can ask
+    the platform to resolve it back to him for as long as the account exists.
+    Published once, it is published permanently.
+
+    WHAT IS ASSERTED. Every tracked .json file is parsed, and every id sitting
+    under one of ACCOUNT_SCOPED_RESOURCES -- whether as the "id" key of an
+    object that declares such a resource_uri, or as the tail of any
+    resource_uri-shaped string value anywhere in the document -- must be an
+    angle-bracket placeholder, a repdigit run, or a value explicitly listed in
+    SYNTHETIC_ACCOUNT_IDS.
+
+    WHAT IS NOT ASSERTED. Public ids are untouched by design; see
+    PUBLIC_RESOURCE_IDS for the list and the reasoning. Confusing the two
+    would either flag every employer on the board or, worse, teach the next
+    reader that this check cries wolf.
+
+    The failure message names the file, the key path and the SHAPE. It never
+    prints the value: a CI log is world-readable to anyone who can read the
+    build, so echoing the id would publish exactly what the check caught.
+    """
+    hits = []
+    for rel, _path, text in _tracked_text_files():
+        if not rel.lower().endswith(".json"):
+            continue
+        if _is_pins_or_lock(rel):
+            continue
+        try:
+            document = json.loads(text)
+        except ValueError as exc:
+            hits.append(
+                "%s:  UNPARSEABLE-JSON  (%s) -- a file this check cannot read "
+                "is a file it cannot clear" % (rel, type(exc).__name__)
+            )
+            continue
+        for key_path, resource, value in _account_id_hits(document, ""):
+            if _synthetic_account_id(value):
+                continue
+            hits.append(
+                "%s  %s  ACCOUNT-ID[%s]  %s"
+                % (rel, key_path or "<root>", resource, _fingerprint(str(value)))
+            )
+    assert not hits, (
+        "Ids scoped to the account holder's own records are tracked in this "
+        "repo and are not provably synthetic. A record id is a durable "
+        "primary key: it does not rotate, and it resolves back to one person "
+        "for as long as the account exists. Replace the DATA with a repdigit "
+        "run or an <ANGLE_BRACKET> placeholder. Only extend "
+        "SYNTHETIC_ACCOUNT_IDS with a value you know was INVENTED -- never "
+        "with one the check just caught.\n%s" % _report(hits)
+    )
+
+
+# --------------------------------------------------------------------------
+# Check 8 -- high-entropy token beside an account-ish key
+# --------------------------------------------------------------------------
+#
+# Check 7 needs to know the resource name in advance. This one does not: it is
+# the net for the identifier nobody enumerated, and it trades precision for
+# reach. It asks a single question of every line in the repository -- is there
+# something token-shaped standing next to a word that means "this belongs to
+# the account holder" -- and makes the answer justify itself.
+
+#: Key names that mean "the account holder", as opposed to a job or a company.
+ACCOUNT_KEY_NAME = re.compile(
+    r"(?i)(candidate|profile|resume|session|csrf|token|conv_id|recruiter"
+    r"|auth|cookie)"
+)
+
+#: A standalone alphanumeric run. The lookbehind refuses a run glued to a
+#: preceding ".", "_" or "-": those are compounds, not values --
+#: base64.urlsafe_b64encode is a function, output.b5bfe43563f0.js is a build
+#: artefact filename, and 2019-08-09T153322 is a timestamp. A genuine token in
+#: a value position is preceded by a quote, a colon, an equals sign or a
+#: slash, all of which still match.
+ENTROPIC_ATOM = re.compile(r"(?<![A-Za-z0-9._-])[A-Za-z0-9]{8,}(?![A-Za-z0-9])")
+
+#: EIGHT, AND THE NUMBER WAS PAID FOR. An earlier sweep of this repository ran
+#: at >= 16 characters, which is where "high-entropy token" scanners
+#: conventionally sit, and it reported the repo clean. The identifier actually
+#: leaked here was TEN characters of lowercase hex. Sixteen missed it
+#: completely. Do not raise this back up because the check is noisy; widen a
+#: named allowlist below instead, the way every other allowlist in this module
+#: was widened.
+MIN_ENTROPIC_LEN = 8
+
+#: Values that announce their own fakeness. A real credential does not contain
+#: the English words "never" or "secret", and no real identifier spells
+#: "placeholder".
+SELF_ANNOUNCING_MARKERS = (
+    "fake",
+    "sentinel",
+    "example",
+    "must-never",
+    "redacted",
+    "placeholder",
+    "token_redacted",
+    "secret",   # WIDENED: the credential-leak suite plants values spelled
+    "never",    # SECRET...MustNeverBeReturned to prove its detector fires.
+)
+
+#: WIDENED -- employer and recruiter avatars on the public media CDN. The path
+#: carries a content hash that is exactly the ten-hex shape this check hunts,
+#: and there are 93 of them in the fixtures. They address a COMPANY's logo on
+#: a public bucket, which is not a person and not the account holder. Note
+#: what this deliberately does NOT cover: /base/candidate/ is absent, so the
+#: account holder's OWN avatar hash is still checked.
+PUBLIC_AVATAR_PATH = re.compile(
+    r"/images/profile/base/(?:employer|recruiter)/\d+/[A-Za-z0-9]+/"
+)
+
+#: Ascending-digit runs, the oldest stand-in there is (...0123456789...).
+ASCENDING_DIGITS = "0123456789"
+
+#: WIDENED -- credential-SHAPED markers invented for the leak-detector
+#: controls, where a short or hyphenated stand-in would survive a truncation
+#: whole and make the detector look stronger than it is. Both are asserted to
+#: be exactly session- and csrf-length by the script that owns them. They are
+#: listed here rather than matched by shape because they are values, and a
+#: shape loose enough to admit them would admit a real token too.
+SYNTHETIC_ENTROPIC_TOKENS = frozenset(
+    {
+        "k9x2m4p7q1w8e3r5t6y0u2i4o6a8s1d3",
+        "Ab3Cd5Ef7Gh9Ij1Kl3Mn5Op7Qr9St1Uv3Wx5Yz7Ab9Cd1Ef3Gh5Ij7Kl9Mn1Op3Q",
+    }
+)
+
+#: Contracts captured from the wire with every identifier replaced at capture
+#: time by an <ANGLE_BRACKET> placeholder, plus a _scrubbed note recording it.
+#: Their remaining opaque strings are declared stand-ins.
+WRITE_CONTRACTS_DIR = "tests/fixtures/write_contracts/"
+
+
+def _has_ascending_run(value: str) -> bool:
+    return any(
+        ASCENDING_DIGITS[index : index + 6] in value
+        for index in range(len(ASCENDING_DIGITS) - 5)
+    )
+
+
+def _entropic_atom_allowed(value: str, line: str, start: int, end: int) -> bool:
+    """True when this atom is provably not an account-holder identifier."""
+    if len(set(value)) == 1:
+        return True
+    if not (any(c.isdigit() for c in value) and any(c.isalpha() for c in value)):
+        return True
+    if value in SYNTHETIC_ENTROPIC_TOKENS:
+        return True
+    if _has_ascending_run(value):
+        return True
+    lowered = value.lower()
+    if any(marker in lowered for marker in SELF_ANNOUNCING_MARKERS):
+        return True
+    return any(
+        span.start() <= start and end <= span.end()
+        for span in PUBLIC_AVATAR_PATH.finditer(line)
+    )
+
+
+def _entropy_scan_skipped(rel: str) -> bool:
+    return _is_pins_or_lock(rel) or rel.startswith(WRITE_CONTRACTS_DIR)
+
+
+def test_no_high_entropy_token_beside_an_account_key():
+    """No opaque fixed-length token sits next to an account-ish key.
+
+    THE HAZARD. Check 7 can only defend resource names somebody thought to
+    enumerate. This is the net for the one nobody did. An account's durable
+    handles do not all arrive as tidy integers under "id": they turn up as a
+    hex digest in a media path, an opaque string in a conv_id, a hash on a
+    recruiter record. None of them has a shape any of checks 1-5 recognises,
+    and each is as durable and as resolvable as a primary key.
+
+    WHY THE THRESHOLD IS EIGHT AND MUST STAY EIGHT. This repository was swept
+    once at the conventional >= 16 characters and came back clean. The
+    identifier that had actually leaked was TEN characters of lowercase hex,
+    and the sweep walked straight past it. Sixteen is a number borrowed from
+    secret-scanning, where the thing hunted is an API key; a per-account
+    record handle is much shorter and no less permanent. MIN_ENTROPIC_LEN
+    carries that finding, and lowering the noise by raising it would restore
+    the exact blind spot that produced this check.
+
+    WHAT IS ASSERTED. On any line mentioning an account-ish key name, every
+    standalone alphanumeric run of MIN_ENTROPIC_LEN or more that mixes letters
+    and digits must justify itself: a repdigit, an ascending-digit stand-in, a
+    git SHA, a self-announcing sentinel, a declared synthetic token, or a
+    public-CDN employer avatar path. Anything else fails.
+
+    WHAT IS NOT ASSERTED. Pure-digit runs are left to checks 2 and 7 -- a
+    thirteen-digit epoch is not a token. Runs glued into a dotted or
+    underscored compound are identifiers and filenames, not values. And the
+    scan is line-at-a-time, so a token whose key sits on the previous line is
+    invisible to it; the module docstring records that.
+
+    Failures print a shape and a location, never the token.
+    """
+    hits = []
+    for rel, lineno, line in _iter_lines(skip=_entropy_scan_skipped):
+        if not ACCOUNT_KEY_NAME.search(line):
+            continue
+        if GIT_SHA40.search(line):
+            continue
+        for match in ENTROPIC_ATOM.finditer(line):
+            value = match.group(0)
+            if len(value) < MIN_ENTROPIC_LEN:
+                continue
+            if _entropic_atom_allowed(value, line, match.start(), match.end()):
+                continue
+            hits.append(
+                "%s:%d  ENTROPIC-TOKEN  %s  (beside an account-ish key)"
+                % (rel, lineno, _fingerprint(value))
+            )
+    assert not hits, (
+        "Opaque high-entropy tokens sit next to account-scoped key names in "
+        "this repo. A durable per-account handle reads as noise but resolves "
+        "back to one person for the life of the account. Replace the DATA "
+        "with an obvious stand-in. Widen an allowlist above only for a class "
+        "that provably names no person, and name the class when you do.\n%s"
+        % _report(hits)
     )

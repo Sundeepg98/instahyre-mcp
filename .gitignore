@@ -31,3 +31,38 @@ htmlcov/
 # carrying tracking identifiers -- the distilled, guarded contracts live in
 # tests/fixtures/write_contracts/ instead.
 _audit/_data/
+
+# --- Public-repo hardening, 2026-08-24 -------------------------------------
+# This repository is a candidate for PUBLIC release. That changes what a
+# careless `git add -A` costs: from a private mistake to a permanent one. Every
+# pattern below names an artifact this codebase can actually WRITE -- they were
+# read off the path builders in instahyre_server (default_db_path,
+# browser_profile_path, snapshots_dir) and scripts/ (--out), not guessed from a
+# generic template. Nothing matching them is tracked today; `git ls-files` was
+# checked against every one, so adding them untracks nothing.
+#
+# Profile snapshots hold his profile data verbatim. They resolve under
+# $INSTAHYRE_HOME and were protected ONLY by the `_state/` prefix above -- an
+# INSTAHYRE_HOME pointed anywhere else wrote them into the open. This is the
+# one real gap the audit found; the rest is belt and braces.
+profile_snapshots/
+
+# Capture output. scripts/capture_write_contracts.py defaults under _audit/_data
+# but takes --out, so the payload can be written anywhere by a single flag.
+capture-*.json
+bundle-extract-*.md
+
+# Session and browser state, under every name these tools use.
+storage_state.json
+cookies.json
+*.har
+.playwright/
+.instahyre/
+
+# SQLite, including the sidecar journals -- a -wal file holds rows the .db does
+# not yet, so ignoring only *.db leaves the most recent writes exposed.
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
