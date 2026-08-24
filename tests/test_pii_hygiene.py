@@ -79,6 +79,21 @@ green tick with someone else's privacy.
     seen. The fixtures here are pretty-printed one key per line, which is why
     this is affordable today.
 
+  * ANY VALUE ASSEMBLED AT RUNTIME. This is the widest hole in the file and it
+    is not theoretical: `tests/test_capture_scrub.py` builds an address as
+    `"x" + "@" + "y." + "com"` so the file stays clean under its own scanner.
+    No regex in this module -- or in any regex sweep of this repository -- can
+    see it, because the string does not exist until the expression evaluates.
+    Concatenation, an f-string, `chr()`, base64, a value read from a fixture at
+    import time: all invisible here.
+    STATED PLAINLY, because a number that under-reports is worse than no
+    number: REGEX-ONLY SWEEPS OF THIS REPOSITORY UNDER-REPORT BY CONSTRUCTION.
+    A clean run of this module is evidence about literals, and about nothing
+    else. Closing it needs an AST pass that folds constant expressions before
+    matching, which is real work and is not done here -- so it is written down
+    instead. An uncovered class that is documented is a known limit; the same
+    class left silent is the next incident.
+
 FILE LIST
 ---------
 `git ls-files` from the repository root, so a file is covered the day it is

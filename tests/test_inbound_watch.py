@@ -551,7 +551,7 @@ class TestTheActivityStream:
         out = client.watch.whats_new("activity")
 
         assert out["new_count"] == 1
-        assert out["new"][0]["recruiter"] == "New Person"
+        assert out["new"][0]["recruiter"] == "Vexmoor Trillby"
 
     def test_the_same_events_with_aged_timestamps_are_not_new(self):
         """The whole point, end to end. Every ``action_date`` is rewritten the
