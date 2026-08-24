@@ -77,6 +77,10 @@ EXPECTED_TOOLS = {
     # Tier 4 -- profile writes. These change his account.
     "instahyre_update_skills",
     "instahyre_update_profile",
+    # Added 2026-08-24. It retires a refusal rather than filling a gap: the
+    # job-search-profile fields were named as NOT writable, on the honest
+    # ground that the whole-object PUT was unverified. It was verified.
+    "instahyre_update_job_search_profile",
     "instahyre_restore_profile",
     "instahyre_list_profile_snapshots",
     "instahyre_verify_apply_target",
@@ -185,8 +189,8 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_forty_seven_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 47
+def test_the_server_registers_exactly_forty_eight_tools(tools):
+    assert len(tools) == len(EXPECTED_TOOLS) == 48
 
 
 def test_every_tool_name_is_namespaced(tools):

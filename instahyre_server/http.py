@@ -210,6 +210,22 @@ class InstahyreHTTP:
     def patch(self, path: str, **kwargs: Any) -> Any:
         return self.request("PATCH", path, **kwargs)
 
+    # PUT joined on 2026-08-24, for the job-search profile, and it is the one
+    # verb here whose SEMANTICS are dangerous rather than merely its target: a
+    # PATCH that forgets a field changes nothing, a PUT that forgets a field
+    # DELETES it. That asymmetry is not managed in this class -- adding it here
+    # buys nothing on its own -- it is managed at the single call site, which
+    # refuses to send a body that does not carry every key its own read
+    # returned. See profile_write._guard_no_key_dropped.
+    #
+    # Adding this verb deliberately trips two census tests in
+    # tests/test_inbound_safety.py, which enumerate the modules holding a write
+    # verb and the endpoints those verbs may aim at. That is the census working:
+    # a new door in this class is meant to be a test failure someone has to
+    # answer for, not a quiet capability.
+    def put(self, path: str, **kwargs: Any) -> Any:
+        return self.request("PUT", path, **kwargs)
+
     # -- response interpretation ------------------------------------------
 
     def _interpret(self, response: httpx.Response, path: str) -> Any:

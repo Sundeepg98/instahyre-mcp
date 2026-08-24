@@ -73,6 +73,7 @@ from .cache import Store, default_db_path
 from .errors import ApiError, InstahyreError, InvalidFilter
 from .http import InstahyreHTTP
 from .paths import relativise_prose
+from .taxonomy import Taxonomy
 
 log = logging.getLogger("instahyre.profile_write")
 
@@ -97,10 +98,14 @@ WRITABLE_SCALARS = {
     "total_experience": int,
 }
 
-#: Fields a caller will reasonably ask for that live on the job-search-profile
-#: sub-object, not the candidate. Writing one means PUTting the WHOLE jsp back,
-#: which is a different and much wider contract. Refused by name, with the
-#: reason, rather than silently ignored or guessed at.
+#: Fields that live on the job-search-profile sub-object, not the candidate.
+#: They are still refused BY THIS PATCH, and that has not changed: the sparse
+#: PATCH reaches candidate-level scalars and these are not on the candidate.
+#: What changed on 2026-08-24 is that the refusal now has a destination. The jsp
+#: contract was read out of the site's own $resource factory, so these fields
+#: are writable -- through update_job_search_profile, which PUTs the whole
+#: object back with every key echoed. Two doors, each honest about which fields
+#: are behind it, rather than one door that guesses.
 JSP_LEVEL_FIELDS = {
     "notice_period": "notice period",
     "notice_period_days": "notice period",
@@ -111,6 +116,21 @@ JSP_LEVEL_FIELDS = {
     "job_function": "job function",
     "status": "job-search status",
 }
+
+#: The subset of JSP_LEVEL_FIELDS that update_job_search_profile can actually
+#: write, so the PATCH refusal points at a real destination for those and only
+#: those. Derived from the constant rather than restated, because a second
+#: hand-maintained list is a second thing to forget.
+#:
+#: ``notice_period_days`` is here because a caller may well pass that name --
+#: this package published it as a READ field until the bundle constant proved it
+#: was an index rather than a day count. It is an alias, not a second field.
+_JSP_FIELD_ALIASES = {"notice_period_days": "notice_period"}
+_JSP_NOW_WRITABLE = frozenset(
+    k
+    for k in JSP_LEVEL_FIELDS
+    if _JSP_FIELD_ALIASES.get(k, k) in C.JSP_WRITABLE_FIELDS
+)
 
 
 #: What :meth:`ProfileWriter.snapshot` names its files: a unix timestamp, a
@@ -132,6 +152,12 @@ class ProfileWriter:
         self.http = http
         self.store = store
         self.inbound = inbound
+        # Built here rather than injected so that location validation cannot be
+        # switched off by constructing the writer without it. A validator that
+        # is absent on some paths is worse than none: it certifies nothing while
+        # reading as a guarantee. This one shares the caller's store, so the
+        # 308-token location list is fetched at most once per TTL.
+        self.taxonomy = Taxonomy(http, store)
 
     # -- reading what is there --------------------------------------------
 
@@ -168,11 +194,28 @@ class ProfileWriter:
         does NOT hold his phone, email or name: a snapshot is a rollback tool,
         and personal data in a file on disk is a liability that buys nothing.
         """
+        return self.take_snapshot(label=label)[1]
+
+    def take_snapshot(self, *, label: str = "auto") -> tuple[dict, dict]:
+        """The snapshot, and its summary, as a pair.
+
+        A jsp write needs the RECORD, not the summary: the object it is about to
+        replace is the object that was just captured, and re-reading it would
+        open a window between the restore point and the write in which the two
+        could disagree. Building the body out of the snapshot closes that window
+        by construction -- what is written is exactly what can be restored.
+        """
         skills = self.read_skills()
         raw = self.inbound.http.get(
             C.EP_PROFILE.format(candidate_id=self.candidate_id())
         )
         scalars = {k: raw.get(k) for k in WRITABLE_SCALARS if k in raw}
+        # Captured from the profile read this method ALREADY makes. A second
+        # request would be a second point in time, which is the thing a restore
+        # point exists to avoid.
+        jsp = raw.get("jsp") if isinstance(raw, dict) else None
+        if not isinstance(jsp, dict):
+            jsp = None
 
         record = {
             "snapshot_id": f"{int(time.time())}-{label}",
@@ -181,17 +224,26 @@ class ProfileWriter:
             "candidate_skills": skills,
             "scalars": scalars,
             "skill_names": [s.get("name") for s in skills],
+            "job_search_profile": jsp,
         }
         path = snapshots_dir() / f"{record['snapshot_id']}.json"
         path.write_text(json.dumps(record, indent=2), encoding="utf-8")
-        log.info("profile snapshot written: %s (%d skills)", path.name, len(skills))
-        return {
+        log.info(
+            "profile snapshot written: %s (%d skills, jsp %s)",
+            path.name,
+            len(skills),
+            "captured" if jsp else "ABSENT",
+        )
+        summary = {
             "snapshot_id": record["snapshot_id"],
             "path": str(path),
             "skills_captured": len(skills),
             "skill_names": record["skill_names"],
             "scalars_captured": sorted(scalars),
+            "jsp_captured": bool(jsp),
+            "jsp_keys_captured": len(jsp) if jsp else 0,
         }
+        return record, summary
 
     def list_snapshots(self) -> list[dict]:
         out = []
@@ -760,6 +812,500 @@ class ProfileWriter:
 
     # -- scalar fields -----------------------------------------------------
 
+    # -- the job-search profile -------------------------------------------
+    #
+    # This is the block that retires a refusal, so it is worth being precise
+    # about what changed. The refusal read: "those need the whole object PUT
+    # back, a contract this server has not verified". Both halves were true.
+    # The contract is now read out of the site's own $resource factory and its
+    # two callers, quoted verbatim in constants.EP_JSP's comment -- so the
+    # second half no longer holds, and the first half is the design below.
+    #
+    # A PUT IS A FULL REPLACEMENT AND AN OMITTED KEY IS A SILENT DELETION.
+    # That is not tested here by omitting a key and looking. It is made
+    # unreachable: the body is the object the server just returned, with only
+    # the named fields replaced, and _guard_no_key_dropped refuses to send
+    # anything narrower. The dangerous question is answered by never asking it.
+
+    def read_jsp(self) -> dict:
+        """The job-search profile exactly as the server returns it.
+
+        Verbatim and unshaped, for the same reason the skill rows are: this
+        object is about to be sent back, and the only way to be certain it goes
+        back unchanged is to never have changed it.
+        """
+        raw = self.inbound.http.get(
+            C.EP_PROFILE.format(candidate_id=self.candidate_id())
+        )
+        jsp = raw.get("jsp") if isinstance(raw, dict) else None
+        if not isinstance(jsp, dict) or not jsp:
+            raise ApiError(
+                "The profile carries no 'jsp' object, so there is nothing to modify "
+                "and nothing to echo back. A write built on an absent read would be a "
+                "write that invents the object it claims to be updating.",
+                path=C.EP_PROFILE,
+            )
+        if not isinstance(jsp.get("id"), int) or isinstance(jsp.get("id"), bool):
+            raise ApiError(
+                "The job-search profile has no integer id. The write route addresses "
+                "the JSP's own id, not the candidate's, and the two are different "
+                "numbers -- so without it there is no safe URL to build.",
+                path=C.EP_PROFILE,
+            )
+        return jsp
+
+    def _validate_jsp_value(self, field: str, value: Any) -> Any:
+        """One field, checked against what the platform's own bundle publishes."""
+        if field == "notice_period":
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise InvalidFilter(
+                    "notice_period is an INDEX into the platform's notice-period "
+                    "bands, not a number of days. Pass an integer 0-"
+                    f"{C.MAX_NOTICE_PERIOD_INDEX}: "
+                    + ", ".join(f"{k}={v}" for k, v in C.NOTICE_PERIOD_RANGES.items()),
+                    field=field,
+                )
+            if value not in C.NOTICE_PERIOD_RANGES:
+                raise InvalidFilter(
+                    f"notice_period {value} is not one of the platform's bands. "
+                    "Valid values: "
+                    + ", ".join(f"{k}={v}" for k, v in C.NOTICE_PERIOD_RANGES.items())
+                    + ". This is an index, not a day count -- 3 means "
+                    f"'{C.NOTICE_PERIOD_RANGES[3]}', not three days.",
+                    field=field,
+                )
+            return value
+
+        if field == "status":
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise InvalidFilter(
+                    "status must be an integer. "
+                    + ", ".join(f"{k}={v}" for k, v in C.JOB_SEARCH_STATUS.items()),
+                    field=field,
+                )
+            if value not in C.JOB_SEARCH_STATUS:
+                raise InvalidFilter(
+                    f"status {value} is not a known job-search status. Valid values: "
+                    + ", ".join(f"{k}={v}" for k, v in C.JOB_SEARCH_STATUS.items()),
+                    field=field,
+                )
+            return value
+
+        if field == "job_type":
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise InvalidFilter(
+                    "job_type must be an integer. "
+                    + ", ".join(f"{k}={v}" for k, v in C.JOB_TYPE_NAMES.items()),
+                    field=field,
+                )
+            if value not in C.JOB_TYPE_NAMES:
+                raise InvalidFilter(
+                    f"job_type {value} is not valid. "
+                    + ", ".join(f"{k}={v}" for k, v in C.JOB_TYPE_NAMES.items()),
+                    field=field,
+                )
+            return value
+
+        if field == "current_salary":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise InvalidFilter(
+                    "current_salary is a number of LAKHS per annum -- the platform "
+                    "renders it as the value times 100000. Pass 18 for 18 LPA, not "
+                    "1800000.",
+                    field=field,
+                )
+            if not (C.MIN_SALARY_LAKHS <= value <= C.MAX_SALARY_LAKHS):
+                raise InvalidFilter(
+                    f"current_salary must be between {C.MIN_SALARY_LAKHS} and "
+                    f"{C.MAX_SALARY_LAKHS} lakhs per annum, which is the range the "
+                    "platform's own form accepts. A figure outside it is almost "
+                    "always rupees that were meant to be lakhs.",
+                    field=field,
+                )
+            # The site parseFloats this field on load and sends a number, while
+            # the server returns a string. A CHANGED value therefore goes out
+            # as a float, matching the browser; an UNTOUCHED one is echoed in
+            # whatever type the server gave.
+            return float(value)
+
+        if field == "location_preferences":
+            if isinstance(value, str) or not isinstance(value, (list, tuple)):
+                raise InvalidFilter(
+                    "location_preferences is a LIST of location names, even when "
+                    "there is one. A bare string would be sent as a list of its "
+                    "characters.",
+                    field=field,
+                )
+            if not value:
+                # The empty-list refusal, for the same reason skills has one.
+                raise WriteRefused(
+                    "Refusing to clear every preferred location. Instahyre is a "
+                    "reverse marketplace and location is one of the filters employers "
+                    "search on, so a profile with no locations is not an open one -- "
+                    "it is one that drops out of location-filtered result sets. If "
+                    "that is really wanted, do it at "
+                    + C.SITE_BASE
+                    + "/candidate/profile/ where the consequence is on screen.",
+                    fields=[field],
+                )
+            resolved = []
+            for item in value:
+                if not isinstance(item, str) or not item.strip():
+                    raise InvalidFilter(
+                        "Every preferred location must be a non-empty string.",
+                        field=field,
+                    )
+                token = self.taxonomy.resolve_location(item.strip())
+                if token not in resolved:
+                    resolved.append(token)
+            return resolved
+
+        # Reachable only by calling this method directly. The public path
+        # subtracts JSP_SERVER_OWNED_KEYS from the writable set before it gets
+        # here, so an unvalidatable field is refused by name upstream. This
+        # stays as the backstop for exactly that direct call: a field with no
+        # validator must never become a value on the wire.
+        raise WriteRefused(
+            f"No validator for {field}; refusing to send an unchecked value."
+        )
+
+    def _guard_no_key_dropped(self, read: dict, body: dict) -> None:
+        """The whole reason this write is safe. Never weaken it.
+
+        A PATCH that forgets a field changes nothing. A PUT that forgets a field
+        DELETES it, and on this resource that means silently unsetting part of
+        the row employers filter on -- with no error, no warning, and no
+        withdraw. The body is built by copying the read, so a missing key can
+        only mean the copy is broken; that is a bug worth stopping the write
+        for, not a difference worth sending.
+        """
+        missing = sorted(set(read) - set(body))
+        if missing:
+            raise WriteRefused(
+                "Refusing to send a body that omits "
+                + ", ".join(missing)
+                + ". This endpoint is a full replacement: a key that is absent from "
+                "the payload is DELETED, not left alone. Every key the read returned "
+                "must ride the write.",
+                fields=missing,
+            )
+        added = sorted(set(body) - set(read))
+        if added:
+            raise WriteRefused(
+                "Refusing to send "
+                + ", ".join(added)
+                + ": the read did not return "
+                + ("that key" if len(added) == 1 else "those keys")
+                + ", so this payload is not the object the server holds. The site "
+                "sends the object back exactly as it received it, and a body with an "
+                "extra field is a body the platform has never been sent.",
+                fields=added,
+            )
+
+    def _guard_server_owned(self, read: dict, body: dict) -> None:
+        """Server-owned keys ride the write, but may never be changed by it."""
+        moved = {
+            key: {"read": read.get(key), "body": body.get(key)}
+            for key in C.JSP_SERVER_OWNED_KEYS
+            if key in read and body.get(key) != read.get(key)
+        }
+        if moved:
+            raise WriteRefused(
+                "Refusing to change server-owned "
+                + ", ".join(sorted(moved))
+                + ". These are derived or assigned by Instahyre. A supplied value "
+                "would be either ignored or believed, and nothing visible from here "
+                "distinguishes the two.",
+                fields=sorted(moved),
+            )
+
+    def _build_jsp_body(self, jsp: dict, supplied: dict) -> dict:
+        """Copy the read, replace only what was named, then prove that is true."""
+        validated = {k: self._validate_jsp_value(k, v) for k, v in supplied.items()}
+        body = dict(jsp)
+        body.update(validated)
+        self._guard_no_key_dropped(jsp, body)
+        self._guard_server_owned(jsp, body)
+        return body
+
+    def _describe_jsp(self, jsp: dict) -> dict:
+        """The four fields a caller actually reasons about, in words."""
+        out: dict = {}
+        if isinstance(jsp.get("notice_period"), int):
+            out["notice_period"] = {
+                "index": jsp["notice_period"],
+                "means": C.NOTICE_PERIOD_RANGES.get(jsp["notice_period"], "unknown band"),
+            }
+        if isinstance(jsp.get("status"), int):
+            out["job_search_status"] = {
+                "code": jsp["status"],
+                "means": C.JOB_SEARCH_STATUS.get(jsp["status"], "unknown status"),
+            }
+        if isinstance(jsp.get("job_type"), int):
+            out["job_type"] = {
+                "code": jsp["job_type"],
+                "means": C.JOB_TYPE_NAMES.get(jsp["job_type"], "unknown"),
+            }
+        if jsp.get("current_salary") is not None:
+            out["current_salary_lakhs"] = jsp["current_salary"]
+        if jsp.get("location_preferences") is not None:
+            out["preferred_locations"] = list(jsp["location_preferences"])
+        return out
+
+    def plan_job_search_profile(self, **changes: Any) -> dict:
+        """What a write would send, without sending it. Reads; never writes."""
+        supplied = {k: v for k, v in changes.items() if v is not None}
+        if not supplied:
+            raise InvalidFilter(
+                "Nothing to update -- pass at least one of: "
+                + ", ".join(C.JSP_WRITABLE_FIELDS),
+                field="fields",
+            )
+        # DERIVED, not read straight off the constant, and a red control is why.
+        # A server-owned key added to JSP_WRITABLE_FIELDS -- by an edit, a merge,
+        # or a well-meant "this looks useful" -- used to become NAMEABLE: it got
+        # past this check and died further in, at _validate_jsp_value's terminal
+        # refusal, with an internal-sounding message and a `pragma: no cover`
+        # comment that had quietly stopped being true. Subtracting the
+        # server-owned set here makes that edit inert instead of merely
+        # survivable, and the refusal below still names the field.
+        writable = tuple(k for k in C.JSP_WRITABLE_FIELDS if k not in C.JSP_SERVER_OWNED_KEYS)
+        unknown = sorted(k for k in supplied if k not in writable)
+        if unknown:
+            raise WriteRefused(
+                "Not writable through this server: "
+                + ", ".join(unknown)
+                + ". Writable job-search-profile fields are: "
+                + ", ".join(writable)
+                + ". The rest of the object is echoed back untouched on every write, "
+                "and each exclusion has a reason recorded beside "
+                "constants.JSP_WRITABLE_FIELDS -- career stage cascades into four "
+                "other fields, is_salary_hidden is gated behind a threshold this "
+                "account does not meet, is_immediate_joinee has no write site in any "
+                "shipped bundle, and the related objects are sent expanded rather "
+                "than as ids.",
+                fields=unknown,
+            )
+        jsp = self.read_jsp()
+        return self._plan_from(jsp, supplied)
+
+    def _plan_from(self, jsp: dict, supplied: dict) -> dict:
+        body = self._build_jsp_body(jsp, supplied)
+        changed = {
+            key: {"from": jsp.get(key), "to": body[key]}
+            for key in supplied
+            if body[key] != jsp.get(key)
+        }
+        unchanged = sorted(k for k in supplied if k not in changed)
+        return {
+            "would_send": {
+                "method": C.JSP_PUT_METHOD,
+                "url": C.API_BASE + C.EP_JSP.format(jsp_id=jsp["id"]),
+                "json_body": body,
+                "headers": {
+                    "Content-Type": "application/json",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
+                },
+            },
+            "jsp_id": jsp["id"],
+            "would_change": changed,
+            "already_at_that_value": unchanged,
+            "body_key_count": len(body),
+            "read_key_count": len(jsp),
+            "reads_as_now": self._describe_jsp(jsp),
+            "would_read_as": self._describe_jsp(body),
+            "full_replacement": (
+                "This endpoint replaces the whole object. Every one of the "
+                f"{len(body)} keys the read returned is in the payload, unchanged "
+                "except for the fields listed in would_change -- an omitted key here "
+                "would be a deletion, so the body is the read with substitutions "
+                "rather than a field list."
+            ),
+        }
+
+    def update_job_search_profile(self, *, confirm: bool = False, **changes: Any) -> dict:
+        """Write the job-search profile. One PUT, carrying the whole object.
+
+        On a reverse marketplace these fields are not cosmetic: notice period
+        and preferred locations are filters employers search on, so they decide
+        whether he appears in a result set at all rather than how he reads once
+        he is in one.
+        """
+        plan = self.plan_job_search_profile(**changes)
+        if not confirm:
+            plan["executed"] = False
+            plan["next_step"] = (
+                "Nothing has been sent. Call again with confirm=True to write. A "
+                "snapshot is taken automatically first, and "
+                "instahyre_restore_profile puts the whole object back."
+            )
+            return plan
+
+        if not plan["would_change"]:
+            raise WriteRefused(
+                "Nothing to write: every field supplied already holds that value. "
+                "Refusing to send a request that cannot change anything -- a no-op "
+                "write is indistinguishable from a broken one, and this one would "
+                "still replace the whole object to achieve it."
+            )
+
+        if not self.http.cookies.get("csrftoken"):
+            raise WriteRefused(
+                "Refusing to write without a CSRF token -- Django would reject the "
+                "request and the result would be ambiguous. Run instahyre_auth_status."
+            )
+
+        # The snapshot's read is the read the body is built from, so the restore
+        # point and the payload describe the same instant.
+        record, snap = self.take_snapshot(label="pre-jsp-write")
+        before = record.get("job_search_profile")
+        if not isinstance(before, dict) or not before:
+            raise WriteRefused(
+                "The snapshot captured no job-search profile, so there would be no "
+                "restore point for a write that replaces the whole object. Refusing "
+                "to write without one."
+            )
+        supplied = {k: v for k, v in changes.items() if v is not None}
+        final = self._plan_from(before, supplied)
+        body = final["would_send"]["json_body"]
+        if not final["would_change"]:
+            raise WriteRefused(
+                "Between the preview and the write the profile already moved to the "
+                "requested values. Nothing was sent."
+            )
+
+        cid = self.candidate_id()
+        log.warning(
+            "writing the live job-search profile: %s", sorted(final["would_change"])
+        )
+        self.http.put(C.EP_JSP.format(jsp_id=before["id"]), json_body=body)
+
+        # The profile is cached for 15 minutes; a stale read would cheerfully
+        # "verify" the value we just changed.
+        self.store.put("profile", str(cid), None, -1)
+        after = self.read_jsp()
+
+        mismatched = {
+            key: {"wanted": body[key], "got": after.get(key)}
+            for key in final["would_change"]
+            if after.get(key) != body[key]
+        }
+        # The collateral report, and the point of the whole exercise. A full
+        # replacement can move fields nobody named -- the server recomputes some
+        # of them -- and the only honest way to ship this write is to show what
+        # else moved rather than to report the requested fields and stop.
+        also_changed = {
+            key: {"before": before.get(key), "after": after.get(key)}
+            for key in sorted(set(before) | set(after))
+            if key not in final["would_change"] and before.get(key) != after.get(key)
+        }
+        result = {
+            "executed": True,
+            "updated": sorted(final["would_change"]),
+            "changed": final["would_change"],
+            "snapshot_id": snap["snapshot_id"],
+            "verified": not mismatched,
+            "mismatched": mismatched or None,
+            "verified_by": "re-read of the profile's jsp object after the write",
+            "reads_as_now": self._describe_jsp(after),
+            "keys_sent": len(body),
+            "also_changed_by_the_server": also_changed or None,
+        }
+        if also_changed:
+            result["collateral_note"] = (
+                "These keys were not requested and moved anyway. Some are server-"
+                "derived and expected to follow (is_immediate_joinee tracks "
+                "notice_period, status_string tracks status). Any OTHER name here is "
+                "a finding: it means the full replacement disturbed something, and "
+                "the snapshot above is how to put it back."
+            )
+        if mismatched:
+            result["warning"] = (
+                "THE WRITE DID NOT VERIFY. The request was accepted but the profile "
+                "does not read back as intended. Nothing further has been attempted "
+                "-- call instahyre_restore_profile with scope='job_search_profile' "
+                "and the snapshot_id above, and do not retry until the difference is "
+                "understood."
+            )
+            log.error("jsp write did not verify: %s", sorted(mismatched))
+        return result
+
+    def restore_job_search_profile(
+        self, snapshot_id: Optional[str] = None, *, confirm: bool = False
+    ) -> dict:
+        """Put the whole job-search profile back to a snapshot. One PUT does it.
+
+        Restoring is the same request as writing, which is the one convenience a
+        full-replacement resource offers: the snapshot IS a valid body.
+        """
+        snap = self.load_snapshot(snapshot_id)
+        target = snap.get("job_search_profile")
+        if not isinstance(target, dict) or not target:
+            raise WriteRefused(
+                "That snapshot holds no job-search profile. Snapshots taken before "
+                "2026-08-24 captured skills and scalars only, so there is nothing to "
+                "restore from this one -- and a restore that guessed the missing keys "
+                "would delete every key it failed to guess. Use "
+                "instahyre_list_profile_snapshots to find one with jsp_captured set."
+            )
+        if not isinstance(target.get("id"), int) or isinstance(target.get("id"), bool):
+            raise WriteRefused(
+                "That snapshot's job-search profile carries no integer id, so there "
+                "is no URL to restore it to."
+            )
+
+        current = self.read_jsp()
+        differs = {
+            key: {"now": current.get(key), "snapshot": target.get(key)}
+            for key in sorted(set(current) | set(target))
+            if current.get(key) != target.get(key)
+        }
+        preview = {
+            "snapshot_id": snap.get("snapshot_id"),
+            "taken_at": snap.get("taken_at"),
+            "would_send": {
+                "method": C.JSP_PUT_METHOD,
+                "url": C.API_BASE + C.EP_JSP.format(jsp_id=target["id"]),
+                "json_body": target,
+            },
+            "would_revert": differs,
+            "reads_as_now": self._describe_jsp(current),
+            "would_read_as": self._describe_jsp(target),
+        }
+        if not confirm:
+            preview["executed"] = False
+            preview["next_step"] = "Call again with confirm=True to restore."
+            return preview
+        if not differs:
+            raise WriteRefused(
+                "The live job-search profile already matches that snapshot. Nothing "
+                "to restore, and nothing was sent."
+            )
+        if not self.http.cookies.get("csrftoken"):
+            raise WriteRefused(
+                "Refusing to write without a CSRF token. Run instahyre_auth_status."
+            )
+
+        self._guard_no_key_dropped(current, target)
+        log.warning("restoring the job-search profile from %s", snap.get("snapshot_id"))
+        self.http.put(C.EP_JSP.format(jsp_id=target["id"]), json_body=target)
+        self.store.put("profile", str(self.candidate_id()), None, -1)
+        after = self.read_jsp()
+        still_off = {
+            key: {"wanted": target.get(key), "got": after.get(key)}
+            for key in sorted(set(target) | set(after))
+            if after.get(key) != target.get(key)
+        }
+        return {
+            "executed": True,
+            "snapshot_id": snap.get("snapshot_id"),
+            "reverted": sorted(differs),
+            "verified": not still_off,
+            "still_differs": still_off or None,
+            "verified_by": "re-read of the profile's jsp object after the restore",
+            "reads_as_now": self._describe_jsp(after),
+        }
+
     def update_fields(self, *, confirm: bool = False, **fields: Any) -> dict:
         """Sparse PATCH of candidate-level scalars.
 
@@ -775,17 +1321,27 @@ class ProfileWriter:
 
         refused = {k: JSP_LEVEL_FIELDS[k] for k in body if k in JSP_LEVEL_FIELDS}
         if refused:
-            raise WriteRefused(
+            writable_here = sorted(
+                {JSP_LEVEL_FIELDS[k] for k in refused if k in _JSP_NOW_WRITABLE}
+            )
+            message = (
                 "Refusing to write "
                 + ", ".join(sorted(refused.values()))
-                + ": those live on the job-search-profile sub-object, not the candidate "
-                "record, so setting one means PUTting that whole object back. That "
-                "contract is not verified here, and a partly-correct PUT would blank "
-                "neighbouring fields. Change these at "
-                + C.SITE_BASE
-                + "/candidate/profile/ instead.",
-                fields=sorted(refused),
+                + " through this tool: those live on the job-search-profile "
+                "sub-object, not the candidate record, so setting one means PUTting "
+                "that whole object back -- a different request to a different "
+                "resource. This one is a sparse PATCH and will not pretend otherwise."
             )
+            if writable_here:
+                message += (
+                    " Use instahyre_update_job_search_profile for "
+                    + ", ".join(writable_here)
+                    + "; it reads the object, replaces only what you name, and echoes "
+                    "every other key back so nothing is dropped."
+                )
+            else:
+                message += " Change these at " + C.SITE_BASE + "/candidate/profile/."
+            raise WriteRefused(message, fields=sorted(refused))
 
         unknown = sorted(k for k in body if k not in WRITABLE_SCALARS)
         if unknown:

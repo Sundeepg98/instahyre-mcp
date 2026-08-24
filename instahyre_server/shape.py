@@ -498,8 +498,17 @@ def shape_profile(raw: dict) -> dict:
     # returns the bare integer and nothing to decode it with.
     if jsp.get("status_string"):
         profile["job_search_status"] = jsp["status_string"]
+    # NOT DAYS. `notice_period` is an INDEX into NOTICE_PERIOD_RANGES -- 3 means
+    # "2 months or less", not three days -- and this shipped as
+    # `notice_period_days` until the bundle constant was read on 2026-08-24. The
+    # mislabel was invisible on this account because it sits at 0, where both
+    # readings print the same number. The band is emitted beside the index so a
+    # reader never has to know which one it is.
     if jsp.get("notice_period") is not None:
-        profile["notice_period_days"] = jsp["notice_period"]
+        profile["notice_period"] = jsp["notice_period"]
+        profile["notice_period_band"] = C.NOTICE_PERIOD_RANGES.get(
+            jsp["notice_period"], "unrecognised band %r" % (jsp["notice_period"],)
+        )
     if jsp.get("location_preferences"):
         profile["preferred_locations"] = list(jsp["location_preferences"])
     if jsp.get("is_immediate_joinee") is not None:

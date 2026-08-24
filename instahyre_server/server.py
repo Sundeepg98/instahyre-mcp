@@ -841,12 +841,42 @@ def instahyre_server_info() -> dict:
                 "Instahyre's API has it. It is a one-way door across a whole queue at once and "
                 "is permanently out of scope."
             ),
-            "profile_writes_beyond_skills_and_three_scalars": (
-                "Skills and three candidate-level scalars are writable and verified. "
-                "Everything on the job-search-profile sub-object (notice period, salary, "
-                "preferred locations, job-search status) is NOT: those need the whole "
-                "object PUT back, a contract this server has not verified, so it refuses "
-                "them by name rather than guessing."
+            "profile_writes_beyond_the_job_search_profile": (
+                "THE OLD REFUSAL HERE IS RETIRED, and it is worth saying why rather "
+                "than just deleting it. It read: the job-search-profile sub-object "
+                "needs the whole object PUT back, 'a contract this server has not "
+                "verified'. That named an UNVERIFIED contract, not an unknowable one, "
+                "and a contract can be verified -- so it was, out of Instahyre's own "
+                "$resource factory and both calling functions. Notice period, salary, "
+                "preferred locations, job type and job-search status are now writable "
+                "through instahyre_update_job_search_profile. The full replacement is "
+                "handled by never omitting a key: the object is read, only the named "
+                "fields are replaced, everything else is echoed back verbatim, and a "
+                "guard refuses any body narrower than the read. What is STILL not "
+                "written, each for a stated reason rather than for nerve: career "
+                "stage (it cascades into four fields the caller did not name), "
+                "is_salary_hidden (gated behind a salary and experience threshold this "
+                "account does not meet, so the site does not offer him the control), "
+                "is_immediate_joinee (server-derived; zero write sites across ten "
+                "bundles), and the related objects job_function, industry_types and "
+                "languages (sent EXPANDED rather than as ids, which is a wider "
+                "contract than the five fields that were asked for)."
+            ),
+            "work_experience_edit": (
+                "NOT BUILT, and the reason changed on 2026-08-24. The earlier record "
+                "said no caller for PUT onboarding_workex exists in any shipped "
+                "bundle. That was wrong -- $scope.onBoardingProfileSave calls it, on "
+                "the ONBOARDING page rather than the profile page, which is why a "
+                "profile-page search missed it. Reading the caller closed the surface "
+                "harder than the missing evidence had: the body is $scope.candidate, "
+                "the ENTIRE candidate object, and the response is read back for "
+                "current_company and companies_to_block. The route named 'workex' "
+                "writes the CANDIDATE. There is no work-experience record on this "
+                "platform to edit, which is why the profile page renders no control "
+                "for one and the 42-key profile payload contains no such block. The "
+                "fields it does reach are already writable by sparse PATCH through "
+                "instahyre_update_profile, so building it would trade a narrow write "
+                "for a whole-object one at zero gain."
             ),
             "inbox_writes": (
                 "REPLYING IS NOW REACHABLE, and nothing else is. instahyre_reply_to_"
@@ -857,7 +887,19 @@ def instahyre_server_info() -> dict:
                 "mutating path markers including send_message, so a reader cannot reach "
                 "the send path by editing a constant. Bulk apply remains permanently out "
                 "of scope. Worth knowing about this resource: mark_all_read is a GET that "
-                "mutates, which is why both guards key on the PATH and never on the verb."
+                "mutates, which is why both guards key on the PATH and never on the "
+                "verb. STARRING AND MARKING READ ARE NOW MEASURED AND STILL NOT BUILT "
+                "-- a different statement from the one above, and the honest one: "
+                "inboxService.toggleStarConversation, .markUnstarred and .markUnread "
+                "all ship as callers, both are POST, so the evidence gap that closed "
+                "reply is closed for these too. They stay unbuilt on VALUE, not on "
+                "evidence. Starring is a private bookmark on a queue this account can "
+                "already sort and filter locally, marking read destroys the only "
+                "signal that distinguishes a new recruiter message from an old one, "
+                "and both would cost the same thing: SENDABLE_INBOX_PATHS is an "
+                "allowlist of exactly one, and each addition widens the only write "
+                "channel this server has into the inbox. That perimeter is worth more "
+                "than a bookmark."
             ),
         },
         "irreversible_tools": [
@@ -1455,10 +1497,11 @@ def instahyre_update_profile(
     PATCH is verified for -- Instahyre's own frontend does exactly this, one key
     at a time, in four independent places.
 
-    Notice period, salary, preferred locations and job-search status are NOT
-    writable and are refused by name with the reason: they live on a sub-object
-    that has to be sent back whole, which is a wider contract than anything
-    verified. Change those on the website.
+    Notice period, salary, preferred locations, job type and job-search status
+    are NOT writable HERE, and are refused by name pointing at the tool that can
+    write them: they live on a sub-object that has to be sent back whole, which
+    is a different request to a different resource. Use
+    instahyre_update_job_search_profile for those.
 
     Snapshots first, verifies after.
 
@@ -1478,8 +1521,74 @@ def instahyre_update_profile(
 
 @mcp.tool()
 @handled
-def instahyre_restore_profile(snapshot_id: Optional[str] = None, confirm: bool = False) -> dict:
-    """Put his skill list back to a snapshot taken before a write.
+def instahyre_update_job_search_profile(
+    notice_period: Optional[int] = None,
+    current_salary: Optional[float] = None,
+    location_preferences: Optional[list[str]] = None,
+    status: Optional[int] = None,
+    job_type: Optional[int] = None,
+    confirm: bool = False,
+) -> dict:
+    """Write the job-search profile: notice period, salary, locations, status, job type.
+
+    THESE ARE FILTERS, NOT DECORATION. Instahyre is a reverse marketplace --
+    employers search for candidates rather than the other way round -- so notice
+    period and preferred locations decide whether he appears in a result set at
+    all, not how he reads once he is in one. A stale notice period silently
+    removes him from every urgent-hire search.
+
+    This tool was refused until 2026-08-24, and the refusal was honest: these
+    fields live on a sub-object the platform replaces WHOLE, and that contract
+    had not been verified. It has been now, out of Instahyre's own $resource
+    factory and both of its calling functions.
+
+    HOW THE FULL REPLACEMENT IS MADE SAFE. The endpoint deletes any key the
+    payload omits. So the payload never omits one: the object is read, only the
+    fields named here are replaced, and every other key is echoed back exactly
+    as the server returned it. A guard refuses the request outright if the body
+    it is about to send does not carry every key the read returned -- so the
+    dangerous case is unreachable rather than merely avoided.
+
+    NOTICE PERIOD IS AN INDEX, NOT A NUMBER OF DAYS. 0 Immediately, 1 fifteen
+    days or less, 2 one month or less, 3 two months or less, 4 three months or
+    less. Passing 30 for "thirty days" is refused, not rounded.
+
+    SALARY IS IN LAKHS per annum: 18 means 18 LPA, not 1800000.
+
+    With confirm=False nothing is sent and the whole payload is shown, including
+    the keys that ride along untouched. A snapshot is written before any write,
+    and the result reports not only whether the requested fields took, but ALSO
+    what else moved -- a full replacement can shift server-derived neighbours,
+    and reporting only the fields that were asked for would hide exactly that.
+
+    Args:
+        notice_period: 0-4, an INDEX into the platform's bands. Not days.
+        current_salary: Current annual salary in LAKHS (0-250).
+        location_preferences: Preferred work locations. Replaces the whole list;
+            names are resolved against the platform's own location taxonomy, and
+            an empty list is refused rather than sent.
+        status: 0 actively looking, 1 passively looking, 2 not looking.
+        job_type: 0 both, 1 full-time only, 2 internships only.
+        confirm: Must be True to actually write.
+    """
+    return get_client().profile_writer.update_job_search_profile(
+        confirm=confirm,
+        notice_period=notice_period,
+        current_salary=current_salary,
+        location_preferences=location_preferences,
+        status=status,
+        job_type=job_type,
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_restore_profile(
+    snapshot_id: Optional[str] = None,
+    confirm: bool = False,
+    scope: str = "skills",
+) -> dict:
+    """Put his skill list -- or his job-search profile -- back to a snapshot.
 
     ONE PATCH does the whole job, in both directions. The resource is a full
     replacement set, so writing the snapshot's rows back simultaneously restores
@@ -1497,11 +1606,34 @@ def instahyre_restore_profile(snapshot_id: Optional[str] = None, confirm: bool =
     re-created, and sends nothing. Restoring is itself a write, so it takes its
     own snapshot first.
 
+    ``scope="job_search_profile"`` restores the OTHER half instead: notice
+    period, salary, preferred locations, status and every neighbouring key, by
+    PUTting the snapshot's object back whole. That works because a
+    full-replacement resource makes the snapshot a valid body -- restoring is
+    the same request as writing, with older contents. A snapshot taken before
+    2026-08-24 holds no job-search profile and is refused for this scope rather
+    than partially applied, because a partial PUT deletes what it cannot supply.
+
+    The two scopes are separate calls on purpose. They are different resources
+    and different requests, and one flag that fired both would make a
+    half-failure impossible to describe.
+
     Args:
         snapshot_id: From instahyre_list_profile_snapshots. Defaults to the newest.
         confirm: Must be True to actually restore.
+        scope: "skills" (default) or "job_search_profile".
     """
-    return get_client().profile_writer.restore_skills(snapshot_id, confirm=confirm)
+    writer = get_client().profile_writer
+    if scope == "skills":
+        return writer.restore_skills(snapshot_id, confirm=confirm)
+    if scope == "job_search_profile":
+        return writer.restore_job_search_profile(snapshot_id, confirm=confirm)
+    raise InvalidFilter(
+        'scope must be "skills" or "job_search_profile", not %r. The two are '
+        "different resources and different requests; there is deliberately no "
+        "value that restores both at once." % (scope,),
+        field="scope",
+    )
 
 
 @mcp.tool()
@@ -1514,7 +1646,10 @@ def instahyre_list_profile_snapshots() -> dict:
         "count": len(snapshots),
         "note": (
             "Written automatically before every write. An empty list means this server "
-            "has never written to the profile."
+            "has never written to the profile. Check jsp_captured before restoring "
+            "with scope='job_search_profile': snapshots taken before 2026-08-24 hold "
+            "skills and scalars only, and restoring a job-search profile from one is "
+            "refused rather than half-applied."
         ),
     }
 

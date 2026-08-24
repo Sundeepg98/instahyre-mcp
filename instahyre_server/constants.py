@@ -294,9 +294,13 @@ SETTINGS_NEVER_EMIT = frozenset({"password", "current_password", "confirm_passwo
 # job -- so they are summarised as present/absent rather than echoed.
 CONTACT_FIELDS = frozenset({"phone", "alternate_phone", "email", "name"})
 
-# VERIFIED: 0 is what this account reads today. The remaining codes are NOT
-# known -- the labelled dropdown lives on an authenticated page whose bundle is
-# not in the captured corpus. The tool reports the integer and says so.
+# SUPERSEDED 2026-08-24 by JOB_SEARCH_STATUS, which carries all three codes off
+# constant("JOB_SEARCH_STATUS",{ACTIVE:0,PASSIVE:1,NOT_LOOKING:2}) in the shipped
+# bundle. This constant is kept, not deleted: it is the honest record of what was
+# known when only this account's own value had been seen, and the settings
+# endpoint still returns a bare integer that nothing on ITS page decodes. Read
+# JOB_SEARCH_STATUS for the profile's `jsp.status`; this one says only what one
+# live read confirmed.
 JOB_SEARCH_STATUS_KNOWN = {0: "actively looking (default)"}
 
 # --- Messages --------------------------------------------------------------
@@ -599,18 +603,35 @@ UNVERIFIED_WRITE_SURFACES = {
         "this one."
     ),
     "workex_put": (
-        "A PUT is a full replacement, and not even the READ shape of a candidate "
-        "workex record exists here: the profile fixture carries 42 keys and none is "
-        "a work-experience block. Every workex_* hit in this package is a job-side "
-        "field, not a candidate one. An omitted key in a PUT silently deletes a "
-        "field nobody has ever seen. The 2026-08-23 capture pass measured the "
-        "method and URL -- PUT /candidate_misc/profile/onboarding_workex/:id, from "
-        "the candidateService factory -- and then stalled on the part that "
-        "matters: NO CALLER exists in any of the ten shipped bundles, and the "
-        "signed-in profile page renders no work-experience control at all (its "
-        "editors are preference, skills, current_company, internship, education, "
-        "social and diversity_info). The route appears to be onboarding-only, so "
-        "there is no control to intercept and the field list stays unmeasured."
+        "THE 2026-08-23 ENTRY WAS WRONG ON ITS CENTRAL CLAIM and is corrected here "
+        "rather than quietly replaced: it said NO CALLER exists in any of the ten "
+        "shipped bundles. One does. candidateService declares "
+        "save_onboarding_workex:{url:...onboarding_workex/:id,method:'PUT'} and "
+        "$scope.onBoardingProfileSave calls it -- "
+        "candidateService.save_onboarding_workex({id:$scope.candidate.id},"
+        "$scope.candidate). The earlier pass searched the CANDIDATE PROFILE page and "
+        "found nothing because the control is not there; it is on the ONBOARDING "
+        "page, which is a different controller.\n\n"
+        "Reading the caller settles the surface and closes it, in the opposite "
+        "direction from the one the register expected. The body is not a "
+        "work-experience record. It is $scope.candidate -- THE ENTIRE CANDIDATE "
+        "OBJECT, jsp and education and skills included -- and the response is read "
+        "back for current_company, current_company_nopunc and companies_to_block. So "
+        "the route named 'workex' writes the CANDIDATE, and 'edit work experience' is "
+        "not a capability this platform has: there is no work-experience record to "
+        "edit, which is why the profile page renders no control for one and why the "
+        "42-key profile payload contains no such block. That was the true finding "
+        "behind the earlier entry's wrong reason.\n\n"
+        "It stays unbuilt, and now on the merits rather than for want of evidence. "
+        "The fields this route reaches -- current_company, current_designation, "
+        "total_experience -- are ALREADY writable through EP_PROFILE_PATCH, which is "
+        "a sparse PATCH: it touches the keys it names and nothing else. Building this "
+        "PUT would replace a whole-object write for a same-effect sparse one, which "
+        "is strictly more blast radius for zero new capability. What remains "
+        "genuinely unmeasured is the exact body shape -- $scope.candidate as the "
+        "onboarding controller holds it, which is not byte-identical to the profile "
+        "GET -- and that is the measurement anyone reversing this decision must take "
+        "first."
     ),
 }
 
@@ -705,7 +726,188 @@ PROFILE_IMAGE_ENCODING = "data:image/webp;base64, width<=800, quality 0.7"
 PROFILE_IMAGE_MAX_WIDTH = 800
 PROFILE_IMAGE_QUALITY = 0.7
 
+# --- The job-search profile (jsp): the row employers filter on --------------
+#
+# THIS SECTION RETIRES A REFUSAL, so it starts with what the refusal said:
+# "those need the whole object PUT back, a contract this server has not
+# verified, so it refuses them by name rather than guessing."
+#
+# The contract is now read, and the refusal's own premise is what made it
+# retirable -- it named an UNVERIFIED contract, not an unknowable one.
+#
+# WHERE THE JSP LIVES ON THE READ SIDE. It is not a second request. The profile
+# GET already returns it whole, under the key `jsp`, with 26 keys and every
+# related object EXPANDED (job_function is a full object; industry_types and
+# languages are lists of full objects). That matters more than it looks: the
+# write below is a read-modify-write, and a read-modify-write is only as safe
+# as its read is complete. This one is complete by construction -- it is the
+# same payload the site's own controller binds its form to.
+#
+# WHERE THE WRITE GOES, and the trap in the name. The object's own
+# `resource_uri` says `candidate_jsp`. The site does not write there. It writes
+# through a $resource factory, quoted whole, whose URL is `candidate_skills/:id`
+# -- so there are TWO routes to one object and the site uses the one that sounds
+# like it carries skills. It does not; skills ride `candidate_skill_model`.
+# Guessing from the resource_uri would have picked the wrong door, which is
+# precisely why this stayed refused until it was READ rather than inferred.
+#
+#     candidateServicesModule.factory("candidateSkillsService",
+#       function($resource,API_PATHS){
+#         var url=`${API_PATHS.CANDIDATE_MISC_PROFILE}/candidate_skills/:id`,
+#             candidate_skills=$resource(url,{id:"@id"},{update:{method:"PUT"}});
+#         return candidate_skills;})
+#
+# `:id` binds to `@id` -- the JSP's OWN id, not the candidate's. The two are
+# different numbers on this account and swapping them addresses another row.
+#
+# WHAT THE BODY IS. The whole jsp, passed by reference:
+#
+#     var _getSkillUpdatePromise=function(jspData,scope){
+#       saveCareerBreakFields(jspData,scope);
+#       return candidateSkillModelService.multi_save(...)
+#         .finally(function(){return candidateSkillsService.update(jspData).$promise;})...}
+#
+#     $scope.profileSkillSave=function(editor){
+#       ...remapLanguages();
+#       _getSkillUpdatePromise($scope.candidate.jsp,editorScope.$$childTail)...}
+#
+# So `jspData` IS `$scope.candidate.jsp`. There is no projection, no field list
+# and no allowlist between the form and the wire: whatever the object holds is
+# what goes. That is the whole reason a partial body is dangerous here, and the
+# whole reason echoing the read back verbatim is sufficient.
+#
+# THE OTHER SAVE PATH, and why it is not used. The preference editor reaches
+# the same object through `saveChanges`, which reads its method and URL off DOM
+# attributes (`cscope.editors[attrs.editorModel]=attrs`). Those attributes ship
+# in server-rendered HTML, in no bundle, so that path cannot be read from
+# source at all -- only from a live browser. The $resource path above needs no
+# browser and lands on the same resource, which is why it is the one recorded.
+EP_JSP = "/candidate_misc/profile/candidate_skills/{jsp_id}"
+
+#: The route the object NAMES ITSELF, which is NOT the route the site writes
+#: to. Kept as a constant so the difference stays visible and cannot be quietly
+#: "corrected" into the write path by someone reading a resource_uri.
+JSP_SELF_URI_PREFIX = "/api/v1/candidate_misc/profile/candidate_jsp/"
+
+JSP_PUT_METHOD = "PUT"
+
+#: A PUT is a full replacement and an omitted key is a silent deletion. This
+#: server never tests that by omitting one. It removes the question instead:
+#: every write echoes back every key the read returned, so the payload's
+#: implicit claim -- "this is the whole object" -- is true. Same discipline as
+#: the skills replacement set, arrived at by a different route.
+JSP_PUT_IS_FULL_REPLACEMENT = True
+
+#: Read from the shipped bundle: constant("NOTICE_PERIOD_RANGES",{...}).
+#: THE VALUE IS AN INDEX, NOT A NUMBER OF DAYS, and the two readings coincide
+#: only at 0. A profile reading `notice_period: 3` means "2 months or less",
+#: not three days. An earlier build surfaced this field as `notice_period_days`;
+#: that label was wrong, and wrong invisibly, because this account sits at 0
+#: where both readings print the same thing.
+NOTICE_PERIOD_RANGES = {
+    0: "Immediately",
+    1: "15 days or less",
+    2: "1 month or less",
+    3: "2 months or less",
+    4: "3 months or less",
+}
+#: constant("MAX_NOTICE_PERIOD_INDEX",4) -- shipped, not derived from the dict.
+MAX_NOTICE_PERIOD_INDEX = 4
+
+#: constant("JOB_SEARCH_STATUS",{ACTIVE:0,PASSIVE:1,NOT_LOOKING:2}). This
+#: SUPERSEDES JOB_SEARCH_STATUS_KNOWN, which held only the value this account
+#: happens to sit at and said the rest were unmeasured. They ship.
+JOB_SEARCH_STATUS = {0: "actively looking", 1: "passively looking", 2: "not looking"}
+
+#: constant("CAREER_STAGE",{FRESHER:0,EXPERIENCED:1,CAREER_BREAK:2}).
+CAREER_STAGE = {0: "fresher", 1: "experienced", 2: "career break"}
+
+#: constant("MIN_JOB_SALARY_LIMIT",0) / constant("MAX_JOB_SALARY_LIMIT",250).
+#: Units are LAKHS per annum -- the page renders the figure as salary*100000.
+MIN_SALARY_LAKHS = 0
+MAX_SALARY_LAKHS = 250
+
+#: The jsp fields this server will change. Short on purpose, and every name
+#: ABSENT from it is absent for a stated reason rather than for lack of nerve:
+#:
+#:   is_immediate_joinee -- ZERO write sites across all ten bundles. The page
+#:     never assigns it, so it is server-derived (almost certainly from
+#:     notice_period). Writing a field the site itself only reads is the
+#:     guessed-contract failure this register exists to refuse. It is echoed
+#:     back untouched, and if the server recomputes it after a notice_period
+#:     change the verify step reports the move instead of hiding it.
+#:   is_salary_hidden -- the control exists ($scope.toggleHideSalary) but is
+#:     gated on HIDE_SALARY_LIMITS {'salary':50,'experience':8}. This account
+#:     reads 0 and 5, so the site does not offer him the toggle at all.
+#:     Sending it would be sending a value his own session cannot produce.
+#:   career_stage / career_break_* -- changing career stage CASCADES in the
+#:     page: it NULLs notice_period, zeroes current_salary, and blanks
+#:     current_company and current_designation. One tool call should not move
+#:     four fields it did not name.
+#:   job_function / industry_types / languages -- related objects, sent
+#:     EXPANDED. Setting one means selecting a whole option object out of a
+#:     taxonomy the page had already loaded, not writing an id. Buildable, not
+#:     built: it is a wider contract than the four scalars and one list that
+#:     were asked for, and it has its own read side to get right first.
+JSP_WRITABLE_FIELDS = (
+    "notice_period",
+    "current_salary",
+    "location_preferences",
+    "status",
+    "job_type",
+)
+
+#: Keys the SERVER owns. They ride every write, because the browser sends the
+#: object whole and so does this server -- but a caller may never SET one.
+#: Several are derived from the others, and a supplied value would be either
+#: ignored or believed, with no way to tell which from the outside.
+JSP_SERVER_OWNED_KEYS = frozenset(
+    {
+        "resource_uri",
+        "candidate",
+        "id",
+        "status_string",
+        "career_stage_value",
+        "status_last_modified_at",
+        "suggested_industry_types",
+        "is_immediate_joinee",
+    }
+)
+
+#: The site converts these two to floats on load
+#: (`jsp.current_salary=parseFloat(jsp.current_salary)`) while the server
+#: returns them as STRINGS ("0.0"). So the browser's PUT carries numbers where
+#: its own GET carried strings. This server does NOT reproduce that: an
+#: untouched field goes back EXACTLY as the server returned it. Deviating from
+#: the browser in the direction of "change nothing that was not asked for" is
+#: the same call this package already made when it skipped the site's second
+#: request during a skills write.
+JSP_STRING_TYPED_DECIMALS = ("current_salary", "fresher_salary")
+
 CAPTURED_WRITE_CONTRACTS = {
+    "job_search_profile": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "PUT",
+        "path": EP_JSP,
+        "body_keys": ("<the whole jsp object -- every key the read returned>",),
+        "note": (
+            "The $resource factory and both calling functions are quoted verbatim in "
+            "the jsp section further down this file. This entry is SHIPPED rather than "
+            "WIRE, and unusually that is the stronger position rather than the weaker "
+            "one. The other SHIPPED entries describe a body ASSEMBLED in the page, "
+            "which is why each carries the caveat that it has never been serialized. "
+            "This body is not assembled at all: it is the object the profile GET "
+            "returns, handed to the resource by reference. So the payload can be READ "
+            "LIVE instead of reconstructed, and the usual gap between shipped source "
+            "and the wire closes on the read side. What SHIPPED does leave open is "
+            "narrow and named -- whether the server treats an omitted key as a "
+            "deletion. This write never omits one, so the question does not arise, and "
+            "_guard_no_key_dropped refuses the request if it ever would. A second "
+            "route to the same object exists and is deliberately NOT used: the "
+            "object's own resource_uri points at candidate_jsp, while the site writes "
+            "to candidate_skills."
+        ),
+    },
     "inbox_reply": {
         "evidence": CONTRACT_SHIPPED,
         "method": "POST",

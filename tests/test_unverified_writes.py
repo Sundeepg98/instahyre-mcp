@@ -183,6 +183,18 @@ class TestTheRegister:
                 )
             ), "%s: does not say what evidence is missing" % surface
 
+    def test_the_workex_entry_carries_its_own_correction(self):
+        """This entry asserted, on 2026-08-23, that NO CALLER exists in any
+        shipped bundle. One does -- on the onboarding page, which is why a
+        profile-page search missed it. An entry that were silently rewritten
+        would leave the next session with no way to tell a corrected finding
+        from an original one, and this register's whole worth is that its
+        entries can be trusted as evidence rather than as opinion."""
+        reason = C.UNVERIFIED_WRITE_SURFACES["workex_put"]
+        assert "WRONG" in reason, "the correction has to be visible as a correction"
+        assert "onBoardingProfileSave" in reason, "the caller has to be named"
+        assert "candidate" in reason.lower()
+
     def test_the_referral_contract_still_says_who_it_would_mail(self):
         """The one the operator explicitly approved, and the one where the
         stakes are highest: send_invites reaches real people permanently.
@@ -224,7 +236,7 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_five_that_were_captured(self):
+    def test_it_names_the_six_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
             # Added 2026-08-23. inbox_reply is SHIPPED, and it is the entry that
             # most needs its class read: it is the only irreversible surface in
@@ -236,7 +248,26 @@ class TestTheCapturedContracts:
             "saved_search_alert_toggle",
             "referrals",
             "profile_image",
+            # Added 2026-08-24, and it is the entry whose evidence class reads
+            # BACKWARDS from the others. SHIPPED is normally the weaker word --
+            # a body assembled in the page and never serialized. This body is
+            # not assembled at all: the site hands its $resource the object the
+            # profile GET returned, by reference, so the payload can be read
+            # live instead of reconstructed. The usual gap between shipped
+            # source and the wire is on the body, and here there is no body to
+            # get wrong.
+            "job_search_profile",
         }
+
+    def test_the_jsp_contract_says_the_omission_hazard_is_unreachable(self):
+        """The one thing SHIPPED evidence genuinely leaves open on this surface
+        is whether an omitted key is a deletion. A note that merely mentioned
+        the hazard would be describing a risk the tool then takes. This one has
+        to say the write cannot omit a key, because that -- not the evidence
+        class -- is what makes the surface safe."""
+        note = C.CAPTURED_WRITE_CONTRACTS["job_search_profile"]["note"].lower()
+        assert "omitted key" in note or "omits" in note
+        assert "guard" in note or "refuses" in note
 
     @pytest.mark.parametrize("surface", sorted(C.CAPTURED_WRITE_CONTRACTS))
     def test_every_entry_declares_its_evidence_class(self, surface):

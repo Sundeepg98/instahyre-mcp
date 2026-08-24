@@ -106,6 +106,10 @@ SYMBOLS_OF_INTEREST = (
     "sendInvites",
     "submit",
     "uploadImage",
+    "jobPreferencesSave",
+    "enableEditor",
+    "confirmSalary",
+    "onBoardingProfileSave",
 )
 
 # --- scrubbing --------------------------------------------------------------
@@ -486,6 +490,65 @@ def recipe_workex_save(page: Any) -> dict:
     return {"driven": False, "why": "no workex save control found"}
 
 
+def recipe_job_preferences_save(page: Any) -> dict:
+    """Open the job-preferences editor and press Save WITHOUT touching a field.
+
+    THE TOOL IS ALREADY BUILT, on SHIPPED evidence, and this recipe is how that
+    entry gets upgraded to WIRE. It is not a blocker and never was: the site
+    reaches the same object through a $resource factory
+    (``candidateSkillsService``, ``PUT candidate_skills/:id``) whose URL, method
+    and body are all readable from the bundles, and that is what
+    ``constants.EP_JSP`` records. Running this changes the evidence class, not
+    the contract.
+
+    It answers ONE question the $resource path cannot. There are two save paths
+    to this object, and the OTHER one -- the preference editor -- reads its
+    method and URL off DOM attributes: ``cscope.saveChanges`` looks up
+    ``cscope.editors[editor].apiUrl``, and the ``auctionedEditor`` directive
+    stores the raw ``attrs``, so ``api-url`` and ``ng-model`` live in an HTML
+    template that ships in no bundle. Whether the two paths land on the same
+    resource is therefore visible only on the wire. If they diverge, that is a
+    finding about EP_JSP and the tool has to be re-read against it.
+
+    An unedited save is used deliberately: with no field touched, the body is
+    the complete key list carrying every value the server already holds, which
+    is exactly what a safe read-modify-write has to reproduce.
+
+    The salary confirm modal is in the way and is not skippable: pressing Save
+    calls ``showConfirmSalaryWarning()``, which returns TRUE on this account
+    (experienced, and current_salary sits at 0) and RETURNS EARLY without
+    saving. ``confirmSalary()`` only lowers the flag; the save has to be
+    pressed a second time. A recipe that clicked Save once would record
+    nothing and read as "the control does not fire".
+    """
+    steps = []
+    enable = page.locator("[ng-click*='enableEditor'][ng-click*='preference_editor']")
+    if not enable.count():
+        return {"driven": False, "why": "no enableEditor control for preference_editor"}
+    enable.first.click()
+    steps.append("clicked enableEditor(preference_editor)")
+    page.wait_for_timeout(2000)
+
+    save = page.locator("[ng-click*='jobPreferencesSave']")
+    if not save.count():
+        return {"driven": False, "why": "editor opened but no jobPreferencesSave control", "steps": steps}
+
+    save.first.click()
+    steps.append("clicked jobPreferencesSave (no field edited)")
+    page.wait_for_timeout(2000)
+
+    confirm = page.locator("[ng-click*='confirmSalary']")
+    if confirm.count() and confirm.first.is_visible():
+        confirm.first.click()
+        steps.append("dismissed the confirm-salary modal, which had blocked the save")
+        page.wait_for_timeout(1000)
+        save.first.click()
+        steps.append("clicked jobPreferencesSave again")
+        page.wait_for_timeout(2500)
+
+    return {"driven": True, "steps": steps}
+
+
 def recipe_saved_search_create(page: Any) -> dict:
     """Apply a filter, open the save-search modal, name it, press save.
 
@@ -559,6 +622,7 @@ RECIPES = {
     "referral_get_link": recipe_referral_get_link,
     "referral_send_invites": recipe_referral_send_invites,
     "workex_save": recipe_workex_save,
+    "job_preferences_save": recipe_job_preferences_save,
     "saved_search_create": recipe_saved_search_create,
 }
 

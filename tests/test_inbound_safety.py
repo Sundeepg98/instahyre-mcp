@@ -632,7 +632,93 @@ def test_the_post_call_site_scanner_reports_a_write_to_another_endpoint():
     assert [target for _, _, target in sites] == ["C.EP_SOMETHING_ELSE", None]
 
 
-def test_only_the_two_write_modules_issue_patch_or_delete():
+def write_verbs_defined_on_the_client():
+    """Every write verb ``InstahyreHTTP`` actually defines, read off the class.
+
+    DERIVED, NOT LISTED, and that change is the whole point of this helper.
+    Until 2026-08-24 the census below hardcoded ``("patch","delete")``. A
+    ``put`` was then added to http.py for the job-search profile -- a new door
+    on the class that can reach a live account -- and the census SAID NOTHING,
+    because a hand-written verb list cannot notice a verb nobody added to it.
+    It passed while the surface it claims to enumerate had grown, which is the
+    precise failure its own docstring warns about one function down.
+
+    Reading the class closes that loop: a verb added to http.py enrols itself
+    here, so the next new door is a test failure on the day it is cut.
+    """
+    from instahyre_server.http import InstahyreHTTP
+
+    return tuple(
+        sorted(
+            name
+            for name in vars(InstahyreHTTP)
+            if name in ("post", "put", "patch", "delete") and callable(vars(InstahyreHTTP)[name])
+        )
+    )
+
+
+def receiver_is_the_http_client(node):
+    """True for ``http.VERB(...)`` and ``<anything>.http.VERB(...)``, else False.
+
+    MATCHING ON THE VERB NAME ALONE IS NOT ENOUGH, and that was measured rather
+    than foreseen. Adding ``put`` to the client on 2026-08-24 made this census
+    report four innocent modules: ``Store.put`` is the cache's own writer, so
+    ``self.store.put(...)`` and ``http.put(...)`` are the same attribute name
+    on entirely different objects. A census that cannot tell them apart is
+    either noisy or, once someone silences the noise, blind.
+
+    Attributing by RECEIVER is also the more honest reading of what this test
+    claims. The question is not "which module contains the letters p-u-t"; it
+    is "which module can reach the account", and only the HTTP client can.
+    """
+    if isinstance(node, ast.Name):
+        return node.id == "http"
+    if isinstance(node, ast.Attribute):
+        return node.attr == "http"
+    return False
+
+
+def test_the_receiver_discriminator_separates_the_cache_from_the_client__CONTROL():
+    """The control for the discriminator. Both halves matter and both are
+    asserted: a rule that accepted everything would restore the noise, and one
+    that accepted nothing would empty the census while still passing."""
+    tree = ast.parse(
+        "def go(http, store, self):\n"
+        "    http.put('/a')\n"
+        "    self.http.put('/b')\n"
+        "    self.store.put('k', 'v')\n"
+        "    store.put('k', 'v')\n"
+        "    self.cache.put('k', 'v')\n"
+    )
+    seen = [
+        (ast.unparse(node.func.value), receiver_is_the_http_client(node.func.value))
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    ]
+    assert dict(seen) == {
+        "http": True,
+        "self.http": True,
+        "self.store": False,
+        "store": False,
+        "self.cache": False,
+    }
+
+
+def test_the_verb_census_reads_the_client_rather_than_a_hardcoded_list__CONTROL():
+    """The control for the helper above. If it ever stops seeing the verbs the
+    class defines, the census below silently narrows to nothing and every
+    module passes -- so the helper is asserted to see the ones that exist."""
+    verbs = write_verbs_defined_on_the_client()
+    assert "put" in verbs, "http.py defines put(); the census cannot see it"
+    assert "patch" in verbs
+    assert "post" in verbs
+    assert "delete" not in verbs, (
+        "http.py deliberately defines no delete(); if one was added, that is the "
+        "finding this assertion exists to surface"
+    )
+
+
+def test_only_the_two_write_modules_issue_patch_put_or_delete():
     """The write surface grew, so the census had to grow with it.
 
     ``.post(`` was once the whole write surface. Profile writes added PATCH and
@@ -644,8 +730,13 @@ def test_only_the_two_write_modules_issue_patch_or_delete():
     is a PATCH. It is named here rather than folded into a wildcard: the value
     of this test is that the set of modules holding a write verb is SHORT and
     ENUMERATED, and a third name appearing without a reason is the finding.
+
+    PUT joined on 2026-08-24 with the job-search profile, and it arrived through
+    the hole described in ``write_verbs_defined_on_the_client`` -- this census
+    did not fail when it should have, because its verb list was written by hand.
+    The list is now read off the client class instead.
     """
-    verbs = ("patch", "delete")
+    verbs = tuple(v for v in write_verbs_defined_on_the_client() if v != "post")
     callers = {}
     for name, text in package_sources().items():
         tree = ast.parse(text, filename=name)
@@ -654,6 +745,7 @@ def test_only_the_two_write_modules_issue_patch_or_delete():
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
                 and node.func.attr in verbs
+                and receiver_is_the_http_client(node.func.value)
             ):
                 callers.setdefault(name, []).append((node.func.attr, node.lineno))
 
@@ -661,18 +753,24 @@ def test_only_the_two_write_modules_issue_patch_or_delete():
     # does not appear here -- which is the point: the definition is the door and
     # profile_write.py is the only room with a key.
     assert sorted(callers) == ["profile_write.py", "writes.py"], (
-        "a module outside profile_write.py now issues PATCH/DELETE: %s" % (callers,)
+        "a module outside profile_write.py now issues PATCH/PUT/DELETE: %s" % (callers,)
     )
 
 
-def test_every_patch_and_delete_target_is_a_profile_endpoint():
-    """Both write verbs may only ever aim at the two profile resources.
+def test_every_patch_put_and_delete_target_is_a_profile_endpoint():
+    """These verbs may only ever aim at the profile resources.
 
-    Checked on the resolved path at runtime rather than statically, because one
-    of these targets is built by formatting a candidate id into a template and
-    a static reading of that proves nothing about what it resolves to.
+    Checked on the resolved path at runtime rather than statically, because two
+    of these targets are built by formatting an id into a template and a static
+    reading of that proves nothing about what it resolves to.
+
+    EP_JSP joined on 2026-08-24. Note what it is NOT: the job-search profile's
+    own ``resource_uri`` names a ``candidate_jsp`` route, and the site does not
+    write there -- it writes to ``candidate_skills/:id``. Both spellings sit
+    under the same profile prefix, so this test would have accepted either; the
+    reason the right one is used is recorded at constants.EP_JSP, not here.
     """
-    allowed = {C.EP_SKILL_MODEL, C.EP_PROFILE_PATCH}
+    allowed = {C.EP_SKILL_MODEL, C.EP_PROFILE_PATCH, C.EP_JSP}
     for path in allowed:
         assert path.startswith("/candidate_misc/profile/"), path
     assert not any(
