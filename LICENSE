@@ -1,0 +1,31 @@
+Copyright (c) 2026 Sundeepg98. All rights reserved.
+
+This repository is published to be READ, not to be run.
+
+The source is made available for reference: to be read, reviewed, and discussed
+as a portfolio artifact. No licence is granted. You may not use, copy, modify,
+merge, publish, distribute, sublicense, or sell any part of this software, and
+you may not create derivative works from it, without prior written permission
+from the copyright holder.
+
+WHY THIS IS NOT AN OPEN-SOURCE LICENCE, since a proprietary notice on a public
+repository is unusual enough to deserve a reason rather than a lawyer's silence:
+
+This code drives AUTHENTICATED SESSIONS against a third-party job platform whose
+terms of service restrict automated access. That is a considered risk taken by
+one person, on his own account, with his own data, in full knowledge of what he
+is agreeing to. A permissive licence would invite strangers to point the same
+automation at their own accounts on the strength of a stranger's judgement, with
+this repository's name attached to whatever followed. Nobody should inherit that
+decision by default, and an MIT header is exactly how that inheritance happens
+quietly.
+
+So: read it, learn from it, argue with it, quote it in a review. Do not deploy
+it. If you want to do something with it that this notice forbids, ask.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
