@@ -42,7 +42,7 @@
 # existed, and CI was red for three pushes.
 #
 # BUMPED 2026-08-22 to d1720c3, and this one is worth reading because the
-# paragraph above did not prevent it. Commit 4bfd986 in THIS repo added
+# paragraph above did not prevent it. A commit in THIS repo added
 # `instahyre_server/buildinfo.py` (imports `jobcore.buildinfo`) and
 # `instahyre_server/paths.py` (imports `jobcore.paths`) and left this line on
 # 16ae934 -- a commit whose `src/jobcore/` contains seven files and NEITHER of
@@ -58,7 +58,7 @@
 # own CI was red; pinning a red commit is how a green CI here stops meaning
 # anything. d1720c3 is jobcore master, CI green, and 0f557eb is its ancestor.
 #
-# This was not a prediction. CI on 4bfd986 was RED on Python 3.10 and 3.11,
+# This was not a prediction. CI on that commit was RED on Python 3.10 and 3.11,
 # every collection, with:
 #     ImportError: cannot import name 'paths' from 'jobcore'
 #     ImportError: cannot import name 'buildinfo' from 'jobcore'

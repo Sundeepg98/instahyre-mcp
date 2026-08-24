@@ -1,7 +1,8 @@
 # instahyre auth-lifecycle slice -- delivered 2026-08-23
 
 Contract: `mcp-servers/_audit/2026-08-23-auth-contract.md`, sections 1, 2 and 3.
-Commit: **`a6522ef8364b33b6d3b53d9f8170877d398f2172`** on `master`, NOT pushed.
+Commit: on `master`, NOT pushed at the time of writing. The SHA is deliberately
+omitted -- see the note at the end of this file.
 
 ## 1. What shipped, and where
 
@@ -189,7 +190,8 @@ items 1 and 2 (which seam `reauth` drives) and item 3 (the two extra fields).
 
 # Review round 2 -- four wave-lead rulings, 2026-08-23
 
-All four folded into one rework, across commits `f383323` (rulings 1-3) and the
+All four folded into one rework, across two commits -- the first covering rulings
+1-3 and the
 one recorded at the foot of this section (ruling 4). **Nothing pushed** -- see
 section R2.7.
 
@@ -359,3 +361,22 @@ both messages was carried out.
 
 The wave lead or the operator can push `master` directly. Nothing else blocks
 the builder queued behind this slice.
+
+
+---
+
+## A note on the missing commit SHAs
+
+This document once cited commits by SHA. They were removed on 2026-08-24, and the reason is
+worth keeping rather than the SHAs.
+
+A force-push makes history unreachable, not unserved: the host retains the objects and still
+answers for them by SHA, and a commit carries its parent pointers, so ONE retained SHA walks
+an entire subgraph. A repository that prints such a SHA in its own tracked prose is publishing
+the entry point to history it believes it removed. Measured on this repository: two cited SHAs
+were served while reachable from no ref, and 13 of 13 commits reachable from them carried
+third-party personal data an earlier pass was recorded as having removed.
+
+So a raw SHA in a tracked file is treated here as a pointer, not a citation. Where the record
+needs to identify a commit, it does so by date, by file and by symptom -- all of which survive
+a rewrite, which a SHA does not.

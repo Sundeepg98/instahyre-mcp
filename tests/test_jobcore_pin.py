@@ -7,13 +7,13 @@ pins jobcore to an exact commit. A local venv installs jobcore EDITABLE from
 suite fully green and kills CI at COLLECTION. The local suite CANNOT fail this
 way, so nothing on a developer box will ever tell you the pin is stale.
 
-  2026-08-22, morning: commit 4bfd986 added ``jobcore.buildinfo`` and
+  2026-08-22, morning: a commit added ``jobcore.buildinfo`` and
   ``jobcore.paths`` while the pin said 16ae934, which contains NEITHER.
   Red on 3.10 and 3.11, every collection::
 
       ImportError: cannot import name 'paths' from 'jobcore'
 
-  2026-08-22, afternoon: commit 9f3f1f7 changed one call to
+  2026-08-22, afternoon: a later commit changed one call to
   ``jobcore.buildinfo.self_stamp()`` while the pin said d1720c3::
 
       AttributeError: module 'jobcore.buildinfo' has no attribute 'self_stamp'
