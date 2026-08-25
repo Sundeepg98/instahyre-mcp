@@ -956,28 +956,53 @@ def test_the_preselect_flag_is_reported_and_never_acted_on():
 # Two separate claims live here and they are easy to conflate, so they are
 # tested apart:
 #
-#   THE CARVE-OUT IS EXACTLY ONE PATH WIDE. Reply became reachable; starring,
-#   marking read and bulk mark-all-read did not. That is asserted against a
-#   LITERAL path string rather than against the constant the code uses -- a
-#   check written as ``SENDABLE_INBOX_PATHS == {C.EP_SEND_MESSAGE}`` is true by
-#   construction and would survive somebody repointing the constant at
-#   mark_all_read.
+#   THE CARVE-OUT IS EXACTLY FOUR NAMED PATHS WIDE. It was one until
+#   2026-08-25, when starring, marking one thread read and clearing unread
+#   across the inbox were built on contracts captured two days earlier. What
+#   this file asserts is not the size for its own sake but the WAY it grew:
+#   four LITERAL path strings, written out here rather than imported, so that
+#   repointing a constant fails this file instead of following it -- and no
+#   prefix, no regex and no URL-family rule anywhere, so a fifth Instahyre
+#   action is unreachable until somebody reads its contract and names it.
 #
 #   THE READ TIER DID NOT MOVE. ``guard_read_only`` still refuses all five
-#   markers, ``send_message`` included, so the read side cannot reach the send
-#   path even now that the send path exists.
+#   markers -- ``send_message``, ``star_conversation``, ``toggle_message_read``
+#   and ``mark_all_read`` among them -- so the read side cannot reach ANY write
+#   path even now that all four exist. That is the assertion that keeps the two
+#   doors separate: the write channel is not a hole in the read guard, it is a
+#   different door with its own lock.
 
 CONVERSATIONS = fixture_json("conversations_populated.json")
 THREAD = fixture_json("conversation_messages.json")
 CONV_COUNTS = fixture_json("conversation_counts.json")
 REPLY_CONV_ID = CONVERSATIONS["objects"][0]["id"]
 
-#: The literal the allowlist must equal. Written out here, not imported, so
-#: that repointing the constant fails this file instead of following it.
+#: The literals the allowlist must equal. Written out here, not imported, so
+#: that repointing a constant fails this file instead of following it.
 SEND_PATH_LITERAL = "/resume_modal/emails/message/send_message/"
+STAR_PATH_LITERAL = "/resume_modal/emails/message/star_conversation"
+TOGGLE_READ_PATH_LITERAL = "/resume_modal/emails/message/toggle_message_read"
+MARK_ALL_READ_PATH_LITERAL = "/inbox_page/candidate_conversation/mark_all_read"
 
-#: The three inbox mutations that must STAY unreachable.
-STILL_REFUSED = sorted(C.MUTATING_INBOX_PATHS - {SEND_PATH_LITERAL})
+#: THE WHOLE ALLOWLIST, spelled out. Each entry is here because a request body
+#: was captured for it first; the set is an enumeration, never a rule.
+SENDABLE_LITERALS = frozenset(
+    {
+        SEND_PATH_LITERAL,
+        STAR_PATH_LITERAL,
+        TOGGLE_READ_PATH_LITERAL,
+        MARK_ALL_READ_PATH_LITERAL,
+    }
+)
+
+#: Paths that must STAY unreachable from the write channel. Two are the
+#: permanently-forbidden bulk applies; the other three are SIBLINGS of admitted
+#: paths on the same prefixes, which is where a rule-shaped guard would leak.
+STILL_REFUSED = sorted(C.FORBIDDEN_ENDPOINTS) + [
+    "/resume_modal/emails/message/message_count/",
+    "/resume_modal/emails/message/get_candidates_star_status",
+    "/inbox_page/candidate_conversation/search/",
+]
 
 
 #: Invented companies. Real employer names never enter a fixture in this
@@ -1038,12 +1063,43 @@ def detonating_reply_writer(**kwargs):
 # -- the carve-out ----------------------------------------------------------
 
 
-def test_the_sendable_allowlist_holds_exactly_one_path():
-    """Pinned to the literal. Asserting it equals the constant it is built from
-    would be true no matter what that constant was changed to."""
-    assert C.SENDABLE_INBOX_PATHS == frozenset({SEND_PATH_LITERAL})
-    assert len(C.SENDABLE_INBOX_PATHS) == 1
+def test_the_sendable_allowlist_holds_exactly_the_four_named_paths():
+    """Pinned to literals. Asserting it equals the constants it is built from
+    would be true no matter what those constants were changed to.
+
+    THE SIZE MOVED FROM 1 TO 4 ON 2026-08-25 and the edit is deliberate, so
+    what was admitted and why belongs here, where the next person looks:
+
+      star_conversation   -- {star_conv, job_id}, two shipped callers agreeing.
+      toggle_message_read -- {conversation: <resource_uri>, mark_unread}.
+      mark_all_read       -- a GET whose arguments ride the query string.
+
+    All three had their contracts read whole out of Instahyre's own JavaScript
+    on 2026-08-23 and were then withheld on VALUE, not on evidence. The ruling
+    changed: whatever is technically possible gets built. What did NOT change
+    is that every entry is a NAMED constant -- if this set ever becomes a
+    startswith, a regex, or a comprehension over a URL family, this assertion
+    is the one that has to be deleted to allow it, and deleting it is visible.
+    """
+    assert C.SENDABLE_INBOX_PATHS == SENDABLE_LITERALS
+    assert len(C.SENDABLE_INBOX_PATHS) == 4
     assert C.EP_SEND_MESSAGE == SEND_PATH_LITERAL
+    assert C.EP_STAR_CONVERSATION == STAR_PATH_LITERAL
+    assert C.EP_TOGGLE_MESSAGE_READ == TOGGLE_READ_PATH_LITERAL
+    assert C.EP_MARK_ALL_READ == MARK_ALL_READ_PATH_LITERAL
+
+
+def test_the_allowlist_and_the_read_tiers_own_mutation_list_agree():
+    """Two lists written independently, cross-checked against each other.
+
+    ``MUTATING_INBOX_PATHS`` holds four LITERAL strings and predates all of
+    this; ``SENDABLE_INBOX_PATHS`` is built from four constants. They now
+    describe the same four URLs from opposite directions -- one saying "these
+    mutate, so the read tier must refuse them", the other saying "these mutate,
+    so the write tier may send them" -- and a typo in a new constant therefore
+    surfaces as a disagreement here rather than as a quiet 404 later.
+    """
+    assert set(C.MUTATING_INBOX_PATHS) == set(C.SENDABLE_INBOX_PATHS)
 
 
 def test_the_send_path_keeps_the_trailing_slash_its_siblings_do_not_have():
@@ -1057,42 +1113,66 @@ def test_the_send_path_keeps_the_trailing_slash_its_siblings_do_not_have():
 
 
 @pytest.mark.parametrize("path", STILL_REFUSED)
-def test_every_other_mutating_inbox_path_is_refused_by_the_send_guard(path):
-    """The widening test. If somebody ever admits a second inbox mutation, this
-    is where it fails -- and it fails per-path, so the message names which."""
+def test_paths_outside_the_named_four_are_refused_by_the_send_guard(path):
+    """The widening test. If somebody ever admits a FIFTH inbox mutation, this
+    is where it fails -- and it fails per-path, so the message names which.
+
+    The list it runs on is chosen for the specific failure a GROWING allowlist
+    invites: three of these are siblings of admitted paths on the same
+    prefixes, so a guard relaxed into "anything under /resume_modal/emails/
+    message" or "anything under the conversation resource" would still pass the
+    admitted four while letting these through unnoticed.
+    """
     with pytest.raises(writes_module.NotSendable) as excinfo:
         writes_module._guard_sendable(path)
-    assert "exactly ONE sendable inbox path" in str(excinfo.value)
+    assert "named sendable inbox paths" in str(excinfo.value)
 
 
 @pytest.mark.parametrize(
     "path",
     [
         "/candidate_opportunities/candidate_matching/apply_bulk/",
-        "/inbox_page/candidate_conversation/mark_all_read",
         C.EP_SEND_MESSAGE + "x",
         C.EP_SEND_MESSAGE.rstrip("/"),
+        C.EP_STAR_CONVERSATION + "/",
+        C.EP_MARK_ALL_READ + "?page_loaded_at=x",
         "",
     ],
 )
 def test_the_send_guard_is_an_allowlist_not_a_blocklist(path):
-    """Anything that is not the one value is refused, including a path nobody
-    thought to list and the same path spelled without its slash. A blocklist
-    would pass the first and the last of these."""
+    """Anything that is not one of the named values is refused -- a path nobody
+    thought to list, and admitted paths spelled slightly wrong.
+
+    The slash cases are not pedantry. ``send_message`` is declared WITH a
+    trailing slash and its two siblings WITHOUT one, so each admitted spelling
+    is the one Instahyre publishes and the near-miss beside it is a different
+    request: Django answers a slashless POST with a 301 that drops the body.
+    The query-string case is the same argument aimed at the GET -- the guard
+    compares the path it is handed, so a caller that folds parameters into the
+    path string is refused rather than silently matched.
+    """
     with pytest.raises(writes_module.NotSendable):
         writes_module._guard_sendable(path)
 
 
-def test_the_send_guard_admits_the_one_path_it_is_supposed_to():
-    """The other half of the limit. A guard only ever seen refusing could be a
-    blanket refusal, and the reply tool would be dead on arrival."""
-    assert writes_module._guard_sendable(SEND_PATH_LITERAL) == SEND_PATH_LITERAL
+@pytest.mark.parametrize("path", sorted(SENDABLE_LITERALS))
+def test_the_send_guard_admits_each_of_the_paths_it_is_supposed_to(path):
+    """The other half of the limit, per path. A guard only ever seen refusing
+    could be a blanket refusal, and all four tools would be dead on arrival."""
+    assert writes_module._guard_sendable(path) == path
 
 
-def test_the_read_tier_still_refuses_send_message_along_with_all_four_others():
-    """The read-only guard did NOT shrink when the write door opened. A reader
-    that could reach the send path by editing a constant is the hazard this
-    keeps closed."""
+def test_the_read_tier_still_refuses_every_path_the_write_tier_now_admits():
+    """The read-only guard did NOT shrink when the write door widened.
+
+    This is the assertion the 2026-08-25 build most needed, because the
+    tempting way to build three inbox writes is to relax the guard standing in
+    the way. Nothing was relaxed: all five markers stand, and every one of the
+    four paths the write tier may now send to is still refused outright by the
+    read tier. A reader that could reach a write path by editing a constant is
+    the hazard this keeps closed, and it is checked against the LIVE guard
+    rather than against the constant the guard consults.
+    """
     from instahyre_server.inbox import MutatingPathRefused, guard_read_only
 
     assert len(C.MUTATING_PATH_MARKERS) == 5
@@ -1100,8 +1180,9 @@ def test_the_read_tier_still_refuses_send_message_along_with_all_four_others():
     for marker in C.MUTATING_PATH_MARKERS:
         with pytest.raises(MutatingPathRefused):
             guard_read_only("/inbox_page/candidate_conversation/" + marker)
-    with pytest.raises(MutatingPathRefused):
-        guard_read_only(C.EP_SEND_MESSAGE)
+    for path in sorted(SENDABLE_LITERALS):
+        with pytest.raises(MutatingPathRefused):
+            guard_read_only(path)
 
 
 # -- the gate ---------------------------------------------------------------
@@ -1401,8 +1482,16 @@ def test_the_reply_tool_is_declared_irreversible_by_the_server_itself():
     info = server_module.instahyre_server_info()
 
     assert "instahyre_reply_to_conversation" in info["irreversible_tools"]
-    assert "REPLYING IS NOW REACHABLE" in info["deliberately_not_built"]["inbox_writes"]
-    assert "allowlist" in info["deliberately_not_built"]["inbox_writes"]
+    inbox = info["deliberately_not_built"]["inbox_writes"]
+    assert "ALL FOUR MEASURED INBOX WRITES ARE NOW REACHABLE" in inbox
+    assert "allowlist" in inbox
+    # The mirror of the mirror, added 2026-08-25: the block must not go on
+    # claiming that starring and marking read are unbuilt now that they are
+    # built. A server describing a capability it HAS as one it refuses is the
+    # same defect as the reverse, pointed the other way.
+    assert "instahyre_star_conversation" in inbox
+    assert "instahyre_mark_conversation_read" in inbox
+    assert "instahyre_mark_all_conversations_read" in inbox
 
 
 # ===========================================================================

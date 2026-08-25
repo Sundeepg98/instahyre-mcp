@@ -558,6 +558,17 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
     bodies were captured. Each addition here is a deliberate re-ratification --
     a new constant appearing in this list without a matching entry in
     ``constants.CAPTURED_WRITE_CONTRACTS`` is a write nobody measured.
+
+    IT GREW AGAIN ON 2026-08-25, by two: ``EP_STAR_CONVERSATION`` and
+    ``EP_TOGGLE_MESSAGE_READ``, the second and third inbox writes. Both were
+    admitted on the same terms as everything before them -- a captured contract
+    first, then a named allowlist entry, then a tool. The inbox's FOURTH write
+    admitted that day, mark_all_read, does not appear here and its absence is
+    not an oversight: it is a **GET**, so a POST census cannot see it. That is
+    precisely why this file's sibling assertion
+    ``test_no_get_call_site_aims_at_a_mutating_path_outside_the_gated_one`` in
+    ``tests/test_inbox_writes.py`` exists -- a write surface that a verb-shaped
+    census is structurally blind to needs a census shaped the other way.
     """
     sites = post_call_sites(package_sources())
 
@@ -576,7 +587,9 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         "C.EP_REFERRAL",
         "C.EP_REFERRAL_INVITES",
         "C.EP_SEND_MESSAGE",
+        "C.EP_STAR_CONVERSATION",
         "C.EP_SUPPORT_QUERY",
+        "C.EP_TOGGLE_MESSAGE_READ",
     ], "a new write path appeared in the package: %s" % (sites,)
 
     # The re-ratification, asserted rather than trusted to review: every POST
@@ -593,6 +606,13 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         # terms as the others: an entry in CAPTURED_WRITE_CONTRACTS, or it does
         # not belong on the list above.
         "C.EP_SEND_MESSAGE": "inbox_reply",
+        # Added 2026-08-25. Both retire a refusal that had already stopped
+        # resting on evidence: their contracts were captured and recorded on
+        # 2026-08-23 while the tools were withheld on value. They are admitted
+        # here on the identical terms as everything above -- a captured
+        # contract, named, or they do not belong on the list.
+        "C.EP_STAR_CONVERSATION": "inbox_star",
+        "C.EP_TOGGLE_MESSAGE_READ": "inbox_mark_read",
     }
     for target in targets:
         if target in ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"):

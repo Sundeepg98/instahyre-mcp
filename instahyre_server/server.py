@@ -896,42 +896,55 @@ def instahyre_server_info() -> dict:
                 "for a whole-object one at zero gain."
             ),
             "inbox_writes": (
-                "REPLYING IS NOW REACHABLE, and nothing else is. instahyre_reply_to_"
-                "conversation POSTs to one path and one path only -- the write side runs "
-                "on an allowlist of a single URL, so starring, marking read and bulk "
-                "mark-all-read are not merely refused, they have no branch that could "
-                "construct them. The read tier is unchanged and still refuses all five "
-                "mutating path markers including send_message, so a reader cannot reach "
-                "the send path by editing a constant. Bulk apply remains permanently out "
-                "of scope. Worth knowing about this resource: mark_all_read is a GET that "
+                "ALL FOUR MEASURED INBOX WRITES ARE NOW REACHABLE, and the write side "
+                "still runs on an allowlist -- now of FOUR NAMED URLS rather than one. "
+                "The distinction is the whole design: SENDABLE_INBOX_PATHS grew by "
+                "named constants, one per captured contract, and NOT by relaxing into a "
+                "prefix, a regex or an 'anything under /resume_modal' rule, because a "
+                "rule admits members nobody has read. instahyre_reply_to_conversation, "
+                "instahyre_star_conversation, instahyre_mark_conversation_read and "
+                "instahyre_mark_all_conversations_read are the four; each defaults to "
+                "confirm=False and sends nothing without an explicit confirm=True. "
+                "WHAT THIS RETIRES, quoted so the change reads as a change: starring "
+                "and marking read were previously described here as having 'no branch "
+                "that could construct them', and were held unbuilt on VALUE rather than "
+                "on evidence. The ruling changed on 2026-08-25 -- whatever is "
+                "technically possible gets built -- and all three were possible, "
+                "because their contracts ship in Instahyre's own JavaScript. "
+                "WHAT DID NOT CHANGE. The read tier is byte-for-byte unchanged and "
+                "still refuses all five mutating path markers including send_message, "
+                "so a reader cannot reach a write path by editing a constant. Bulk "
+                "apply remains permanently out of scope at any evidence level. And the "
+                "honest caveat that was already true is still true: his inbox holds "
+                "ZERO conversations (measured 2026-08-23, authenticated, 200), so none "
+                "of the four has ever been exercised against live data, and "
+                "mark_all_read cannot be -- the platform's own caller refuses when the "
+                "unread count is zero. "
+                "THE ONE WORTH KNOWING ABOUT THIS RESOURCE: mark_all_read is a GET that "
                 "MUTATES -- confirmed in the factory itself, "
                 "mark_all_read:{method:'GET',url:url+'mark_all_read'} -- which is why "
-                "both guards key on the PATH and never on the verb. STARRING AND "
-                "MARKING READ ARE NOW MEASURED AND STILL NOT BUILT -- a different "
-                "statement from the one above, and the honest one. Both actions are "
-                "POST (star_conversation and toggle_message_read, declared in the "
-                "messageService factory) and both have shipped callers: "
-                "inboxService.markUnstarred sends {star_conv, job_id}, the star "
-                "toggle sends {starred, can_user, job_id}, and inboxService.markUnread "
-                "sends {conversation, mark_unread}. So the evidence gap that closed "
-                "reply is closed for these too, and they stay unbuilt on VALUE. "
-                "THE DECIDING FACT: his inbox holds ZERO conversations (measured "
-                "2026-08-23, authenticated, 200). There is nothing to star and nothing "
-                "to mark read, and both payloads dereference a selected conversation "
-                "that does not exist. Building them would add two write paths that "
-                "cannot currently do anything, at a real cost: SENDABLE_INBOX_PATHS is "
-                "an allowlist of exactly ONE, and each addition widens the only write "
-                "channel this server has into the inbox. Even on a full inbox the "
-                "trade stays bad -- starring is a private bookmark on a queue that can "
-                "already be sorted and filtered locally, and marking read DESTROYS the "
-                "only signal separating a new recruiter message from an old one. That "
-                "perimeter is worth more than a bookmark."
+                "both guards key on the PATH and never on the verb, and why that GET "
+                "carries the same confirm gate as any POST here. Its cost is real and "
+                "the preview names it: marking read DESTROYS the only signal separating "
+                "a new recruiter message from an old one, and there is no bulk undo -- "
+                "only a per-thread mark_unread against the list the preview printed."
             ),
         },
+        # instahyre_mark_all_conversations_read joined on 2026-08-25 and it is
+        # the one entry here that is not literally un-undoable: each thread can
+        # be pushed back with mark_unread=True. It is listed anyway, because
+        # the thing it destroys is not the flag but the KNOWLEDGE of which
+        # threads carried it -- nothing on the platform records that, so the
+        # only way back is the list its own preview printed. Its two siblings,
+        # instahyre_star_conversation and instahyre_mark_conversation_read, are
+        # genuinely reversible from information the account still holds and are
+        # deliberately NOT listed: a list that included everything gated would
+        # stop meaning anything.
         "irreversible_tools": [
             "instahyre_apply",
             "instahyre_decline_opportunity",
             "instahyre_reply_to_conversation",
+            "instahyre_mark_all_conversations_read",
         ],
         "page_size": C.PAGE_SIZE,
         "opportunity_page_size": C.OPP_DEFAULT_LIMIT,
@@ -1442,6 +1455,123 @@ def instahyre_reply_to_conversation(
     return get_client().writer.reply_to_conversation(
         conv_id, message, confirm=confirm
     )
+
+
+@mcp.tool()
+@handled
+def instahyre_star_conversation(
+    conv_id: int, starred: bool, confirm: bool = False
+) -> dict:
+    """Star or unstar one conversation. Reversible, and reaches nobody.
+
+    A star is a private bookmark on his own inbox: no recruiter is notified and
+    no message is sent. It is still gated -- ``confirm=False`` (the default)
+    sends NOTHING and returns the exact request that would go out, the thread's
+    company and role, and the current starred state.
+
+    THE WIRE FIELD IS ``star_conv``, NOT ``starred``. The argument here is
+    named for what it means; the body key is named for what Instahyre's own
+    client sends. ``starred`` is the field the RESPONSE carries back, and no
+    shipped caller ever sends a key by that name -- so do not "fix" the
+    mismatch.
+
+    ``can_user`` is deliberately absent from the body: Instahyre's two callers
+    add it only when the profile type is not "candidate", and this account is a
+    candidate. Sending it would be sending a field his own browser never sends.
+
+    NEVER RUN AGAINST LIVE DATA. His inbox holds zero conversations (measured
+    2026-08-23, authenticated, 200), so this has been exercised against
+    fixtures only. The request contract was read whole out of Instahyre's
+    shipped JavaScript; no response to it has ever been observed.
+
+    Args:
+        conv_id: Conversation id from instahyre_list_conversations.
+        starred: True to star, False to unstar. Sent as ``star_conv``.
+        confirm: Must be True to actually send. False returns a preview.
+    """
+    return get_client().writer.star_conversation(conv_id, starred, confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_mark_conversation_read(
+    conv_id: int, mark_unread: bool, confirm: bool = False
+) -> dict:
+    """Mark one conversation unread, or read. Reaches nobody. Reversible.
+
+    ``confirm=False`` (the default) sends NOTHING and returns the exact body
+    that would go out.
+
+    MARKING UNREAD IS THE SAFE DIRECTION HERE, which is the opposite of how the
+    two usually read. Unread is the only signal separating a new recruiter
+    message from an old one, so clearing it destroys information and restoring
+    it destroys none.
+
+    EVIDENCE IS NOT SYMMETRIC BETWEEN THE TWO VALUES, and the preview says so
+    every time. ``mark_unread=True`` is what Instahyre's own ``markUnread``
+    sends and is the only value with a shipped caller anywhere.
+    ``mark_unread=False`` has none: the site has no mark-read control at all --
+    it marks a thread read implicitly when the thread is fetched -- so that
+    value has never been observed on the wire.
+
+    The body names the conversation by RESOURCE URI, not by id, and this server
+    copies the URI the server itself returned on the record rather than
+    assembling one.
+
+    NEVER RUN AGAINST LIVE DATA -- zero conversations in his inbox (measured
+    2026-08-23, authenticated, 200). Fixtures only.
+
+    Args:
+        conv_id: Conversation id from instahyre_list_conversations.
+        mark_unread: True to mark it unread, False to mark it read.
+        confirm: Must be True to actually send. False returns a preview.
+    """
+    return get_client().writer.mark_conversation_read(
+        conv_id, mark_unread, confirm=confirm
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_mark_all_conversations_read(confirm: bool = False) -> dict:
+    """Clear the unread flag across the WHOLE inbox. A GET, and gated like a send.
+
+    WHY A GET IS GATED, since that is the part that looks like a category
+    error: this GET MUTATES. Instahyre declares it
+    ``mark_all_read:{method:'GET',url:url+"mark_all_read"}`` on the same
+    resource -- and the same URL prefix -- as the conversation list, so the most
+    reasonable-looking way to explore this API ("GET everything under the
+    resource and see what comes back") wipes his unread state with no request
+    body and no confirmation. A gate that keyed on the verb would wave it
+    through. ``confirm`` here means exactly what it means on a POST: with
+    ``confirm=False`` nothing is requested at all.
+
+    WHAT IT COSTS. One call clears every unread flag in the inbox. There is no
+    bulk undo. Each thread can be pushed back individually with
+    instahyre_mark_conversation_read(conv_id, mark_unread=True) -- but only
+    against the ``would_affect`` list this preview prints, because nothing else
+    records which threads were unread beforehand. So read that list first.
+
+    NO FILTER ARGUMENTS, on purpose. Instahyre's caller sends ``buildFilters()``
+    plus a ``page_loaded_at`` timestamp as query parameters, and
+    ``buildFilters()`` returns an empty dict on the default "All conversations"
+    view. The widest call is the one this tool's name promises and the only one
+    whose filter dict needs no choosing; a narrowed sweep would be a filter
+    combination nobody measured.
+
+    It refuses when the server reports no unread conversations, because
+    Instahyre's own caller refuses in exactly that case.
+
+    NEVER RUN AGAINST LIVE DATA, and on this account it currently cannot be:
+    the inbox holds zero conversations (measured 2026-08-23, authenticated,
+    200), so the unread count is zero and the platform's own gate would refuse
+    to issue the request.
+
+    Args:
+        confirm: Must be True to actually send. False returns a preview naming
+            every thread that would lose its unread flag.
+    """
+    return get_client().writer.mark_all_conversations_read(confirm=confirm)
 
 
 @mcp.tool()

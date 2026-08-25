@@ -213,7 +213,19 @@ def main() -> int:
         finally:
             io.open(target, "w", encoding="utf-8", newline="").write(original)
         results.append(
-            (plant["name"], "RED" if code != 0 else "GREEN -- THIS CHECK CANNOT FAIL", tail)
+        # EXIT CODE 1 IS THE ONLY RED. This line used to read `code != 0`, which
+        # counts pytest's exit 4 -- "file or nodeid not found" -- as a pass. A
+        # plant whose target test had been RENAMED then reported RED while
+        # running nothing at all. Found in a sibling script on 2026-08-25 and
+        # swept across every control script in this package.
+            (
+                plant["name"],
+                "RED" if code == 1 else (
+                    "NOT-RUN (exit %d) -- the nodeid did not resolve" % code
+                    if code != 0 else "GREEN -- THIS CHECK CANNOT FAIL"
+                ),
+                tail,
+            )
         )
 
     print("\n=== job-search profile write: red controls ===")

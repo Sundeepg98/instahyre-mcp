@@ -25,6 +25,19 @@ typed-invite path in Instahyre's own client sends ``{'name': null, 'email':
 ...}``, and a preview that showed a guessed name would be dressing up the
 consent it is supposed to be obtaining.
 
+THE INBOX GREW FROM ONE WRITE TO FOUR ON 2026-08-25. Starring, marking one
+thread read, and clearing unread across the whole inbox used to be described
+here as having "no branch that could construct them". They have one now, and
+the sentence that retired is worth keeping visible: the refusal rested on the
+absence of a measured request, and every one of the three ships its contract in
+Instahyre's own JavaScript, so the absence was never the real state of the
+evidence. What did NOT change is the shape of the door -- ``SENDABLE_INBOX_PATHS``
+grew by three NAMED constants, never by loosening into a prefix or a regex --
+and what did not change either is the read tier, which still refuses all five
+mutating markers. One of the three is a **GET**, and it is gated like a send;
+see :meth:`Writer.mark_all_conversations_read` for why that is not a category
+error.
+
 WHAT IS NOT HERE. No profile-image upload: its contract is captured but
 reproducing the browser's body needs a WebP encoder at width<=800 that this
 package has no dependency for, and the CREATE branch was never exercised. No
@@ -34,13 +47,14 @@ questionnaire answers and no workex PUT: those two are still in
 
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from typing import Any, Optional
 from urllib.parse import parse_qsl
 
 from . import constants as C
-from .errors import InstahyreError
+from .errors import InstahyreError, NotFound
 
 log = logging.getLogger("instahyre.writes")
 
@@ -80,26 +94,38 @@ class NotSendable(InstahyreError):
 
 
 def _guard_sendable(path: str) -> str:
-    """Allow exactly one POST target on the inbox resource. Returns the path.
+    """Allow only the named inbox mutation targets. Returns the path.
 
     An ALLOWLIST, not a blocklist, and the difference is the whole point of the
-    carve-out. A blocklist that had been narrowed to let ``send_message``
-    through would also let through anything nobody thought to add to it -- and
-    the mark-all-read trap on this very resource is the proof that this API has
-    mutating routes which do not look like writes (it is a **GET**).
+    carve-out. A blocklist that had been narrowed to let these through would
+    also let through anything nobody thought to add to it -- and the
+    mark-all-read trap on this very resource is the proof that this API has
+    mutating routes which do not look like writes (it is a **GET**, which is
+    exactly why this guard is asked about a PATH and never about a verb).
 
-    So this asks the opposite question: is this THE one path this package may
-    POST to? Star, toggle-read, mark-all-read and bulk apply are refused here
-    not because they are listed but because they are not the single allowed
-    value, which is a property that survives someone adding a new action to the
-    API tomorrow.
+    So this asks the opposite question: is this path ONE OF THE NAMED paths
+    this package may send to? Bulk apply is refused here not because it is
+    listed but because it is not one of the allowed values, which is a property
+    that survives someone adding a new action to the API tomorrow.
+
+    THE SET GREW FROM ONE TO FOUR ON 2026-08-25, by named entry. It did not
+    grow by becoming a rule: there is no prefix test, no regex and no "anything
+    under /resume_modal/emails/message" clause here, because a rule admits
+    members nobody has read. Each of the four is a constant whose request body
+    was captured first, and ``tests/test_writes.py`` pins the set to literal
+    strings so repointing a constant fails there rather than following it here.
     """
     if path not in C.SENDABLE_INBOX_PATHS:
         raise NotSendable(
-            "Refusing to POST to %r. This server has exactly ONE sendable inbox path "
-            "(%s) and this is not it. Replying is the only inbox write that was built; "
-            "starring, marking read and bulk mark-read remain unreachable by design, "
-            "not by omission." % (path, C.EP_SEND_MESSAGE),
+            "Refusing to send to %r. This server has exactly %d named sendable inbox "
+            "paths (%s) and this is not one of them. The set is an allowlist of named "
+            "constants, not a rule about a URL family, so a new Instahyre action is "
+            "unreachable here until somebody reads its contract and names it."
+            % (
+                path,
+                len(C.SENDABLE_INBOX_PATHS),
+                ", ".join(sorted(C.SENDABLE_INBOX_PATHS)),
+            ),
             path=path,
         )
     return path
@@ -137,6 +163,21 @@ def _as_message_html(text: str) -> str:
     )
 
 
+def _iso_millis_now() -> str:
+    """The moment, spelled the way JavaScript's ``toISOString()`` spells it.
+
+    MEASURED, not chosen: ``$scope.pageLoadTimestamp=new Date().toISOString()``
+    in Instahyre's inbox controller, and that value is handed to mark_all_read
+    as ``page_loaded_at``. ``toISOString`` always emits UTC with exactly three
+    fractional digits and a literal ``Z``, so this matches it rather than
+    emitting Python's default ``+00:00`` offset spelling -- a server that
+    parses one and not the other would otherwise turn a race guard into a
+    silent no-op, and a no-op race guard on a bulk mutation widens the sweep.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (now.microsecond // 1000)
+
+
 def _contract(surface: str) -> dict:
     """The evidence stamp a preview carries, straight from the register."""
     entry = C.CAPTURED_WRITE_CONTRACTS[surface]
@@ -155,7 +196,7 @@ def _contract(surface: str) -> dict:
 
 
 class Writer:
-    """The five captured write surfaces, each behind a confirm gate."""
+    """The eight captured write surfaces, each behind a confirm gate."""
 
     def __init__(self, http: Any, store: Any, inbound: Any, inbox: Any = None) -> None:
         self.http = http
@@ -195,12 +236,13 @@ class Writer:
     ) -> dict:
         """Send one reply into one recruiter thread. A person reads this.
 
-        THE ONLY INBOX WRITE THIS SERVER HAS, and it is reached through an
-        allowlist of exactly one path rather than through a hole in the
-        read-only guard. Starring, marking read and bulk mark-read are not
-        merely still refused -- there is no branch here that could construct
-        them. :data:`constants.MUTATING_PATH_MARKERS` is unchanged and the read
-        tier still refuses all five markers, ``send_message`` included.
+        THE ONLY INBOX WRITE THAT REACHES ANOTHER PERSON. It is reached through
+        a named allowlist rather than through a hole in the read-only guard,
+        and it is the only entry on that allowlist a recruiter ever sees the
+        result of -- starring, marking read and clearing unread joined the list
+        on 2026-08-25 and all three are private to his own account.
+        :data:`constants.MUTATING_PATH_MARKERS` is unchanged and the read tier
+        still refuses all five markers, ``send_message`` included.
 
         WHAT THE PLATFORM CHECKS BEFORE SENDING: nothing. Instahyre's own
         ``addMessage`` has one guard and it is a double-click latch -- no
@@ -257,12 +299,12 @@ class Writer:
             "content": _as_message_html(text),
             "attachments": [],
         }
-        # The doorway. Everything that reaches the wire from this module goes
-        # through it, and it is the ONLY place a POST target is decided -- which
-        # is what makes "reply and nothing else" a structural property rather
-        # than a promise. It is not self-certifying: the allowlist is pinned to
-        # a LITERAL path in tests/test_writes.py, so editing EP_SEND_MESSAGE
-        # fails there rather than sliding through here.
+        # The doorway. Every inbox request that reaches the wire from this
+        # module goes through it, and it is the only place an inbox target is
+        # decided -- which is what makes "these four and nothing else" a
+        # structural property rather than a promise. It is not self-certifying:
+        # the allowlist is pinned to LITERAL paths in tests/test_writes.py, so
+        # editing EP_SEND_MESSAGE fails there rather than sliding through here.
         _guard_sendable(C.EP_SEND_MESSAGE)
 
         preview = {
@@ -412,6 +454,629 @@ class Writer:
                 "re-read of the thread did not find the message that was sent; it may "
                 "not be indexed yet, or it may not have been stored"
             ),
+        }
+
+    # -- 0b. the three inbox writes admitted 2026-08-25 --------------------
+    #
+    # NONE OF THESE THREE HAS EVER RUN AGAINST LIVE DATA, and every docstring
+    # below says so rather than leaving a reader to assume it. His inbox holds
+    # ZERO conversations (measured 2026-08-23, authenticated, 200), so there is
+    # nothing to star, nothing to mark read, and -- because the site's own gate
+    # keys on the unread count -- nothing for mark-all-read to do either. What
+    # was measured is the CONTRACT, out of Instahyre's shipped JavaScript. What
+    # was not measured is any response, any status code, and any effect.
+
+    def _raw_conversation(self, conv_id: int) -> dict:
+        """The conversation record AS THE SERVER RETURNED IT, or refuse.
+
+        Read raw rather than through :meth:`Inbox.list_conversations` because
+        the shaped record deliberately drops the field ``toggle_message_read``
+        needs and this code must never invent: ``resource_uri``. That value is
+        a tastypie URI the SERVER supplies; assembling one from an id would be
+        a guess wearing the shape of a measurement, on a body whose whole
+        contract is that the field takes a URI and not an id.
+
+        It also refuses an id that is not his, for the same reason
+        :meth:`reply_to_conversation` does: a write aimed at a foreign id is
+        the failure with no undo, and his own conversation list is the only
+        place a ``conv_id`` legitimately comes from.
+
+        Paged with the same two constants and the same two terminators the
+        not-found cross-check uses, so the two walks cannot drift apart. A walk
+        that hits the page cap REFUSES rather than reporting "not his" -- on a
+        write, "I could not finish looking" and "it is not there" must not
+        collapse into the same answer.
+        """
+        target = str(conv_id)
+        offset = 0
+        for _ in range(C.CONV_ID_CHECK_MAX_PAGES):
+            payload = self.http.get(
+                C.EP_CONVERSATIONS,
+                params={"limit": C.CONV_ID_CHECK_PAGE, "offset": offset},
+            )
+            if not isinstance(payload, dict) or "objects" not in payload:
+                raise InstahyreError(
+                    "The conversation list came back without an 'objects' key, so the "
+                    "record this write has to build its body from could not be read. "
+                    "Nothing was sent."
+                )
+            objects = payload.get("objects") or []
+            for obj in objects:
+                if isinstance(obj, dict) and str(obj.get("id")) == target:
+                    return obj
+            if not objects or not (payload.get("meta") or {}).get("next"):
+                raise NotFound(
+                    "No conversation %r in this account's inbox. It is not in "
+                    "instahyre_list_conversations, which is the only place a conv_id "
+                    "comes from, and that list was walked in full. Nothing was sent."
+                    % (conv_id,),
+                    conv_id=conv_id,
+                    checked_against="instahyre_list_conversations",
+                )
+            offset += len(objects)
+        raise InstahyreError(
+            "His inbox runs past the %d conversations this walk covers, so whether "
+            "conversation %r is his could not be established. A write does not proceed "
+            "on 'probably'. Nothing was sent."
+            % (C.CONV_ID_CHECK_PAGE * C.CONV_ID_CHECK_MAX_PAGES, conv_id)
+        )
+
+    def _require_csrf(self, what: str) -> None:
+        """Refuse to send without a CSRF cookie. Same rail on all three.
+
+        On the two POSTs this is Django's own requirement and a missing token
+        would produce a rejection that reads like a platform verdict. On the
+        mark-all-read GET it is NOT Django's requirement -- a GET is exempt --
+        and it is applied anyway, deliberately: that request bulk-mutates, an
+        ambiguous outcome on a bulk mutation is the worst outcome available
+        here, and the cookie is the cheapest pre-flight evidence that the
+        session behind it is real. Stated rather than implied, because a rail
+        of ours dressed up as the platform's is the thing this package's whole
+        write register exists to avoid.
+        """
+        if not self.http.cookies.get("csrftoken"):
+            raise ConfirmationRequired(
+                "Refusing to %s without a CSRF token. Run instahyre_auth_status." % what
+            )
+
+    def star_conversation(
+        self, conv_id: int, starred: bool, *, confirm: bool = False
+    ) -> dict:
+        """Star or unstar one conversation. Reversible, and reaches nobody.
+
+        THE PAYLOAD SHAPE, AND WHY THIS ONE. Two shipped callers build this
+        body and each branches on ``profileType``:
+        ``inboxService.markUnstarred`` sends ``{star_conv:false, job_id}`` and
+        adds ``can_user`` only under ``if(profileType!=="candidate")``;
+        ``inboxService.toggleStarConversation`` sends
+        ``{star_conv:!Boolean(selectedConv.starred), job_id}`` on the candidate
+        branch and adds ``can_user`` on the other. THIS ACCOUNT IS A CANDIDATE,
+        so both callers collapse to the SAME two-key body and this server sends
+        that: ``{star_conv, job_id}``. ``can_user`` is a limited_candidate
+        resource URI naming the other party and is recruiter-side only --
+        sending it would be sending a field his own browser never sends.
+
+        THE KEY IS ``star_conv``. ``starred`` appears in the toggle only as
+        ``response.starred``, the field read back OFF the reply. No shipped
+        caller sends a ``starred`` key, so the tool's ``starred`` ARGUMENT and
+        the body's ``star_conv`` FIELD are deliberately spelled differently
+        here and must not be reconciled.
+
+        NEVER EXERCISED AGAINST LIVE DATA. His inbox holds zero conversations
+        (measured 2026-08-23, authenticated, 200), so this has run against
+        fixtures only. The contract is SHIPPED; no response, no status code and
+        no effect has been observed.
+        """
+        starred = bool(starred)
+        record = self._raw_conversation(conv_id)
+        job_id = record.get("job_id")
+        if job_id is None:
+            raise InstahyreError(
+                "Conversation %r carries no job_id, and the captured body requires one "
+                "-- both shipped callers read it straight off the conversation record. "
+                "Refusing to send a shape the site does not produce. Nothing was sent."
+                % (conv_id,)
+            )
+        current = record.get("is_starred")
+        if isinstance(current, bool) and current == starred:
+            raise NothingToDo(
+                "Conversation %r is already %s, so this would send a request the site "
+                "never makes: its own control only ever inverts the current state "
+                "(markUnstarred sends false on a starred thread, the toggle sends the "
+                "negation of what it read). Nothing was sent."
+                % (conv_id, "starred" if starred else "unstarred")
+            )
+
+        body = {"star_conv": starred, "job_id": job_id}
+        _guard_sendable(C.EP_STAR_CONVERSATION)
+
+        preview = {
+            "conv_id": int(conv_id),
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + C.EP_STAR_CONVERSATION,
+                "content_type": "application/json",
+                "body": body,
+            },
+            "currently_starred": current,
+            "would_become": starred,
+            "thread": self._thread_context(conv_id),
+            "contract": _contract("inbox_star"),
+            "reversible": "Yes. Run this again with starred inverted.",
+            "reaches_nobody": (
+                "A star is a private bookmark on his own inbox. No recruiter is "
+                "notified and no message is sent."
+            ),
+            "the_body_key_is_not_the_argument_name": (
+                "The wire field is 'star_conv'. 'starred' is what the RESPONSE carries "
+                "back; no shipped caller ever sends a key by that name."
+            ),
+            "can_user_is_omitted_on_purpose": (
+                "Both callers add can_user only when profileType is not 'candidate'. "
+                "This account is a candidate, so the field is absent here exactly as it "
+                "is absent from his own browser's request."
+            ),
+            "never_run_live": (
+                "His inbox holds zero conversations (measured 2026-08-23, "
+                "authenticated, 200), so this tool has never been exercised against "
+                "real data. The contract was read out of Instahyre's JavaScript; no "
+                "response to it has ever been observed."
+            ),
+        }
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Re-run with confirm=True to set star_conv=%r on "
+                "conversation %r." % (starred, int(conv_id))
+            )
+            return preview
+
+        self._require_csrf("change a star")
+        log.warning("setting star_conv=%r on conversation %s", starred, conv_id)
+        response = self.http.post(C.EP_STAR_CONVERSATION, json_body=body)
+
+        # This is the one inbox write that verifies itself out of its own
+        # reply: the site reads `response.starred` and assigns it straight onto
+        # the conversation. So the check is a comparison against what the
+        # server said, not against what this code hoped -- and when the field
+        # is absent the result says the read-back was unavailable rather than
+        # reporting an unobserved success.
+        observed = (
+            response.get(C.STAR_CONVERSATION_RESPONSE_FIELD)
+            if isinstance(response, dict)
+            else None
+        )
+        result = {
+            "confirmed": True,
+            "conv_id": int(conv_id),
+            "sent": preview["would_send"],
+            "response": response,
+            "verified": observed == starred,
+            "verified_by": (
+                "the response's own 'starred' field, which is what Instahyre's client "
+                "reads to update its UI"
+                if isinstance(observed, bool)
+                else "the response carried no 'starred' field, so the new state is "
+                "unconfirmed"
+            ),
+        }
+        if not result["verified"]:
+            result["warning"] = (
+                "The request was accepted but the new starred state could not be "
+                "confirmed from the response. Re-read with "
+                "instahyre_list_conversations before sending it again -- this is "
+                "reversible, so a wrong state is fixable, but a blind retry is still a "
+                "second write nobody asked for."
+            )
+        return result
+
+    def mark_conversation_read(
+        self, conv_id: int, mark_unread: bool, *, confirm: bool = False
+    ) -> dict:
+        """Mark one conversation unread, or read. Reaches nobody.
+
+        THE BODY TAKES A RESOURCE URI, NOT AN ID. ``inboxService.markUnread``
+        sends ``{conversation: conv.resource_uri, mark_unread: true}``, and
+        ``resource_uri`` is a tastypie string the SERVER supplies on the
+        conversation record -- the same convention the support ticket names its
+        candidate by. This code reads the record and copies that string
+        verbatim; it never assembles one from the id, because an assembled URI
+        is a guess in the shape of a measurement.
+
+        ONLY ``mark_unread=True`` HAS A SHIPPED CALLER. That is an evidence gap
+        and it is stated rather than smoothed over: across every bundle the one
+        caller of this action sends the literal ``true``. The site has no
+        mark-read button at all -- it marks read implicitly, by fetching a
+        thread -- so ``False`` is a value nobody has been observed sending. It
+        is accepted here, and the preview says which of the two is measured.
+
+        MARKING UNREAD IS THE SAFE DIRECTION and marking read is not, which is
+        the opposite of how the two usually read: unread is the only signal
+        separating a new recruiter message from an old one, so clearing it
+        destroys information while restoring it destroys none.
+
+        NEVER EXERCISED AGAINST LIVE DATA -- zero conversations in his inbox
+        (measured 2026-08-23, authenticated, 200). Fixtures only.
+        """
+        mark_unread = bool(mark_unread)
+        record = self._raw_conversation(conv_id)
+        resource_uri = record.get("resource_uri")
+        if not resource_uri:
+            raise InstahyreError(
+                "Conversation %r carries no resource_uri, and the captured body names "
+                "the conversation by URI rather than by id. This server will not "
+                "assemble one: a fabricated resource URI is a guess wearing the shape "
+                "of a measurement. Nothing was sent." % (conv_id,)
+            )
+        read_now = record.get("is_latest_msg_read")
+        if isinstance(read_now, bool) and read_now == (not mark_unread):
+            raise NothingToDo(
+                "Conversation %r is already marked %s, so there is nothing to change. "
+                "Nothing was sent."
+                % (conv_id, "unread" if mark_unread else "read")
+            )
+
+        body = {"conversation": resource_uri, "mark_unread": mark_unread}
+        _guard_sendable(C.EP_TOGGLE_MESSAGE_READ)
+
+        preview = {
+            "conv_id": int(conv_id),
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + C.EP_TOGGLE_MESSAGE_READ,
+                "content_type": "application/json",
+                "body": body,
+            },
+            "currently_unread": (not read_now) if isinstance(read_now, bool) else None,
+            "would_become_unread": mark_unread,
+            "thread": self._thread_context(conv_id),
+            "contract": _contract("inbox_mark_read"),
+            "reversible": "Yes. Run this again with mark_unread inverted.",
+            "reaches_nobody": (
+                "Read state is his own. No recruiter is notified and no message is "
+                "sent."
+            ),
+            "the_conversation_field_is_a_uri": (
+                "'conversation' carries %r -- the resource_uri the server returned on "
+                "this record, copied verbatim. It is not the integer id, and this "
+                "server never builds one itself." % resource_uri
+            ),
+            "evidence_for_this_value": (
+                "mark_unread=true is what Instahyre's own markUnread sends and is the "
+                "only value with a shipped caller anywhere."
+                if mark_unread
+                else "mark_unread=false has NO shipped caller. Instahyre has no "
+                "mark-read control at all -- it marks a thread read implicitly when "
+                "the thread is fetched -- so this value has never been observed on "
+                "the wire, and it is offered here without that evidence rather than "
+                "with it."
+            ),
+            "never_run_live": (
+                "His inbox holds zero conversations (measured 2026-08-23, "
+                "authenticated, 200), so this tool has never been exercised against "
+                "real data."
+            ),
+        }
+        if not mark_unread:
+            preview["losing_the_unread_signal"] = (
+                "Marking read destroys the only flag separating a new recruiter "
+                "message from an old one on this thread. It is reversible -- run this "
+                "again with mark_unread=True -- but nothing else records that the "
+                "thread was unread."
+            )
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Re-run with confirm=True to send exactly the "
+                "body above."
+            )
+            return preview
+
+        self._require_csrf("change a read flag")
+        log.warning("setting mark_unread=%r on conversation %s", mark_unread, conv_id)
+        response = self.http.post(C.EP_TOGGLE_MESSAGE_READ, json_body=body)
+
+        # A 200 is not the outcome. The response shape for this action is NOT
+        # in the captured contract -- the site's callback reads nothing off it,
+        # it just decrements a badge locally -- so the only honest check is a
+        # re-read of the record, and the only honest report when that read
+        # fails is that it failed.
+        verification = self._verify_read_flag(conv_id, mark_unread)
+        result = {
+            "confirmed": True,
+            "conv_id": int(conv_id),
+            "sent": preview["would_send"],
+            "response": response,
+            "verified": verification["ok"],
+            "verified_by": verification["how"],
+        }
+        if not verification["ok"]:
+            result["warning"] = (
+                "The request was accepted but the new read state could not be "
+                "confirmed. This is reversible, so check "
+                "instahyre_list_conversations before sending anything else."
+            )
+        return result
+
+    def _verify_read_flag(self, conv_id: int, mark_unread: bool) -> dict:
+        """Re-read the record and compare the flag. Never raises."""
+        try:
+            record = self._raw_conversation(conv_id)
+        except InstahyreError as exc:
+            return {
+                "ok": False,
+                "how": "the read-back failed with %s, so the new state is unconfirmed"
+                % exc.kind,
+            }
+        read_now = record.get("is_latest_msg_read")
+        if not isinstance(read_now, bool):
+            return {
+                "ok": False,
+                "how": "the re-read record carried no is_latest_msg_read flag, so the "
+                "new state is unconfirmed",
+            }
+        if read_now == (not mark_unread):
+            return {
+                "ok": True,
+                "how": "re-read of the conversation record shows is_latest_msg_read=%r"
+                % read_now,
+            }
+        return {
+            "ok": False,
+            "how": "re-read of the conversation record still shows "
+            "is_latest_msg_read=%r, which is not what was asked for" % read_now,
+        }
+
+    def mark_all_conversations_read(self, *, confirm: bool = False) -> dict:
+        """Clear the unread flag across the WHOLE inbox. A GET, and gated like a send.
+
+        WHY A GET IS GATED. Because this one mutates. Instahyre declares it
+        ``mark_all_read:{method:'GET',url:url+"mark_all_read"}`` on the same
+        ``$resource`` -- and the same URL prefix -- as the conversation list,
+        so the single most reasonable-looking way to explore this API ("GET
+        everything under the resource and see what comes back") silently wipes
+        his unread state with no request body and no confirmation. A gate that
+        keyed on the VERB would wave this straight through, which is why both
+        guards in this package key on the PATH instead, and why ``confirm``
+        here means exactly what it means on a POST: nothing is requested at all
+        until it is True.
+
+        WHAT IT COSTS. Unread is the only signal separating a new recruiter
+        message from an old one, and one call clears every one of them. Per-
+        thread undo exists -- instahyre_mark_conversation_read with
+        mark_unread=True -- but only against the list this preview printed;
+        nothing else remembers which threads were unread. So the preview names
+        them before it will take a confirm.
+
+        WHAT GOES ON THE WIRE. ``buildFilters()`` plus ``page_loaded_at``, as
+        query parameters. ``buildFilters()`` was read whole out of the bundle
+        and returns an EMPTY dict on the default "All conversations" view with
+        no search text, which is why this tool takes no filter arguments -- the
+        widest call is the one its name promises and the only one whose filter
+        dict needs no choosing. ``page_loaded_at`` is
+        ``new Date().toISOString()``, stamped by the site when the conversation
+        LIST is fetched; its job is to leave anything that arrived after that
+        read alone. This reproduces both halves: it reads the list, stamps that
+        read, and sends that stamp.
+
+        NEVER EXERCISED AGAINST LIVE DATA, and on this account it cannot be:
+        zero conversations means zero unread, and Instahyre's own caller
+        refuses to issue the request when the unread count is zero.
+        """
+        if self.inbox is None:
+            raise InstahyreError(
+                "This Writer was built without an inbox, so it cannot read the list "
+                "this request has to be stamped against or name what would change. It "
+                "will not bulk-mutate blind. This is a wiring bug, not a platform "
+                "limit."
+            )
+
+        listing = self.inbox.list_conversations(
+            limit=C.CONV_ID_CHECK_PAGE, include_job=False
+        )
+        # Stamped AFTER the response, which is where the site stamps it: the
+        # assignment lives inside loadConv's .then() handler. Stamping before
+        # the read would claim a moment earlier than the data, and this field's
+        # entire job is to bound what the sweep is allowed to touch.
+        page_loaded_at = _iso_millis_now()
+
+        records = listing.get("conversations") or []
+        unread = [r for r in records if r.get("unread")]
+        unread_total = listing.get("unread_total")
+
+        # Instahyre's own gate, reproduced rather than invented:
+        # `if(inboxService.getMarkAllAsReadCount())`, and that count is
+        # `conv_count.unread || 0` -- the COUNT alone, never the rows. At zero
+        # the site sends nothing at all, so neither does this.
+        #
+        # The count is trusted over the rows on purpose, and only in this
+        # direction. A count of zero beside a row that looks unread is a
+        # CONTRADICTION, and a bulk mutation is the last place to resolve one
+        # by picking the answer that lets it proceed.
+        counted = unread_total if isinstance(unread_total, int) else None
+        if counted == 0:
+            note = (
+                "The server reports no unread conversations, and Instahyre's own "
+                "markAllRead refuses to issue the request in exactly this case "
+                "(`if(inboxService.getMarkAllAsReadCount())`, which is "
+                "conv_count.unread || 0). Nothing was sent. On this account that is "
+                "also the standing answer: the inbox holds zero conversations, "
+                "measured 2026-08-23 while authenticated, 200."
+            )
+            if unread:
+                note += (
+                    " NOTE A CONTRADICTION: the count says zero while %d row(s) in the "
+                    "list carry an unread flag. This refuses rather than picking the "
+                    "reading that would let a bulk mutation through -- check "
+                    "instahyre_inbox_counts against instahyre_list_conversations."
+                    % len(unread)
+                )
+            return {
+                "confirmed": False,
+                "changed": False,
+                "unread_total": unread_total,
+                "would_affect": [],
+                "why_nothing_to_do": note,
+                "diagnosis": listing.get("diagnosis"),
+            }
+        if counted is None and not unread:
+            return {
+                "confirmed": False,
+                "changed": False,
+                "unread_total": None,
+                "would_affect": [],
+                "why_nothing_to_do": (
+                    "The unread COUNT could not be read -- the count endpoint did not "
+                    "answer with a usable total -- and no conversation in the list "
+                    "carries an unread flag either. That is 'nothing observed to do', "
+                    "which is not the same statement as 'nothing to do', so it refuses "
+                    "rather than reporting a clean sweep of an inbox it could not "
+                    "measure. Nothing was sent."
+                ),
+                "diagnosis": listing.get("diagnosis"),
+            }
+
+        params = {"page_loaded_at": page_loaded_at}
+        _guard_sendable(C.EP_MARK_ALL_READ)
+
+        preview = {
+            "would_send": {
+                "method": C.MARK_ALL_READ_METHOD,
+                "url": C.API_BASE + C.EP_MARK_ALL_READ,
+                "query": params,
+                "body": None,
+            },
+            "unread_total": unread_total,
+            "would_affect": [
+                {
+                    "conv_id": r.get("id"),
+                    "preview": r.get("preview"),
+                    "last_message_at": r.get("last_message_at"),
+                }
+                for r in unread
+            ],
+            "would_affect_count": len(unread),
+            "contract": _contract("inbox_mark_all_read"),
+            "a_get_that_mutates": (
+                "THIS GET MUTATES. It is gated anyway -- harder than most POSTs here -- "
+                "because the method says nothing about what it does: Instahyre "
+                "declares mark_all_read:{method:'GET',...} on the same resource prefix "
+                "as the conversation list, so a routine walk of that resource would "
+                "clear his unread flags with no body and no warning."
+            ),
+            "no_filters_are_sent": (
+                "buildFilters() returns an empty dict on the default view, so this "
+                "sends page_loaded_at and nothing else -- the widest form of the "
+                "action, which is what the name says. There is no narrowing argument "
+                "on this tool because a narrowed sweep would be a filter dict nobody "
+                "measured."
+            ),
+            "page_loaded_at_is_a_race_guard": (
+                "It is the moment the conversation list above was read. Anything that "
+                "arrives after it is outside what this request claims to cover, which "
+                "is why the value is taken from this call's own read rather than from "
+                "the clock alone."
+            ),
+            "how_to_undo": (
+                "There is no bulk undo. Each thread can be pushed back with "
+                "instahyre_mark_conversation_read(conv_id, mark_unread=True), but only "
+                "against the 'would_affect' list above -- nothing else records which "
+                "threads were unread before this ran."
+            ),
+            "counts_may_exceed_the_list": (
+                "'would_affect' is drawn from the first %d conversations. If "
+                "unread_total is larger than would_affect_count, the sweep clears "
+                "threads this preview did not name." % C.CONV_ID_CHECK_PAGE
+            ),
+            "never_run_live": (
+                "His inbox holds zero conversations (measured 2026-08-23, "
+                "authenticated, 200), so this tool has never been exercised against "
+                "real data and Instahyre's own gate would refuse to issue it."
+            ),
+        }
+        if counted is None:
+            preview["the_unread_count_was_unavailable"] = (
+                "The count endpoint did not answer with a usable total, so 'would_"
+                "affect' below is drawn from the conversation list alone. The sweep is "
+                "not bounded by that list -- it clears whatever the server considers "
+                "unread -- so treat the named threads as a floor, not as the whole "
+                "cost."
+            )
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Read 'would_affect' above -- those threads lose "
+                "their unread flag -- then re-run with confirm=True."
+            )
+            return preview
+
+        self._require_csrf("clear the whole inbox's unread state")
+        log.warning(
+            "clearing unread across the inbox (%s unread reported)", unread_total
+        )
+        response = self.http.get(C.EP_MARK_ALL_READ, params=params)
+
+        verification = self._verify_mark_all_read(response)
+        result = {
+            "confirmed": True,
+            "changed": True,
+            "sent": preview["would_send"],
+            "affected": preview["would_affect"],
+            "unread_before": unread_total,
+            "response": response,
+            "verified": verification["ok"],
+            "verified_by": verification["how"],
+            "unread_after": verification["unread_after"],
+        }
+        if not verification["ok"]:
+            result["warning"] = (
+                "The request was accepted but the new unread total could not be "
+                "confirmed. Do NOT simply re-run it -- a second sweep cannot undo the "
+                "first and would only widen it. Read instahyre_inbox_counts."
+            )
+        return result
+
+    def _verify_mark_all_read(self, response: Any) -> dict:
+        """Two independent readings of the new unread total. Never raises.
+
+        The response's own ``conv_count`` is what Instahyre's callback reads
+        (``response.conv_count.unread``), and a fresh count endpoint read is
+        the second opinion. They are reported separately rather than merged: if
+        they disagree, that disagreement is the finding.
+        """
+        from_response = None
+        if isinstance(response, dict):
+            counts = response.get(C.MARK_ALL_READ_RESPONSE_COUNT_KEY)
+            if isinstance(counts, dict):
+                from_response = counts.get(C.MARK_ALL_READ_GATE_COUNT_FIELD)
+
+        re_read: Any = None
+        how_re_read = None
+        try:
+            re_read = self.inbox.conversation_counts().get("unread")
+        except InstahyreError as exc:
+            how_re_read = "the count re-read failed with %s" % exc.kind
+
+        for value, how in (
+            (from_response, "the response's own conv_count.unread, which is the field "
+                            "Instahyre's own callback reads"),
+            (re_read, "a fresh read of the conversation count endpoint"),
+        ):
+            if value == 0:
+                return {"ok": True, "how": how, "unread_after": value}
+
+        return {
+            "ok": False,
+            "how": (
+                "neither reading confirmed a cleared inbox (response said %r, re-read "
+                "said %r%s)"
+                % (
+                    from_response,
+                    re_read,
+                    "" if how_re_read is None else "; " + how_re_read,
+                )
+            ),
+            "unread_after": re_read if re_read is not None else from_response,
         }
 
     # -- 1. support tickets (WIRE) -----------------------------------------

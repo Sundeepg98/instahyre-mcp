@@ -9,9 +9,11 @@ nobody dares exercise are exactly the guards that quietly stop working.
 
 Two claims are being defended and they fail in different directions:
 
-  THE CARVE-OUT IS ONE PATH WIDE. Reply became reachable; starring, marking
-  read and bulk mark-all-read did not. A widening here is silent -- nothing
-  breaks, the server simply gains a power nobody granted it.
+  THE CARVE-OUT IS FOUR NAMED PATHS WIDE. It was one until 2026-08-25, when
+  starring, marking read and bulk mark-all-read were built on their captured
+  contracts. A widening BEYOND those four is silent -- nothing breaks, the
+  server simply gains a power nobody granted it -- so the plant here adds a
+  fifth entry and requires the size assertion to notice.
 
   THE GATE HOLDS. confirm=False sends nothing, an empty message is refused, the
   body is exactly what the preview showed, and a 200 is not treated as
@@ -50,20 +52,20 @@ def case(name, path, old, new, test):
 PLANTS = [
     # -- the carve-out ------------------------------------------------------
     case(
-        "the allowlist widened to admit starring too",
+        "the allowlist widened to admit a fifth path nobody granted",
         CONSTANTS,
-        "SENDABLE_INBOX_PATHS = frozenset({EP_SEND_MESSAGE})",
-        "SENDABLE_INBOX_PATHS = frozenset(\n"
-        "    {EP_SEND_MESSAGE, '/resume_modal/emails/message/star_conversation'}\n"
-        ")",
-        "test_the_sendable_allowlist_holds_exactly_one_path",
+        "        EP_MARK_ALL_READ,\n    }\n)",
+        "        EP_MARK_ALL_READ,\n"
+        "        '/candidate_opportunities/candidate_matching/apply_bulk/',\n"
+        "    }\n)",
+        "test_the_sendable_allowlist_holds_exactly_the_four_named_paths",
     ),
     case(
         "the send constant repointed at the mark-all-read trap",
         CONSTANTS,
         'EP_SEND_MESSAGE = "/resume_modal/emails/message/send_message/"',
         'EP_SEND_MESSAGE = "/inbox_page/candidate_conversation/mark_all_read"',
-        "test_the_sendable_allowlist_holds_exactly_one_path",
+        "test_the_sendable_allowlist_holds_exactly_the_four_named_paths",
     ),
     case(
         "the guard turned into a blocklist that only names the obvious",
@@ -77,7 +79,7 @@ PLANTS = [
         CONSTANTS,
         '    "mark_all_read",\n    "send_message",',
         '    "mark_all_read",',
-        "test_the_read_tier_still_refuses_send_message_along_with_all_four_others",
+        "test_the_read_tier_still_refuses_every_path_the_write_tier_now_admits",
     ),
     # -- the gate -----------------------------------------------------------
     case(
@@ -122,9 +124,16 @@ PLANTS = [
         "test_line_breaks_survive_as_paragraphs_rather_than_being_reflowed",
     ),
     case(
+        # The anchor carries the URL line above it because three previews now
+        # declare a content type and the bare line is no longer unique. An
+        # ambiguous anchor is reported as ANCHOR-MISSING rather than silently
+        # planted into the wrong preview, which is the harness working -- but a
+        # plant that never runs certifies nothing, so it is disambiguated here.
         "the preview quotes the browser's Content-Type, not this client's",
         WRITES,
+        '                "url": C.API_BASE + C.EP_SEND_MESSAGE,\n'
         '                "content_type": "application/json",',
+        '                "url": C.API_BASE + C.EP_SEND_MESSAGE,\n'
         '                "content_type": "application/json;charset=utf-8",',
         "test_the_preview_states_the_content_type_this_client_actually_sends",
     ),
@@ -196,9 +205,21 @@ def main() -> int:
             code, tail = pytest_run(plant["test"])
         finally:
             io.open(target, "w", encoding="utf-8", newline="").write(original)
-        results.append(
-            (plant["name"], "RED" if code != 0 else "GREEN -- THIS CHECK CANNOT FAIL", tail)
-        )
+        # EXIT CODE 1 IS THE ONLY RED, and that was a real defect here rather
+        # than pedantry. This line used to read `code != 0`, which counts
+        # pytest's exit 4 ("ERROR: not found: <nodeid>") as a passing control --
+        # so a plant whose test had been RENAMED reported RED while running
+        # nothing at all. Two plants in this file were sitting in exactly that
+        # state after the 2026-08-25 inbox-write build renamed their targets.
+        # A control that goes green when its subject vanishes is worse than no
+        # control, so a non-1 exit is now reported as a harness fault.
+        if code == 1:
+            verdict = "RED"
+        elif code == 0:
+            verdict = "GREEN -- THIS CHECK CANNOT FAIL"
+        else:
+            verdict = "HARNESS -- pytest exit %d, no test ran" % code
+        results.append((plant["name"], verdict, tail))
 
     print("\n=== reply guards: red controls ===")
     bad = 0

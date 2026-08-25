@@ -236,7 +236,7 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_six_that_were_captured(self):
+    def test_it_names_the_nine_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
             # Added 2026-08-23. inbox_reply is SHIPPED, and it is the entry that
             # most needs its class read: it is the only irreversible surface in
@@ -257,6 +257,16 @@ class TestTheCapturedContracts:
             # source and the wire is on the body, and here there is no body to
             # get wrong.
             "job_search_profile",
+            # Added 2026-08-25. All three were CAPTURED on 2026-08-23 and sat
+            # unregistered while the tools were withheld on value; registering
+            # them is what made building them ordinary work rather than a
+            # special case. inbox_mark_all_read is the one that changed the
+            # SHAPE of this register: its method is GET, and it is the reason
+            # the entry check below no longer assumes a write wears a write
+            # verb.
+            "inbox_star",
+            "inbox_mark_read",
+            "inbox_mark_all_read",
         }
 
     def test_the_jsp_contract_says_the_omission_hazard_is_unreachable(self):
@@ -271,12 +281,56 @@ class TestTheCapturedContracts:
 
     @pytest.mark.parametrize("surface", sorted(C.CAPTURED_WRITE_CONTRACTS))
     def test_every_entry_declares_its_evidence_class(self, surface):
+        """GET JOINED THE ALLOWED METHODS ON 2026-08-25, deliberately.
+
+        Until then this line read ``("POST", "PUT", "PATCH", "DELETE")`` -- a
+        list that quietly encoded the assumption a mutation wears a mutating
+        verb. ``mark_all_read`` is the counterexample this whole package keeps
+        pointing at: Instahyre declares it
+        ``{method:'GET',url:url+"mark_all_read"}`` and it clears unread state
+        across the entire inbox. Widening the tuple is therefore not a
+        loosening; it is the register finally being able to describe the one
+        surface whose danger is that it does NOT look like a write. Keeping the
+        old tuple would have forced the entry to be mislabelled as a POST to
+        get past its own shape check, which is the direction that actually
+        costs something.
+        """
         entry = C.CAPTURED_WRITE_CONTRACTS[surface]
         assert entry["evidence"] in (C.CONTRACT_WIRE, C.CONTRACT_SHIPPED)
-        assert entry["method"] in ("POST", "PUT", "PATCH", "DELETE")
+        assert entry["method"] in ("POST", "PUT", "PATCH", "DELETE", "GET")
         assert entry["path"].startswith("/")
         assert entry["body_keys"], "%s: a contract with no body keys is not one" % surface
         assert len(entry["note"]) > 120, "%s: the note carries no finding" % surface
+
+    def test_the_one_GET_entry_says_it_mutates_and_names_its_query_keys(self):
+        """A GET in this register is only admissible if it declares WHY.
+
+        The widened method tuple above is safe exactly to the extent that a GET
+        entry cannot slip in as an ordinary read. So the two are checked
+        together: any entry whose method is GET has to say in its own note that
+        it mutates, and has to publish the query keys that stand in for the
+        body it does not have.
+        """
+        gets = {
+            surface: entry
+            for surface, entry in C.CAPTURED_WRITE_CONTRACTS.items()
+            if entry["method"] == "GET"
+        }
+        assert set(gets) == {"inbox_mark_all_read"}, (
+            "a new GET entered the captured-write register: %s. A GET here is a "
+            "mutating GET by definition -- say so in its note, or it does not "
+            "belong." % sorted(gets)
+        )
+        for surface, entry in gets.items():
+            assert "MUTATE" in entry["note"].upper(), surface
+            assert entry["query_keys"], "%s: a GET contract needs its query keys" % surface
+            assert "page_loaded_at" in entry["query_keys"]
+            # body_keys is required to be truthy by the shape check above, so a
+            # GET cannot simply leave it empty. It has to SAY there is no body,
+            # which is the reading that stops an empty tuple and an unrecorded
+            # body from looking the same.
+            declared = " ".join(entry["body_keys"]).lower()
+            assert "none" in declared and "query string" in declared, declared
 
     def test_the_two_evidence_classes_are_not_the_same_string(self):
         """If these ever collapse to one value the distinction stops being

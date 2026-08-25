@@ -62,11 +62,21 @@ EXPECTED_TOOLS = {
     "instahyre_account_settings",
     "instahyre_apply",
     "instahyre_decline_opportunity",
-    # Tier 3 -- the inbox. Read-only, plain HTTP, no browser.
+    # Tier 3 -- the inbox. Reads are plain HTTP with no browser; the four
+    # writes below run on a NAMED allowlist of four URLs, one per captured
+    # contract.
     "instahyre_list_conversations",
     "instahyre_read_conversation",
     "instahyre_inbox_counts",
     "instahyre_reply_to_conversation",
+    # Added 2026-08-25. All three retire refusals that had stopped resting on
+    # evidence -- their contracts were captured on 2026-08-23 and the tools
+    # were withheld on value until the ruling changed. mark_all_conversations_
+    # read is the one to read twice: it is a GET that bulk-mutates, and it
+    # carries the same confirm gate as any POST here.
+    "instahyre_star_conversation",
+    "instahyre_mark_conversation_read",
+    "instahyre_mark_all_conversations_read",
     # Read-only analysis over what the account already holds. No new endpoint
     # between them: skill_gap re-reads the queue, resume_info follows an id the
     # profile already publishes, saved_searches exposes a route the client had
@@ -189,8 +199,11 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_forty_eight_tools(tools):
-    assert len(tools) == len(EXPECTED_TOOLS) == 48
+def test_the_server_registers_exactly_fifty_one_tools(tools):
+    """48 until 2026-08-25, when the three remaining measured inbox writes were
+    built. The number is pinned rather than derived so that a tool appearing on
+    the MCP surface is an edit somebody made here on purpose."""
+    assert len(tools) == len(EXPECTED_TOOLS) == 51
 
 
 def test_every_tool_name_is_namespaced(tools):

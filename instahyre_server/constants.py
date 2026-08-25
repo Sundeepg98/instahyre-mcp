@@ -440,11 +440,16 @@ MUTATING_PATH_MARKERS = (
 # without a reason.
 #
 # THE CARVE-OUT IS AN ALLOWLIST, NOT AN EXEMPTION. The write side does not ask
-# "is this path forbidden?" -- it asks "is this path THE one path I am allowed
-# to POST to?", and there is exactly one. Starring, marking read, bulk read and
-# bulk apply are not merely still-blocked; they are unreachable from the write
-# channel because it has no branch that could reach them. The operator asked
-# for reply. He got reply.
+# "is this path forbidden?" -- it asks "is this path ONE OF THE PATHS I am
+# allowed to send to?", and the set is short, named and enumerated. Bulk apply
+# is not merely still-blocked; it is unreachable from the write channel because
+# there is no branch that could reach it.
+#
+# THE SET WAS ONE ENTRY WIDE UNTIL 2026-08-25. It is now four, and the way it
+# grew matters more than the fact that it did: by NAMED ENTRY, one constant at
+# a time, never by relaxing the rule into a prefix, a regex or a "starts with
+# /resume_modal" test. A rule that admits a family admits members nobody has
+# read; a named entry cannot.
 #
 # The trailing slash here is MEASURED and is not decoration: the factory
 # declares `send_message:{method:'POST',url:url+"send_message/"}` WITH it, while
@@ -454,9 +459,141 @@ MUTATING_PATH_MARKERS = (
 # loudly rather than sending a truncated message.
 EP_SEND_MESSAGE = "/resume_modal/emails/message/send_message/"
 
-#: The complete set of paths this package may POST to on the inbox resource.
-#: A test fails if this ever holds more than the one.
-SENDABLE_INBOX_PATHS = frozenset({EP_SEND_MESSAGE})
+# --- The three inbox writes admitted on 2026-08-25 -------------------------
+#
+# THE REFUSAL THESE RETIRE, quoted so the change is legible as a change: "there
+# is no branch here that could construct them", and, on the value argument,
+# "building them would add two write paths that cannot currently do anything".
+# The first half was true and is now deliberately no longer true. The second
+# half is STILL TRUE and is not being denied: his inbox holds ZERO
+# conversations (measured 2026-08-23, authenticated, 200), so none of the three
+# has ever been exercised against live data and none can be until a recruiter
+# opens a thread. What changed is the ruling, not the inbox -- whatever is
+# technically possible gets built, and the contract for all three ships in
+# Instahyre's own JavaScript, so all three are possible.
+#
+# THE GATES DID NOT RELAX. Each one is confirm=False by default and sends
+# nothing without confirm=True; each is reached through the allowlist below
+# rather than through a hole in a blocklist; and the READ tier is byte-for-byte
+# unchanged -- MUTATING_PATH_MARKERS still holds all five markers and
+# guard_read_only still refuses every one of these paths, so a reader cannot
+# arrive at a write by editing a constant. FORBIDDEN_ENDPOINTS is untouched:
+# both apply_bulk spellings stay permanently banned at any evidence level.
+#
+# NO TRAILING SLASH ON THE TWO MESSAGE ACTIONS. The factory declares them
+# without one -- `star_conversation:{method:'POST',url:url+"star_conversation"}`
+# and `toggle_msg_read:{method:'POST',url:url+"toggle_message_read"}` -- next to
+# a send_message that IS declared with one. The three spellings are copied, not
+# regularised.
+EP_STAR_CONVERSATION = "/resume_modal/emails/message/star_conversation"
+EP_TOGGLE_MESSAGE_READ = "/resume_modal/emails/message/toggle_message_read"
+
+#: The GET THAT MUTATES, and the single most dangerous shape in this package.
+#: `mark_all_read:{method:"GET",url:url+"mark_all_read",ignoreLoadingBar:true}`
+#: on the candidateConversationService factory -- the same resource prefix the
+#: conversation LIST is served from. Every "just GET it and see" instinct is
+#: wrong here, which is why both guards in this package key on the PATH and
+#: never on the verb, and why this one is gated exactly as hard as a POST.
+EP_MARK_ALL_READ = "/inbox_page/candidate_conversation/mark_all_read"
+
+#: The complete set of paths this package may send a MUTATING request to on the
+#: inbox resource. FOUR NAMED ENTRIES, each admitted on its own captured
+#: contract; a test pins the size and the literal spellings, so a fifth is a
+#: visible edit rather than a quiet capability.
+SENDABLE_INBOX_PATHS = frozenset(
+    {
+        EP_SEND_MESSAGE,
+        EP_STAR_CONVERSATION,
+        EP_TOGGLE_MESSAGE_READ,
+        EP_MARK_ALL_READ,
+    }
+)
+
+#: The star body, exactly, on the CANDIDATE branch -- which is the branch this
+#: account is on.
+#:
+#: BOTH SHIPPED CALLERS AGREE ON IT, and reading only one of them is how the
+#: shape gets got wrong. `inboxService.markUnstarred` builds
+#: `{star_conv:false, job_id:conv.job_id}` and adds `can_user` ONLY under
+#: `if(profileType!=="candidate")`. `inboxService.toggleStarConversation`
+#: branches the same way: `if(profileType=='candidate')` it builds
+#: `{star_conv:!Boolean(selectedConv.starred), job_id:selectedConv.job_id}`,
+#: else it adds `can_user`. So on a candidate session the two functions emit
+#: the IDENTICAL two-key shape and differ only in which boolean they compute.
+#:
+#: THE KEY IS `star_conv`, NOT `starred`. `starred` appears in that function
+#: only as `response.starred` -- the field read back OFF the response -- and
+#: mistaking a response field for a request field is the exact error this
+#: comment exists to stop. There is no shipped caller anywhere that sends a
+#: `starred` key.
+#:
+#: `can_user` is a limited_candidate resource URI naming the OTHER party, and
+#: it is recruiter-side only. Sending it from a candidate session would be
+#: sending a field his own browser never sends.
+STAR_CONVERSATION_BODY_KEYS = ("job_id", "star_conv")
+STAR_CONVERSATION_CANDIDATE_OMITS_CAN_USER = True
+#: The response carries the new state: `inboxService.scope.selectedConv.starred
+#: = response.starred`. So this one write verifies itself out of its own reply,
+#: which none of the other inbox writes can do.
+STAR_CONVERSATION_RESPONSE_FIELD = "starred"
+
+#: The toggle-read body, exactly. `inboxService.markUnread(conv)` calls
+#: `messageService.toggle_msg_read({conversation:conv.resource_uri,
+#: mark_unread:true})`.
+#:
+#: `conversation` IS A RESOURCE URI, NOT AN ID. It is `conv.resource_uri`,
+#: a server-supplied string off the conversation record -- the same tastypie
+#: convention the support ticket names its candidate by. A bare integer is a
+#: different request, and this server never assembles the URI itself: it reads
+#: the record and copies the value the server returned.
+TOGGLE_MESSAGE_READ_BODY_KEYS = ("conversation", "mark_unread")
+#: ONLY `true` HAS A SHIPPED CALLER. Across every bundle the one caller of this
+#: action is markUnread, and it sends the literal true. The site has no
+#: "mark read" button at all -- it marks read implicitly, by fetching the
+#: thread -- so `mark_unread:false` is a value nobody has been observed
+#: sending. It is not forbidden here, but every preview says so out loud
+#: rather than letting the two values borrow each other's evidence.
+TOGGLE_MESSAGE_READ_TRUE_IS_THE_ONLY_OBSERVED_VALUE = True
+
+#: mark_all_read is the one entry in the captured register whose METHOD is GET.
+MARK_ALL_READ_METHOD = "GET"
+#: Its args ride the QUERY STRING: `data=buildFilters(); data.page_loaded_at=
+#: $scope.pageLoadTimestamp;` and the $resource action is a GET, so the dict
+#: becomes query parameters and there is no body at all.
+#:
+#: buildFilters() IS MEASURED, not assumed -- read whole out of the inbox
+#: controller bundle:
+#:
+#:     var buildFilters=function(){var filterDict={};
+#:       if($scope.isOpenedInMobile){...}
+#:       else{if($scope.filters.selectedStatus){filterDict.status=...;}
+#:         if($scope.getConvType($scope.convTypes.UNREAD)){filterDict.unread=true;}
+#:         else if($scope.getConvType($scope.convTypes.STARRED)){filterDict.starred=true;}}
+#:       if($scope.filters.query){filterDict.query=$scope.filters.query;}
+#:       return filterDict;}
+#:
+#: On the default desktop view -- "All conversations", no search box -- every
+#: branch is falsy and it returns an EMPTY dict. That is why the tool built on
+#: this takes no filter arguments: the widest call is the one the name
+#: promises, and it is also the only one whose filter dict needs no choosing.
+MARK_ALL_READ_QUERY_KEYS = ("page_loaded_at",)
+#: `$scope.pageLoadTimestamp=new Date().toISOString()`, assigned when the
+#: conversation LIST is fetched (`if(!triggeredOnScroll||!$scope
+#: .pageLoadTimestamp)`), not at page load despite the name. So the value is
+#: JavaScript's ISO-8601-with-milliseconds spelling, and its MEANING is "the
+#: moment the list I am looking at was read" -- a race guard, so a message that
+#: arrived after that read is not swept up. This server reproduces both halves:
+#: it reads the list, stamps that read, and sends that stamp.
+MARK_ALL_READ_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+#: `$scope.markAllRead` opens with `if(inboxService.getMarkAllAsReadCount())`
+#: and does NOTHING when it is zero. That count is
+#: `conv_count.unread || 0` (or `conv_count.starred_unread` when the starred
+#: filter is on). A platform-side gate, reproduced rather than invented.
+MARK_ALL_READ_GATE_COUNT_FIELD = "unread"
+#: `markAllReadCallback(response)` reads `response.conv_count.unread`. So the
+#: response itself reports the new unread total, which is what a re-read has to
+#: agree with.
+MARK_ALL_READ_RESPONSE_COUNT_KEY = "conv_count"
 
 #: The body, exactly. `content` is the Quill editor's HTML; `attachments` is
 #: initialised to [] by the page and populated by an uploader that ships in no
@@ -929,6 +1066,76 @@ CAPTURED_WRITE_CONTRACTS = {
             "$scope.selectedConv.id -- so with nothing selected it throws before any "
             "request is built. There is no control to intercept until a recruiter "
             "opens a thread."
+        ),
+    },
+    "inbox_star": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "path": EP_STAR_CONVERSATION,
+        "body_keys": STAR_CONVERSATION_BODY_KEYS,
+        "note": (
+            "TWO callers, both quoted whole: inboxService.markUnstarred and "
+            "inboxService.toggleStarConversation. Reading only one of them is how this "
+            "shape gets got wrong, because each branches on profileType and the "
+            "recruiter branch carries a third key. On the CANDIDATE branch -- this "
+            "account's branch -- the two emit the identical body {star_conv, job_id} "
+            "and differ only in which boolean they compute. can_user is added ONLY "
+            "under if(profileType!=='candidate') and names the other party by "
+            "limited_candidate resource URI, so sending it here would be sending a "
+            "field his own session never sends. The request key is star_conv; the "
+            "word 'starred' occurs in that function only as response.starred, the "
+            "field read BACK off the reply, and no shipped caller sends a starred "
+            "key. NOT wire-confirmed and it cannot be on this account: the inbox "
+            "holds zero conversations, both callers dereference a conversation, and "
+            "the star control only renders on a thread that exists."
+        ),
+    },
+    "inbox_mark_read": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "path": EP_TOGGLE_MESSAGE_READ,
+        "body_keys": TOGGLE_MESSAGE_READ_BODY_KEYS,
+        "note": (
+            "One caller, quoted whole: inboxService.markUnread(conv) sends "
+            "{conversation: conv.resource_uri, mark_unread: true}. The first field "
+            "name is the trap -- 'conversation' takes a tastypie RESOURCE URI, not "
+            "the bare integer id every other inbox call uses, so a guess from the id "
+            "would be a different request. This server never assembles that URI; it "
+            "reads the conversation record and copies the string the server returned. "
+            "The second half is an evidence gap that is stated rather than papered "
+            "over: only mark_unread TRUE has a caller anywhere. The site has no mark-"
+            "read button -- it marks read implicitly by fetching a thread -- so false "
+            "is a value nobody has been observed sending, and every preview says so. "
+            "NOT wire-confirmed and it cannot be on this account: zero conversations, "
+            "so there is no record to take a resource_uri off and no control to "
+            "intercept."
+        ),
+    },
+    "inbox_mark_all_read": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": MARK_ALL_READ_METHOD,
+        "path": EP_MARK_ALL_READ,
+        "body_keys": (
+            "<none -- this is a GET; its arguments ride the query string>",
+        ),
+        "query_keys": MARK_ALL_READ_QUERY_KEYS,
+        "note": (
+            "THE ONLY ENTRY IN THIS REGISTER WHOSE METHOD IS GET, and it bulk-mutates: "
+            "one call clears the unread flag across the whole inbox. The factory says "
+            "so in as many words -- mark_all_read:{method:'GET',url:url+'mark_all_read'} "
+            "-- and it sits on the same resource prefix as the conversation list, so an "
+            "ordinary-looking walk of that resource would wipe his unread state with no "
+            "body and no warning. That is why both guards in this package key on the "
+            "PATH and never on the verb, and why this contract is gated exactly as hard "
+            "as a POST. The caller is $scope.markAllRead: it refuses outright when "
+            "getMarkAllAsReadCount() is zero, then sends buildFilters() plus "
+            "page_loaded_at as query parameters. buildFilters() is measured, not "
+            "assumed, and returns an EMPTY dict on the default 'All conversations' view "
+            "with no search text; page_loaded_at is new Date().toISOString(), stamped "
+            "when the LIST was fetched, and its job is to leave anything newer than "
+            "that read alone. NOT wire-confirmed and it cannot be on this account: zero "
+            "conversations means zero unread, so the site's own gate would refuse to "
+            "issue the request at all."
         ),
     },
     "support_tickets": {
