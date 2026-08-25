@@ -239,6 +239,58 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
+def test_the_readme_tool_count_matches_the_registry():
+    """The README's arithmetic, tied to the registry that decides it.
+
+    ADDED 2026-08-25, AFTER THE COUNT WAS WRONG THREE TIMES. It read "44 of the
+    47 tools" while the server registered 48, then 54, then 57. Every drift was
+    caught by someone reading carefully, which is not a mechanism -- and this is
+    a PUBLIC repo, so the first sentence of its architecture section was telling
+    strangers a false number.
+
+    One of the three was worse than a stale edit. The fix WAS made, in a commit
+    that was prepared and never pushed, and it was lost when the local branch was
+    reset onto the published history. A correction that lives only in an unpushed
+    commit is not a correction.
+
+    The claim is PARSED rather than restated here, so this guard cannot drift
+    from the README the way the README drifted from the registry: it reads the
+    two integers out of the sentence and checks them against EXPECTED_TOOLS and
+    against the browser rows in the README's own table. The sentence and the
+    table therefore cannot disagree with each other either.
+    """
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    readme = (root / "README.md").read_text(encoding="utf-8")
+
+    claim = re.search(
+        r"\*\*(\d+) of the (\d+) tools are plain `httpx`\.\s*(\w+) use a browser",
+        readme,
+    )
+    assert claim, (
+        "the README's tool-count sentence is gone or reworded. This guard is "
+        "keyed to it, so update the pattern deliberately -- do not delete the "
+        "check, which is how the count drifted three times already."
+    )
+    plain, total = int(claim.group(1)), int(claim.group(2))
+
+    assert total == len(EXPECTED_TOOLS), (
+        "README claims %d tools; the server registers %d. One of them is wrong "
+        "and it is almost always the README." % (total, len(EXPECTED_TOOLS))
+    )
+
+    browser_rows = readme.count("| yes, visible window |") + readme.count(
+        "| yes, **headless**, never visible |"
+    )
+    assert browser_rows > 0, "the README's browser table lost its rows"
+    assert plain + browser_rows == total, (
+        "README arithmetic does not close: %d plain + %d browser rows != %d total"
+        % (plain, browser_rows, total)
+    )
+
+
 def test_the_server_registers_exactly_fifty_seven_tools(tools):
     """48 until 2026-08-25, when the three remaining measured inbox writes were
     built; then 52, when the bulk-apply ban was lifted by ruling and

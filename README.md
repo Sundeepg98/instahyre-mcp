@@ -11,7 +11,7 @@ is the tool that answers that in one call.
 
 ## The architecture: httpx by default, browser where the API cannot reach
 
-**44 of the 47 tools are plain `httpx`. Three use a browser, and all three say so.**
+**54 of the 57 tools are plain `httpx`. Three use a browser, and all three say so.**
 
 Instahyre's `/api/v1/*` is exempt from Cloudflare bot management. It answers a
 cold, unauthenticated, honestly-identified HTTP client on the first request --
@@ -40,7 +40,7 @@ not join the data path.**
 | `instahyre_login_browser` | yes, visible window | Google OAuth is a redirect dance no HTTP client can complete. |
 | `instahyre_verify_apply_target` | yes, visible window | Reads a server-injected page flag that decides **which endpoint an application posts to**. No API exposes it, and the page is Cloudflare-gated. Applications cannot be withdrawn, so this is worth a browser rather than an assumption. |
 | `instahyre_reauth` | yes, **headless**, never visible | Re-harvests the persistent profile's own long-lived `sessionid`, which outlives the copy saved on disk. It loads `/candidate/opportunities/` -- **never** the login page: a tool whose claim is "this is not a login" should not fetch the login URL, and sending a browser carrying a live session to a sign-in page is a needless risk. Headless is the guarantee, not an optimisation: no window means no human can be waited for. |
-| everything else (44 tools) | no | Plain `httpx`. |
+| everything else (54 tools) | no | Plain `httpx`. |
 
 The two *visible-window* browser tools abort **every** non-GET request at the router, except
 Cloudflare's own `/cdn-cgi/` challenge handshake -- which mutates nothing in the
@@ -78,7 +78,7 @@ install, with no "already satisfied" line to warn you.
 
 Playwright's browser binary is only needed by the three browser tools
 (`instahyre_login_browser`, `instahyre_verify_apply_target`,
-`instahyre_reauth`). The other 44 work without it -- and `instahyre_reauth`
+`instahyre_reauth`). The other 54 work without it -- and `instahyre_reauth`
 reports "no silent renew was possible" and names the fallback rather than
 raising, so a checkout with no chromium is degraded, not broken:
 
@@ -121,16 +121,27 @@ The half that matters. Every one of these needs a live session.
 | `instahyre_apply` | Apply to **one** opportunity. **Irreversible.** Preview-only unless `confirm=True`. | 0-1 |
 | `instahyre_decline_opportunity` | Mark one "not interested". Also irreversible, same gate. | 0-1 |
 
-### The inbox -- reads, plus exactly one write
+### The inbox -- reads, plus four gated writes
 
 Recruiter conversations and message bodies. Every READ is checked against a
 list of mutating path fragments before it goes out, so the read tier **cannot**
 send, star, or mark read -- `send_message` is still on that list and the read
 side still refuses it.
 
-Replying goes out through a different door: an allowlist of exactly ONE URL.
-Starring, marking read and bulk mark-all-read are not merely refused, they have
-no branch that could construct them.
+Writes go out through a different door: a **named allowlist of exactly four
+URLs** -- reply, star, mark-read, and the bulk mark-all-read sweep. It grew from
+one to four on 2026-08-25, by adding named entries and never by widening a rule:
+no prefix match, no regex, no "starts with `/resume_modal`". A planted prefix
+rule fails a test, and so does a fifth path admitted without a captured contract.
+
+**The read tier still refuses all four**, which is the half that did not change.
+`send_message` and the other three markers are still on the read side's refusal
+list, so a reader cannot reach a write path by editing a constant -- the write
+door is a separate allowlist, not a hole in the read guard.
+
+**None of the four has been exercised against live data**, because his inbox
+holds zero conversations. Every one of their docstrings says so rather than
+implying a test that did not happen.
 
 | Tool | What it does | Requests |
 |---|---|---|
@@ -138,6 +149,9 @@ no branch that could construct them.
 | `instahyre_read_conversation` | Every message in one thread as text, oldest first. A `conv_id` that is not his raises `not_found` rather than returning an empty thread. | 1 (+1 when the thread comes back empty) |
 | `instahyre_inbox_counts` | Unread / starred / starred-unread totals. | 1 |
 | `instahyre_reply_to_conversation` | Send one reply into one thread. **IRREVERSIBLE** -- `confirm=True` required. The preview names the recipients as the server reports them, the company and role, and the exact body. | 2-3 to preview, 4-5 to send |
+| `instahyre_star_conversation` | Star or unstar one thread. `confirm=True` required. The body is the site's own two keys -- `star_conv` and `job_id`. The key is NOT `starred`; that is the field read back off the reply. | 1-2 |
+| `instahyre_mark_conversation_read` | Mark one thread read or unread. Names the conversation by RESOURCE URI, not by id. Only `mark_unread=true` has a shipped caller, and the preview says which value is measured. | 1-2 |
+| `instahyre_mark_all_conversations_read` | Clear unread across the whole inbox. **A GET that bulk-mutates**, so it carries a write's confirm gate. Reproduces the site's own zero-unread gate rather than inventing one. | 1-2 |
 
 One honest caveat, stated in the tool's own docstring: **reading a thread may
 mark it read on Instahyre's side.** The site sends no mark-read request -- it
@@ -345,18 +359,54 @@ Verdicts cache for 6 hours, and `instahyre_sync_index` pre-warms them.
 is sent automatically by the system: there is no undo, no support path, and the
 employer sees it immediately. Everything below follows from that one fact.
 
-- **Apply is single-only, and irreversible.** `instahyre_apply` takes exactly
-  one `opportunity_id`. There is no bulk-apply tool and there will not be one --
-  Instahyre's API has `apply_bulk/`, and exposing it would make a single call
-  irreversible across an entire queue. The forbidden paths are pinned in
-  `constants.FORBIDDEN_ENDPOINTS`, and a test walks the package AST to prove no
-  call site can construct one.
+**This package counts its write surface by effect, not by HTTP verb.** A tool is
+a write if calling it changes something on Instahyre -- whatever method carries
+the request. This is not pedantry, and here is the case that makes it concrete:
+`mark_all_read` is a **GET that mutates in bulk**. One request marks every
+conversation in the inbox as read, and it is Instahyre's own dispatcher that
+sends it that way (`{method:'GET', url: url+'mark_all_read'}`). Anyone who reads
+the verb and assumes GET means safe will get this one wrong. So every
+classification below -- which tools are reads, which need `confirm=True`, which
+endpoints are forbidden outright -- is keyed to what a call DOES, never to the
+verb it travels under. If you are auditing this package, audit it that way too.
 
-  **Both bulk URLs are blocked now, not one.** Instahyre has an ES and a legacy
-  variant of every opportunity endpoint, and the forbidden list previously held
-  only the legacy spelling -- while this account resolves to ES. The blocked
-  path was the one that could never have been reached, and the reachable one was
-  not blocked.
+- **Apply is irreversible, single and bulk alike.** `instahyre_apply` takes
+  exactly one `opportunity_id`. `instahyre_apply_bulk` takes a list.
+
+  **This README said "there is no bulk-apply tool and there will not be one"
+  until 2026-08-25.** The claim is not quietly dropped, because a safety claim
+  that vanishes reads worse than one that changed: the operator lifted the ban
+  that day, on the grounds that the contract ships whole in Instahyre's own
+  JavaScript and a refusal resting on absent evidence stops being honest once
+  the evidence arrives. `constants.FORBIDDEN_ENDPOINTS` is now **empty** -- the
+  clause that reads it is deliberately kept, so a future ruling can re-ban a
+  path in one line, and a test plants an entry to prove that brake still bites.
+
+  **The gate is the entire feature.** A confirm-gated bulk apply is not
+  inherently more dangerous than N confirm-gated single applies -- it is the
+  same N applications. What it removes is N-1 confirmations, so the gate exists
+  to give back exactly what the collapse takes:
+
+  - a **cap of 10**, against a pending queue of about 30;
+  - **refuse over the cap, never truncate** -- silently applying to the first
+    ten of twenty-five is the precise failure this must not have;
+  - a preview that **names every opportunity**, never a count: confirming
+    "12 opportunities" without seeing them is the failure mode it exists to stop;
+  - **`expected_count`**, so a list that changed length between preview and call
+    fails loudly instead of applying;
+  - **every id validated against the live pending queue**, so a stale or
+    invented id cannot ride along;
+  - the caller passes explicit ids. The tool never assembles the list, has no
+    "apply to all", and **defaults to selecting nothing** -- while Instahyre's
+    own modal opens with **everything pre-selected**. That contrast is the
+    clearest statement of intent in this package.
+
+  **Both bulk spellings are handled, not one**, and the reason is older than the
+  tool. Instahyre has an ES and a legacy variant of every opportunity endpoint.
+  The forbidden list once held only the legacy spelling while this account
+  resolves to ES -- so the blocked path was the one that could never have been
+  reached, and the reachable one was not blocked. Both now sit in a named
+  two-entry write allowlist, and the read tier still refuses both by marker.
 
 - **The apply request itself was wrong, and no application was ever sent with
   it.** The body was transcribed from Instahyre's shipped dispatcher and never
@@ -451,9 +501,16 @@ employer sees it immediately. Everything below follows from that one fact.
 - **Four guards stand between `confirm=True` and a POST**, and each one can
   genuinely fail: the confirmation itself; a refusal to spend the same
   irreversible action twice on one opportunity; a live check that the target
-  path is not on the forbidden list; and a refusal to send unsigned when the
-  session carries no CSRF token. Each is covered by a test that was shown
-  failing when the guard is removed.
+  path is neither on the forbidden list nor named by a mutating-path marker; and
+  a refusal to send unsigned when the session carries no CSRF token. Each is
+  covered by a test that was shown failing when the guard is removed.
+
+  Note what the forbidden-list half of that third guard does today: **the list
+  is empty**, so every refusal now comes from the MARKER half. That leaves the
+  blocklist clause as dead code wearing a guard's clothes -- which is why a test
+  plants an entry into it, using a path that carries no marker so the two halves
+  are isolated, and proves the clause still bites. A brake nobody has shown
+  biting is not a brake.
 - **The request shape was never learned by sending one.** It is transcribed
   from Instahyre's own shipped frontend dispatcher. No request of this shape has
   ever been executed by this package, which is stated in the tool docstring and

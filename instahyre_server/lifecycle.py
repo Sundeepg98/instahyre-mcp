@@ -258,10 +258,73 @@ def _expiry_source(
         "FACT ABOUT THAT PROFILE: the cookie this server actually sends comes "
         "from %s, which records no expiry, and the two stores can hold "
         "different sessions -- signing in again in the browser moves the "
-        "profile while the saved jar sits still. Nothing here can tell them "
-        "apart, because comparing them would mean reading a cookie value."
+        "profile while the saved jar sits still. NOTHING HERE CAN TELL THEM "
+        "APART, and the reason is measured rather than assumed: Chrome seals "
+        "every value in that jar under its v10 scheme -- AES-256-GCM with a "
+        "fresh random nonce per write -- so the SAME sessionid written twice "
+        "seals to different bytes. A HASH of the sealed blobs therefore "
+        "settles nothing: it would report two identical sessions as "
+        "different, which is a wrong answer wearing the clothes of a "
+        "measurement. A comparable digest would mean decrypting to plaintext, "
+        "and the plaintext IS the cookie value this reader exists never to "
+        "fetch. So sameness here is not merely unmeasured, it is unmeasurable "
+        "without reading the secret -- which is why expiry_is_authoritative "
+        "below is false whenever a date exists."
         % (profile, stored)
     )
+
+
+def _expiry_authority(expires_at: Optional[str], store_path: Any) -> dict:
+    """Whether ``expires_at`` may be trusted FOR THE CREDENTIAL BEING SENT.
+
+    THIS FIELD USED TO BE A HARDCODED ``True`` and that was the one wrong
+    assertion in this module. The comment above it was honest -- authoritative
+    "for the profile it was read from" -- but the field sits inside the block
+    that describes the credential the HTTP client SENDS, and the unqualified
+    boolean told a consumer "you may trust expires_at to plan a re-login". For
+    the credential in use that is false, and it is false for a reason that
+    cannot be engineered away:
+
+    * the date is read from the persistent browser profile's cookie jar;
+    * the cookie actually sent comes from the saved store, which records no
+      expiry at all;
+    * and the two CANNOT be compared. Chrome seals jar values under v10
+      (AES-256-GCM, fresh random nonce per write), so the same sessionid seals
+      to different bytes each time -- a hash of the sealed blobs would call two
+      identical sessions different. Comparing them for real would mean
+      decrypting to plaintext, i.e. reading the cookie value this package is
+      built never to fetch. MEASURED 2026-08-25 against the live profile jar:
+      57 rows, 0 bytes of plaintext value, every value in ``encrypted_value``,
+      scheme tag ``v10``.
+
+    So the honest answer is not "sometimes true". It is NEVER PROVABLY TRUE:
+    ``False`` whenever a date exists, and ``null`` when there is no date --
+    null rather than false because with nothing read there is no subject to
+    make a claim about, and this contract forbids ``false`` as a stand-in for
+    "unknown".
+
+    ``expiry_authoritative_for`` carries what the date IS good for, so the
+    false is not a dead end: it names the profile jar, which is a real answer
+    to a real question, just not to the question the credential block asks.
+    """
+    if expires_at is None:
+        return {
+            "expiry_is_authoritative": None,
+            "expiry_authoritative_for": None,
+        }
+    return {
+        "expiry_is_authoritative": False,
+        "expiry_authoritative_for": (
+            "the persistent browser profile's own sessionid row -- the store "
+            "this date was READ from, and the only session it describes. It is "
+            "NOT authoritative for the credential this server SENDS, which "
+            "comes from %s and carries no expiry of its own. The two stores "
+            "cannot be compared even in principle from here; see "
+            "expiry_source. Plan a re-login off the live check "
+            "(instahyre_auth_status), not off this date."
+            % display_path(str(store_path))
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +366,10 @@ def _credential_blocks(
             jar_error=jar_error,
             expires=jar.get(SESSION_COOKIE),
         ),
-        # Instahyre is not known to revoke a sessionid before its cookie
-        # expiry: the row is a plain Django session cookie and nothing measured
-        # on 2026-08-23 showed a shorter server-side life. The date is
-        # therefore reported as authoritative FOR THE PROFILE IT WAS READ FROM
-        # -- which is what expiry_source above is careful to name.
-        "expiry_is_authoritative": True,
+        # COMPUTED, never hardcoded, and it answers for the credential this
+        # server SENDS -- a different credential from the one the date was
+        # read off. See _expiry_authority for why that can never be True.
+        **_expiry_authority(session_expiry["expires_at"], store.path),
     }
     supporting = [
         {
@@ -356,10 +417,24 @@ def _renew_mechanism(profile_dir: Any) -> str:
         "opportunities page -- never the login page -- and harvests that "
         "profile's storage state. The harvested cookies are then PUT TO %s "
         "and only a 200 is believed: nothing is applied, saved, or reported "
-        "as renewed on the strength of a cookie appearing. COST: a browser "
+        "as renewed on the strength of a cookie appearing. WHY THE 200 IS THE "
+        "ENTIRE TEST, which is the sentence to carry out of this block: %s So "
+        "a fresh sessionid is not evidence of anything. This server shipped "
+        "exactly that bug once -- a harvested cookie counted as a renewal "
+        "while the login page was still loading -- and the endpoint's answer "
+        "is what replaced it. NOTHING IS RISKED BY TRYING: the saved session "
+        "file is snapshotted as BYTES before the browser starts, and on any "
+        "outcome that is not a 200 it is written back byte for byte with the "
+        "client's cookies restored alongside it, so a failed renew cannot "
+        "cost a session that was already working. COST: a browser "
         "launch and a page load, so seconds of wall clock, not milliseconds. "
         "'Silent' here means no password, no window and no human -- it does "
-        "NOT mean free." % (display_path(str(profile_dir)), AUTH_ENDPOINT_NOTE)
+        "NOT mean free."
+        % (
+            display_path(str(profile_dir)),
+            AUTH_ENDPOINT_NOTE,
+            COOKIE_IS_NOT_A_SESSION,
+        )
     )
 
 
@@ -400,9 +475,30 @@ def _renewal(
             % display_path(str(profile_dir))
         ),
         # A renew is not free, and a payload that only reports the verdict
-            # lets a Chromium launch happen unannounced. See _renew_mechanism.
+        # lets a Chromium launch happen unannounced. See _renew_mechanism.
         "uses_browser": True,
+        # uses_browser: true IS READ AS "a window opens" -- that is the whole
+        # reason these two sit beside it rather than only in the prose. In a
+        # contract spelled the same way on four servers, the bare boolean is
+        # what a client branches on, and branching on it here would raise a
+        # "sign in" prompt for a mechanism where nothing appears and no human
+        # could act even if they wanted to. Headless is not a tuning choice,
+        # it is the guarantee: no window can open, so no human can be waited
+        # for, so this can never quietly become an interactive login under
+        # another name. reauth takes no credential parameter for the same
+        # reason, and never visits a sign-in page.
+        "opens_a_window": False,
+        "waits_for_a_human": False,
         "mechanism": _renew_mechanism(profile_dir),
+        # About session_lapses_at, on the same rule as credential: the date
+        # is a snapshot of one jar row, and whether Instahyre honours the
+        # session for its full recorded life was never measured. False rather
+        # than True because a False can only cost an early re-login, while a
+        # True that is wrong costs the session. session_lapses_source says
+        # which store governs and why the false is not a shrug.
+        "expiry_is_authoritative": (
+            None if credential["expires_at"] is None else False
+        ),
         "session_lapses_at": credential["expires_at"],
         "session_lapses_in_days": credential["expires_in_days"],
         "session_lapses_source": _session_lapses_source(
@@ -432,7 +528,13 @@ def _session_lapses_source(
         "credential.expiry_source APPLIES -- this is a fact about the PROFILE's "
         "session, while the cookie this server actually sends comes from the "
         "saved store, which records no expiry at all. Do not read this date as "
-        "a guarantee about the credential currently in use."
+        "a guarantee about the credential currently in use. THAT IS WHY "
+        "expiry_is_authoritative beside it is false: this row IS the right "
+        "store to ask about the lapse -- unlike credential.expires_at there is "
+        "no cross-store substitution here -- but it is still a snapshot Chrome "
+        "may move, and nothing measured says Instahyre will honour the session "
+        "for its full recorded life. Treat it as the LATEST a re-login can "
+        "wait, never as a promise that it can."
     )
 
 
@@ -746,6 +848,11 @@ def reauth(*, http: Any, store: SessionStore, profile_dir: Any) -> dict:
             "visited."
         ),
         "uses_browser": True,
+        # Spelled here too, and for the same reason as in session_info's
+        # renewal block: one mechanism described in two places must not say
+        # less in one of them. Nothing opened, and nothing could have.
+        "opens_a_window": False,
+        "waits_for_a_human": False,
         "mechanism": _renew_mechanism(profile_dir),
         "stage": record.get("stage") or "profile_reharvest",
         # The same fact as the reason prose, in a form a caller can branch on

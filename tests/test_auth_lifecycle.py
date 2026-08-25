@@ -29,6 +29,7 @@ tmp dir.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import sqlite3
@@ -580,7 +581,32 @@ class TestSessionInfoExpiry:
         assert credential["expired"] is False
         assert 57.0 < credential["expires_in_days"] < 58.0
         assert credential["expires_at"].endswith("Z")
-        assert credential["expiry_is_authoritative"] is True
+        # RE-RATIFIED 2026-08-25, deliberately, from `is True` to `is False`.
+        #
+        # WHAT CHANGED: nothing about the session mechanism. The field was a
+        # hardcoded literal that answered the wrong question. It sits in the
+        # block describing the credential the client SENDS -- read out of
+        # session.json -- while the date beside it is read from the browser
+        # profile's jar. A True there told a consumer to plan a re-login off
+        # a date that describes a DIFFERENT store.
+        #
+        # WHY IT CANNOT BE TRUE, rather than merely being unproven today:
+        # establishing that the two stores hold one session would mean
+        # comparing the cookie values. Chrome seals jar values under v10 --
+        # AES-256-GCM, fresh random nonce per write -- so the same sessionid
+        # seals to different bytes and a hash of the sealed blobs would call
+        # two identical sessions different. A real comparison needs the
+        # plaintext, which is the one thing cookie_jar.py exists never to
+        # fetch. Measured on the live profile jar 2026-08-25: 57 rows, 0
+        # bytes of plaintext value, every value sealed, scheme tag v10.
+        #
+        # So False is not a downgrade pending better evidence. It is the
+        # answer. TestTheExpiryIsNotAuthoritativeForTheSentCredential below
+        # owns the full case; this line is the point of use.
+        assert credential["expiry_is_authoritative"] is False
+        assert credential["expiry_authoritative_for"], (
+            "a false must still say what the date IS good for"
+        )
 
     def test_the_expiry_source_names_BOTH_stores_and_does_not_blur_them(
         self, tmp_path
@@ -782,7 +808,17 @@ class TestWhenTheSessionLapsesForGood:
             "tool",
             "why",
             "uses_browser",
+            # ADDED 2026-08-25. uses_browser: true is read as "a window
+            # opens" in a contract spelled the same way on four servers,
+            # and here nothing opens and no human could act if it did.
+            # The qualifier lives in fields a client can branch on, not
+            # only in the mechanism prose beside them.
+            "opens_a_window",
+            "waits_for_a_human",
             "mechanism",
+            # ADDED 2026-08-25: the one field of the contract's five that
+            # this block never carried.
+            "expiry_is_authoritative",
             "session_lapses_at",
             "session_lapses_in_days",
             "session_lapses_source",
@@ -870,6 +906,12 @@ class TestWhenTheSessionLapsesForGood:
             "expired",
             "expiry_source",
             "expiry_is_authoritative",
+            # ADDED 2026-08-25 with the re-ratification above. Turning
+            # expiry_is_authoritative into a computed false left a reader
+            # holding a negative and nothing else; this names the store the
+            # date IS authoritative for, so the false points somewhere
+            # instead of just closing a door.
+            "expiry_authoritative_for",
         }
 
 
@@ -1555,3 +1597,448 @@ def test_the_offline_profile_path_is_not_created_by_asking_for_it(
     monkeypatch.setattr(server_module, "_sessions", None)
     server_module.instahyre_session_info(verify_live=False)
     assert not path.exists()
+
+
+# ===========================================================================
+# 5. The expiry authority, and the divergence check that cannot exist
+# ===========================================================================
+
+
+class TestTheExpiryIsNotAuthoritativeForTheSentCredential:
+    """``expiry_is_authoritative`` shipped as a hardcoded ``True`` and was wrong.
+
+    THE DEFECT, precisely: the field sits inside ``credential``, which describes
+    the cookie the HTTP client SENDS. That cookie is read from session.json.
+    The date beside it is read from the browser profile's SQLite jar. Those are
+    two stores. The prose in ``expiry_source`` always said so, and the comment
+    over the literal was honest about it -- "authoritative FOR THE PROFILE IT
+    WAS READ FROM" -- but a consumer reads fields, not comments, and an
+    unqualified true in that block means "you may plan a re-login off this
+    date".
+
+    WHY THE FIX IS A CONSTANT FALSE RATHER THAN A COMPUTED SOMETIMES-TRUE. The
+    obvious repair is to compare the two stores and report true when they
+    agree. That comparison is not available at any price worth paying:
+
+    * Chrome keeps no plaintext in the jar. Measured against the operator's
+      live profile 2026-08-25: 57 rows, 0 bytes of plaintext ``value``, every
+      value in ``encrypted_value``, scheme tag ``v10``.
+    * ``v10`` is AES-256-GCM with a fresh random nonce per write, so the SAME
+      sessionid sealed twice produces different bytes. A digest of the sealed
+      blob would report two identical sessions as DIFFERENT -- a check whose
+      failures are indistinguishable from its successes.
+    * A digest that did work would need the plaintext, and fetching a cookie
+      value is the one thing ``cookie_jar.py`` is built never to do. The guard
+      is a test, not a convention: ``"value" not in cookie_jar._JAR_QUERY``.
+
+    So sameness is not unmeasured here. It is UNMEASURABLE without reading the
+    secret, and the field says false because false is the true answer.
+    """
+
+    def test_a_date_that_exists_is_not_authoritative_for_the_cookie_in_use(
+        self, tmp_path
+    ):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        credential = out["credential"]
+        assert credential["expires_at"] is not None
+        assert credential["expiry_is_authoritative"] is False
+
+    def test_the_false_names_what_the_date_IS_authoritative_for(self, tmp_path):
+        """A bare false is a dead end. This one has to point somewhere."""
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        says = out["credential"]["expiry_authoritative_for"]
+        assert "browser profile" in says
+        assert "sessionid" in says
+        assert "session.json" in says
+        assert "instahyre_auth_status" in says, (
+            "a reader told not to trust the date must be told what to trust"
+        )
+
+    def test_no_date_means_NULL_not_false__HONESTY(self, tmp_path):
+        """The contract forbids ``false`` as a stand-in for "unknown".
+
+        With no date read there is no subject to make a claim about, so both
+        authority fields are null. A false here would read as "the date is not
+        authoritative", which asserts that a date exists.
+        """
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=tmp_path / "no_such_profile",
+            http=None,
+            verify_live=False,
+        )
+        credential = out["credential"]
+        assert credential["expires_at"] is None
+        assert credential["expiry_is_authoritative"] is None
+        assert credential["expiry_authoritative_for"] is None
+
+    def test_a_session_only_row_is_also_null(self, tmp_path):
+        """The signed-out visitor's cookie: a row with no date. Same rule."""
+        profile = tmp_path / "browser_profile"
+        build_jar(profile, [(".instahyre.com", SESSION_COOKIE, 0, 0, 0)])
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=profile,
+            http=None,
+            verify_live=False,
+        )
+        assert out["credential"]["expires_at"] is None
+        assert out["credential"]["expiry_is_authoritative"] is None
+
+    def test_the_field_is_computed_and_not_a_literal_again(self):
+        """The regression that matters is someone pinning it back to a constant."""
+        source = Path(lifecycle.__file__).read_text(encoding="utf-8")
+        assert '"expiry_is_authoritative": True' not in source, (
+            "the hardcoded True is back -- it answers for the wrong credential"
+        )
+        assert "_expiry_authority" in source
+
+    def test_the_prose_carries_the_MEASURED_reason(self, tmp_path):
+        """It used to say comparing "would mean reading a cookie value" and stop.
+
+        That was true and read like an unexamined limit, which is how it came to
+        be mistaken for one. The reason is now named, so the next reader who
+        reaches for a hash finds out why it does not work before writing it.
+        """
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        source = out["credential"]["expiry_source"]
+        assert "v10" in source
+        assert "AES-256-GCM" in source
+        assert "HASH" in source
+        assert "nonce" in source
+
+    def test_no_divergence_BOOLEAN_was_invented(self, tmp_path):
+        """The field that must never appear, pinned by name.
+
+        A ``same_session_in_both_stores`` was specified and refused on
+        2026-08-25 once the jar was measured: it cannot be computed without the
+        plaintext, and any version built from sealed bytes reports identical
+        sessions as different. Pinned here because the idea is a reasonable one
+        to have twice.
+        """
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        keys = [trail for trail, _ in strings_in(out) if trail.endswith("(KEY)")]
+        for banned in ("same_session_in_both_stores", "session_digest", "cookie_hash"):
+            assert not any(banned in key for key in keys), (
+                "%s cannot be computed from a v10-sealed jar" % banned
+            )
+
+
+class TestNoDigestOfACookieEverReachesTheOutput:
+    """The hash that was almost built must not be reachable, even in part.
+
+    ``assert_no_secret`` already hunts the cookie VALUE in eight shapes. This
+    adds the shape that a divergence check would have introduced: a digest, or
+    any prefix of one. A digest is not a value, which is exactly why it would
+    have slipped past a value-only guard -- and a digest of a 32-character
+    Django sessionid is brute-forceable, so it is a leak, not a summary.
+    """
+
+    def digests_of(self, *values):
+        out = []
+        for value in values:
+            raw = value.encode("utf-8")
+            for algo in ("md5", "sha1", "sha256", "sha512"):
+                digest = hashlib.new(algo, raw).hexdigest()
+                out.append((algo, digest))
+                out.append((algo + "[:16]", digest[:16]))
+                out.append((algo + "[:8]", digest[:8]))
+        return out
+
+    def payloads(self, tmp_path):
+        yield "session_info", lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        yield "session_info/no_jar", lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=tmp_path / "no_such_profile",
+            http=None,
+            verify_live=False,
+        )
+        logout_dir = tmp_path / "logout_case"
+        logout_dir.mkdir(exist_ok=True)
+        yield "logout", lifecycle.logout(
+            http=auth_http(),
+            store=saved_store(logout_dir),
+            profile_dir=live_profile(tmp_path),
+        )
+
+    def test_no_digest_of_either_cookie_appears_anywhere(self, tmp_path):
+        for name, payload in self.payloads(tmp_path):
+            assert_no_secret(payload)
+            haystack = "\n".join(text for _, text in strings_in(payload)).lower()
+            for algo, digest in self.digests_of(
+                SECRET_SESSION_VALUE, SECRET_CSRF_VALUE
+            ):
+                assert digest.lower() not in haystack, (
+                    "%s leaked a %s digest of a cookie value" % (name, algo)
+                )
+
+    def test_the_control_can_actually_fail(self, tmp_path):
+        """The guard above, shown catching a planted digest.
+
+        Without this, "no digest appeared" is indistinguishable from "the
+        walker never looked".
+        """
+        planted = {
+            "credential": {
+                "expiry_source": "divergence: %s"
+                % hashlib.sha256(SECRET_SESSION_VALUE.encode()).hexdigest()[:16]
+            }
+        }
+        haystack = "\n".join(text for _, text in strings_in(planted)).lower()
+        hits = [
+            algo
+            for algo, digest in self.digests_of(SECRET_SESSION_VALUE)
+            if digest.lower() in haystack
+        ]
+        assert hits, "the digest hunt cannot fail, so it certifies nothing"
+
+
+class TestUsesBrowserCannotSilentlyBecomeAWindowOpeningClaim:
+    """``uses_browser: true`` is the field a client branches on. Here it lies.
+
+    Not about this server -- about the FAMILY. The same key is spelled the same
+    way on four servers, and on the ones that open a real sign-in window a true
+    correctly means "hand this to the human". Here nothing appears, and no human
+    could act even if they wanted to: reauth runs headless, takes no credential
+    parameter and never visits a sign-in page, so there is nowhere for a person
+    to type anything. A client that put up a "sign in" prompt off the bare
+    boolean would be waiting for an event that cannot happen.
+
+    The mechanism prose has always said so. Prose is not branchable, which is
+    why the qualifiers are fields.
+    """
+
+    def renewal_of(self, tmp_path):
+        return lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )["renewal"]
+
+    def test_the_qualifiers_sit_beside_the_boolean(self, tmp_path):
+        renewal = self.renewal_of(tmp_path)
+        assert renewal["uses_browser"] is True
+        assert renewal["opens_a_window"] is False
+        assert renewal["waits_for_a_human"] is False
+
+    def test_reauth_carries_them_too(self, tmp_path, monkeypatch, clock):
+        """One mechanism described in two places must not say less in one."""
+        browser = FakeBrowser(clock, [LIVE_COOKIES])
+        install_fake_playwright(monkeypatch, browser)
+        profile = live_profile(tmp_path)
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+
+        out = lifecycle.reauth(
+            http=auth_http(),
+            store=SessionStore(tmp_path / "session.json"),
+            profile_dir=profile,
+        )
+        assert out["uses_browser"] is True
+        assert out["opens_a_window"] is False
+        assert out["waits_for_a_human"] is False
+
+    def test_a_true_uses_browser_is_never_alone_in_any_payload(
+        self, tmp_path, monkeypatch, clock
+    ):
+        """Structural, so a new surface cannot ship the bare boolean.
+
+        Any block anywhere in either payload that says uses_browser: true must
+        carry both qualifiers. This is the check that fails if someone adds a
+        third surface and copies only the familiar key.
+        """
+        browser = FakeBrowser(clock, [LIVE_COOKIES])
+        install_fake_playwright(monkeypatch, browser)
+        profile = live_profile(tmp_path)
+        monkeypatch.setattr(auth, "browser_profile_path", lambda: profile)
+
+        payloads = [
+            lifecycle.session_info(
+                store=saved_store(tmp_path),
+                profile_dir=profile,
+                http=None,
+                verify_live=False,
+            ),
+            lifecycle.reauth(
+                http=auth_http(),
+                store=SessionStore(tmp_path / "session.json"),
+                profile_dir=profile,
+            ),
+        ]
+
+        def blocks(node):
+            if isinstance(node, dict):
+                yield node
+                for value in node.values():
+                    yield from blocks(value)
+            elif isinstance(node, (list, tuple)):
+                for value in node:
+                    yield from blocks(value)
+
+        seen = 0
+        for payload in payloads:
+            for block in blocks(payload):
+                if block.get("uses_browser") is not True:
+                    continue
+                seen += 1
+                assert block.get("opens_a_window") is False, (
+                    "uses_browser: true with no opens_a_window -- a client will "
+                    "read it as a window"
+                )
+                assert block.get("waits_for_a_human") is False
+        assert seen == 2, "expected both surfaces to claim a browser, saw %d" % seen
+
+    def test_headless_is_still_what_the_code_does(self):
+        """The fields claim no window. The source has to agree.
+
+        A payload that says opens_a_window: false while the seam launches
+        headed would be a worse lie than the bare boolean was.
+        """
+        source = Path(auth.__file__).read_text(encoding="utf-8")
+        assert "headless=True" in source
+        marker = "def reharvest_from_profile"
+        assert marker in source
+        body = source[source.index(marker) :]
+        assert "headless=False" not in body[: body.index("\ndef ", 10)]
+
+
+class TestTheRenewalBlockSaysWhyA200IsTheWholeTest:
+    """The most useful sentence in the block, and it was missing.
+
+    ``renewal.mechanism`` said only a 200 is believed. It never said WHY, and
+    the why is the bug this server shipped: Instahyre hands a sessionid to
+    signed-out visitors, so a fresh cookie is not evidence of a session. A
+    reader who does not know that reads the 200 requirement as belt-and-braces
+    caution rather than the entire test.
+    """
+
+    def test_the_signed_out_visitor_fact_is_in_the_block(self, tmp_path):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        mechanism = out["renewal"]["mechanism"]
+        assert "signed-out visitors" in mechanism
+        assert "200" in mechanism
+
+    def test_it_is_the_ONE_spelling_not_a_paraphrase(self, tmp_path):
+        """Interpolated from COOKIE_IS_NOT_A_SESSION, so it cannot drift."""
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        assert lifecycle.COOKIE_IS_NOT_A_SESSION in out["renewal"]["mechanism"]
+
+    def test_the_byte_for_byte_restore_is_surfaced_not_just_implemented(
+        self, tmp_path
+    ):
+        """It was always true and never said. A caller weighing whether to try
+        a renew needs to know the downside is zero."""
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        mechanism = out["renewal"]["mechanism"]
+        assert "byte for byte" in mechanism
+        assert "snapshotted as BYTES" in mechanism
+
+    def test_the_lapse_date_is_not_authoritative_either_and_says_why(
+        self, tmp_path
+    ):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=live_profile(tmp_path),
+            http=None,
+            verify_live=False,
+        )
+        renewal = out["renewal"]
+        assert renewal["expiry_is_authoritative"] is False
+        source = renewal["session_lapses_source"]
+        assert "expiry_is_authoritative" in source
+        assert "snapshot" in source
+        assert "never as a promise" in source
+
+    def test_an_unreadable_jar_leaves_the_lapse_authority_null(self, tmp_path):
+        out = lifecycle.session_info(
+            store=saved_store(tmp_path),
+            profile_dir=tmp_path / "no_such_profile",
+            http=None,
+            verify_live=False,
+        )
+        renewal = out["renewal"]
+        assert renewal["session_lapses_at"] is None
+        assert renewal["expiry_is_authoritative"] is None
+
+
+class TestTheReadmeSaysHowTheWriteSurfaceIsCounted:
+    """The one sentence a stranger has to be able to find.
+
+    LIVES HERE because this slice added it, alongside the rest of the auth
+    legibility work; it belongs with the write-surface tests the day someone
+    moves it. The claim it guards is not about auth at all -- it is the
+    counting rule the whole package is audited by, and it had ZERO occurrences
+    anywhere in the repo before 2026-08-25.
+
+    Why it earns a guard rather than trusting the prose to stay put:
+    ``mark_all_read`` is a GET that mutates every conversation in the inbox in
+    one request. A reader who assumes methods mean what they say classifies it
+    as a read, and the classification is what the confirm gates hang off. The
+    sentence is load-bearing documentation, so it gets a test like any other
+    load-bearing thing.
+    """
+
+    def readme(self):
+        return (
+            Path(lifecycle.__file__).resolve().parent.parent / "README.md"
+        ).read_text(encoding="utf-8")
+
+    def test_the_counting_rule_is_stated_in_the_safety_section(self):
+        readme = self.readme()
+        assert "by effect, not by HTTP verb" in readme
+        safety = readme.index("## Safety")
+        where = readme.index("by effect, not by HTTP verb")
+        assert where > safety, "the rule is not in the safety section"
+        assert where - safety < 1200, (
+            "the rule drifted down the safety section -- it has to be where a "
+            "stranger meets it, not buried under the bullets"
+        )
+
+    def test_it_names_the_trap_that_makes_it_concrete(self):
+        """A rule with no example is a slogan. mark_all_read IS the reason."""
+        readme = self.readme()
+        assert "mark_all_read" in readme
+        where = readme.index("by effect, not by HTTP verb")
+        nearby = readme[where : where + 900]
+        assert "mark_all_read" in nearby
+        assert "GET" in nearby
