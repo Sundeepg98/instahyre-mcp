@@ -1014,7 +1014,22 @@ THREADING_DETACHERS = tuple("threading." + name for name in DETACHING_CALLS)
 #: The apply endpoints, as ``post_call_sites`` reports them. ``C.EP_LOGIN`` is
 #: the third POST target in the package and is deliberately absent: signing in
 #: is not applying, and a login needs no confirm gate.
-APPLY_POST_TARGETS = ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY")
+#:
+#: THE TWO BULK TARGETS JOINED ON 2026-08-25, and adding them here was not
+#: bookkeeping -- it was the point. Until they were listed, the clause below
+#: classified ``instahyre_apply_bulk`` as a READ: it has "apply" in its name,
+#: so it was a candidate, but it reached no target this tuple named, so it fell
+#: on the side of the partition that is exempt from the confirm-gate check. The
+#: single most destructive tool in the package would have been certified as a
+#: tool that cannot write. That is exactly the failure a DERIVED classifier is
+#: supposed to prevent, and it only prevents it if the derivation is fed every
+#: endpoint an application can leave by.
+APPLY_POST_TARGETS = (
+    "C.EP_APPLY_ES",
+    "C.EP_APPLY_LEGACY",
+    "C.EP_APPLY_BULK_ES",
+    "C.EP_APPLY_BULK_LEGACY",
+)
 
 
 def _call_name(node):
@@ -1366,8 +1381,14 @@ class TestNothingInThisPackageCanRunUnattended:
         """
         sources = package_sources()
         writers = writer_functions(sources)
-        assert writers == {"submit_interest"}, (
-            "the apply POST moved out of submit_interest, or a second function "
+        # A SECOND FUNCTION CAN NOW SEND AN APPLICATION, deliberately, and this
+        # assertion is the place that had to notice. writes.bulk_apply joined
+        # submit_interest on 2026-08-25 when the bulk-apply ban was lifted by
+        # ruling. Widening this set is what puts instahyre_apply_bulk on the
+        # WRITE side of the partition below, where the confirm-default check
+        # actually runs on it.
+        assert writers == {"submit_interest", "bulk_apply"}, (
+            "the apply POST moved out of its function, or a THIRD function "
             "can now send an application: %s" % (sorted(writers),)
         )
 
@@ -1385,7 +1406,15 @@ class TestNothingInThisPackageCanRunUnattended:
             assert node is not None, "registered tool %s has no def in server.py" % name
             (writes if calls_any(node, writers) else reads).append(name)
 
-        assert writes == ["instahyre_apply", "instahyre_decline_opportunity"]
+        assert writes == [
+            "instahyre_apply",
+            # Added 2026-08-25. It is on this side because APPLY_POST_TARGETS
+            # names the bulk endpoints; before that it sat in ``reads``, which
+            # would have exempted the most destructive tool here from the very
+            # gate check this clause exists to run.
+            "instahyre_apply_bulk",
+            "instahyre_decline_opportunity",
+        ]
         assert reads == ["instahyre_verify_apply_target"], (
             "a tool changed sides: %s" % (reads,)
         )

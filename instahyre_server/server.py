@@ -855,8 +855,22 @@ def instahyre_server_info() -> dict:
         },
         "deliberately_not_built": {
             "apply_bulk": (
-                "Instahyre's API has it. It is a one-way door across a whole queue at once and "
-                "is permanently out of scope."
+                "BUILT ON 2026-08-25, and this entry is kept rather than moved because "
+                "what it used to say is part of the record: 'Instahyre's API has it. It "
+                "is a one-way door across a whole queue at once and is permanently out "
+                "of scope.' Both its paths sat in FORBIDDEN_ENDPOINTS, the only ban in "
+                "this package that said 'at any evidence level'. The ruling is that "
+                "whatever is technically possible gets built; the contract ships whole "
+                "in Instahyre's own JavaScript, so it was possible, so it exists -- as "
+                "instahyre_apply_bulk, gated harder than anything else here. The "
+                "hazard the ban named is real and is now handled by rails instead of a "
+                "blocklist: the caller passes an explicit id list (nothing assembles "
+                "one), a cap of 10 REFUSES a longer list rather than truncating it, "
+                "every id is validated against the live pending queue, the preview "
+                "names every company and role, and an expected_count stated separately "
+                "from the list must match what resolved. The read tier is untouched -- "
+                "apply_bulk is still in MUTATING_PATH_MARKERS and the reader still "
+                "refuses both paths."
             ),
             "profile_writes_beyond_the_job_search_profile": (
                 "THE OLD REFUSAL HERE IS RETIRED, and it is worth saying why rather "
@@ -1283,8 +1297,12 @@ def instahyre_apply(opportunity_id: str, confirm: bool = False) -> dict:
     so a human can look before anything happens. Always show that preview and
     get an explicit yes before calling again with ``confirm=True``.
 
-    There is deliberately no bulk apply in this server. Instahyre's API has one;
-    exposing it would make a single call irreversible across a whole queue.
+    THERE IS NOW A BULK APPLY, and this paragraph used to say the opposite --
+    "there is deliberately no bulk apply in this server". See
+    instahyre_apply_bulk. Prefer THIS tool anyway when applying to one thing:
+    it is the narrower instrument, and one application per confirmation is the
+    shape a human can actually check. Reach for the bulk tool only when several
+    have already been chosen and named.
 
     A note on provenance, because it matters for an action that cannot be
     undone: the request shape was read out of Instahyre's own shipped frontend,
@@ -1321,6 +1339,67 @@ def instahyre_decline_opportunity(opportunity_id: str, confirm: bool = False) ->
     if not confirm:
         return inbound.apply_preview(opportunity_id, is_interested=False)
     return inbound.submit_interest(opportunity_id, is_interested=False, confirm=True)
+
+
+@mcp.tool()
+@handled
+def instahyre_apply_bulk(
+    opportunity_ids: list,
+    expected_count: int,
+    confirm: bool = False,
+) -> dict:
+    """Apply to SEVERAL opportunities in ONE request. IRREVERSIBLE, every one.
+
+    THE MOST DESTRUCTIVE TOOL ON THIS SERVER. Instahyre applications CANNOT BE
+    WITHDRAWN -- their FAQ says the application is sent automatically by the
+    system, so there is no undo, no support path, and every employer on the
+    list sees it immediately. One call here spends several of those at once.
+
+    WHY THE GATE IS SHAPED THE WAY IT IS. A confirm-gated bulk apply is not
+    inherently more dangerous than N confirm-gated single applies -- it is the
+    same N applications, to the same employers, equally permanent. What it
+    removes is N-1 CONFIRMATIONS, and every rail here exists to hand back
+    exactly what that collapse takes away:
+
+    * The PREVIEW NAMES EVERY OPPORTUNITY -- company, role, id, one line each
+      -- restoring the sight of each item that N separate previews would have
+      given. Never confirm against a count; read the lines.
+    * ``expected_count`` restores the ARITHMETIC. State how many applications
+      are intended, independently of the list. If the list changed length
+      between the preview and the call, the count is the only thing that
+      notices, and the call fails instead of applying.
+    * A HARD CAP OF 10 bounds the blast radius, and over the cap is a REFUSAL,
+      never a truncation -- applying to the first ten of twenty-five and
+      reporting success is the exact failure this tool must not have.
+    * THE ID LIST IS YOURS. This tool never assembles it. There is no "apply to
+      all", no filter, no "top N by score". Rank with instahyre_rank_jobs
+      first if you want a ranked selection, show him the names, then pass ids.
+
+    Note which way the site's own default points: Instahyre's bulk modal opens
+    with EVERY opportunity pre-selected. This tool does the opposite and
+    selects nothing -- an empty list is refused, not read as "everything".
+
+    Every id is checked against his CURRENT pending queue, re-read for the
+    purpose, before anything is sent; an id that is not there is a refusal
+    naming it. Duplicates are refused rather than deduplicated. After the
+    write, the queue is re-read and the result says which applications
+    actually took -- the response shape is unknown territory, so state is the
+    evidence rather than a status code.
+
+    THERE IS NO BULK DECLINE and there never will be: the bulk body has no
+    is_interested key at all, so this endpoint is apply-only by construction.
+
+    Args:
+        opportunity_ids: An EXPLICIT list of opportunity ids from
+            instahyre_list_opportunities. Maximum 10. Never assembled here.
+        expected_count: How many applications you intend to send. Must equal
+            the number that resolves, or nothing is sent.
+        confirm: Must be True to actually send. False (the default) returns the
+            full preview, naming every opportunity, and issues no write at all.
+    """
+    return get_client().writer.bulk_apply(
+        opportunity_ids, expected_count, confirm=confirm
+    )
 
 
 # ---------------------------------------------------------------------------

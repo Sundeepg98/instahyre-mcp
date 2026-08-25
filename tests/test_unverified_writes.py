@@ -205,19 +205,57 @@ class TestTheRegister:
         assert "third parties" in note
         assert "unsend" in note or "undo" in note
 
-    def test_it_is_kept_apart_from_the_permanent_ban(self):
-        """FORBIDDEN_ENDPOINTS means "never, at any evidence level". This
-        register means "not yet, on this evidence". Merging them would either
-        permanently ban six buildable things or quietly unban a mass-apply."""
-        for fragment in UNVERIFIED_PATH_FRAGMENTS.values():
-            assert not any(fragment in path for path in C.FORBIDDEN_ENDPOINTS)
-        assert C.FORBIDDEN_ENDPOINTS, "the permanent ban must still hold entries"
+    def test_it_is_kept_apart_from_what_is_already_built(self):
+        """RE-RATIFIED 2026-08-25. The contrast this drew has outlived one side.
 
-    def test_the_bulk_apply_ban_is_untouched(self):
-        """The register above must not have diluted the thing that actually
-        cannot be built. Pinned by count and by content."""
-        assert len(C.FORBIDDEN_ENDPOINTS) == 2
-        assert all("apply_bulk" in path for path in C.FORBIDDEN_ENDPOINTS)
+        It read: "FORBIDDEN_ENDPOINTS means 'never, at any evidence level'.
+        This register means 'not yet, on this evidence'. Merging them would
+        either permanently ban six buildable things or quietly unban a
+        mass-apply." -- and it asserted ``C.FORBIDDEN_ENDPOINTS`` was non-empty
+        under the words "the permanent ban must still hold entries".
+
+        There is no permanent ban any more. It was lifted by ruling and bulk
+        apply was built. The half of the distinction that SURVIVES, and that
+        this test now measures, is the one that was always doing the work: this
+        register is about EVIDENCE and nothing else. An entry here is not
+        disapproved of, it is UNMEASURED -- so the failure to guard against is
+        a surface sitting in this register while a tool quietly sends to it.
+        That is checked directly against the paths this package can actually
+        POST to, which is a stronger question than the one about the blocklist
+        and does not depend on a blocklist existing.
+        """
+        sendable = C.SENDABLE_INBOX_PATHS | C.SENDABLE_BULK_APPLY_PATHS
+        for surface, fragment in UNVERIFIED_PATH_FRAGMENTS.items():
+            assert not any(fragment in path for path in sendable), (
+                "%s is registered as UNMEASURED but %r is on a sendable "
+                "allowlist" % (surface, fragment)
+            )
+        assert C.FORBIDDEN_ENDPOINTS == frozenset(), (
+            "FORBIDDEN_ENDPOINTS regrew entries. It was emptied by ruling on "
+            "2026-08-25; refilling it is a ruling too, not a patch: %s"
+            % sorted(C.FORBIDDEN_ENDPOINTS)
+        )
+
+    def test_bulk_apply_left_this_register_by_being_measured(self):
+        """The old name of this test was ``test_the_bulk_apply_ban_is_untouched``
+        and it pinned the ban by count and by content.
+
+        Bulk apply is the case that proves what this whole file claims -- that
+        the bar is EVIDENCE, and that clearing it is how a surface becomes
+        ordinary work. It was the single hardest-banned path in the package and
+        the route out was the same as for everything else: read the contract,
+        register it, gate it, build it. So the assertion is inverted rather than
+        deleted. It must NOT be in the unmeasured register, it MUST be in the
+        captured one, and it must be reachable through a named allowlist rather
+        than through nothing.
+        """
+        assert "apply_bulk" not in C.UNVERIFIED_WRITE_SURFACES
+        assert "apply_bulk" in C.CAPTURED_WRITE_CONTRACTS
+        assert len(C.SENDABLE_BULK_APPLY_PATHS) == 2
+        assert all("apply_bulk" in path for path in C.SENDABLE_BULK_APPLY_PATHS)
+        # The read tier never moved and this is the file where a reader looks
+        # for "what may this package not send".
+        assert "apply_bulk" in C.MUTATING_PATH_MARKERS
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +274,17 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_nine_that_were_captured(self):
+    def test_it_names_the_ten_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
+            # Added 2026-08-25, and the only entry here that retires a BAN
+            # rather than an absence. Both its paths sat in
+            # FORBIDDEN_ENDPOINTS, the one refusal in this package that said
+            # "at any evidence level". Its contract was never the obstacle --
+            # the factory and the body builder ship whole in Instahyre's
+            # JavaScript, the same SHIPPED class as the four inbox entries
+            # below. What kept it out was blast radius, and that is now a gate
+            # rather than a blocklist. Its note is required to say so.
+            "apply_bulk",
             # Added 2026-08-23. inbox_reply is SHIPPED, and it is the entry that
             # most needs its class read: it is the only irreversible surface in
             # this register that reaches another person, and unlike the other
@@ -525,14 +572,27 @@ class TestTheBuiltWritesStillWork:
         )
         assert not unverified_paths_in(sources)
 
-    @pytest.mark.parametrize("path", sorted(C.FORBIDDEN_ENDPOINTS))
-    def test_a_forbidden_path_is_still_absent_from_every_call_site(self, path):
-        """Restated here because this file is where a future reader looks for
-        "what may this package not send". The write-surface AST scan in
-        test_inbound_safety is the primary guard; this is a second reading of
-        the same rule from the other direction."""
+    @pytest.mark.parametrize("path", sorted(C.SENDABLE_BULK_APPLY_PATHS))
+    def test_a_bulk_path_is_still_spelled_only_in_the_register(self, path):
+        """RE-SOURCED 2026-08-25, and the reason is a finding in itself.
+
+        This was parametrized over ``C.FORBIDDEN_ENDPOINTS``. When that set was
+        emptied by the ruling, the parametrize list went empty too -- and an
+        empty parametrize does not fail, it SKIPS. The test reported "skipped,
+        got empty parameter set" and would have gone on reporting that forever,
+        a guard that had quietly stopped guarding while the suite stayed green.
+        Nothing else in the run would have said so.
+
+        The rule it enforces did not change and is worth keeping now that the
+        paths are reachable rather than banned: the two bulk URLs are spelled
+        in ``constants.py`` and NOWHERE ELSE, so every call site names a
+        constant and "what can this package POST to" stays answerable by
+        reading one file. Parametrizing over the sendable set means the list
+        can never silently empty -- an empty allowlist would be caught by the
+        assertions in ``test_bulk_apply_left_this_register_by_being_measured``.
+        """
         for name, _, literal in string_constants(package_sources()):
             if literal == path:
                 assert name == "constants.py", (
-                    "the forbidden path is spelled outside the register: %s" % name
+                    "a bulk apply path is spelled outside the register: %s" % name
                 )

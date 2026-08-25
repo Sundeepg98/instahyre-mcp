@@ -62,6 +62,18 @@ EXPECTED_TOOLS = {
     "instahyre_account_settings",
     "instahyre_apply",
     "instahyre_decline_opportunity",
+    # Added 2026-08-25, and it is the only tool on this server whose endpoints
+    # were PERMANENTLY BANNED before it existed -- FORBIDDEN_ENDPOINTS held
+    # both apply_bulk spellings under the words "at any evidence level". The
+    # ruling is that whatever is technically possible gets built; the contract
+    # ships whole in Instahyre's own JavaScript, so it was possible. The ban's
+    # protection moved into the gate rather than evaporating: an explicit
+    # caller-supplied id list, a cap of 10 that refuses rather than truncates,
+    # live validation of every id against the pending queue, a preview that
+    # names every company and role, and an expected_count stated apart from
+    # the list. There is no bulk DECLINE and there cannot be -- the bulk body
+    # has no is_interested key.
+    "instahyre_apply_bulk",
     # Tier 3 -- the inbox. Reads are plain HTTP with no browser; the four
     # writes below run on a NAMED allowlist of four URLs, one per captured
     # contract.
@@ -199,11 +211,13 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_fifty_one_tools(tools):
+def test_the_server_registers_exactly_fifty_two_tools(tools):
     """48 until 2026-08-25, when the three remaining measured inbox writes were
-    built. The number is pinned rather than derived so that a tool appearing on
-    the MCP surface is an edit somebody made here on purpose."""
-    assert len(tools) == len(EXPECTED_TOOLS) == 51
+    built; then 52, when the bulk-apply ban was lifted by ruling and
+    instahyre_apply_bulk was built. The number is pinned rather than derived so
+    that a tool appearing on the MCP surface is an edit somebody made here on
+    purpose -- which is exactly what the fifty-second one was."""
+    assert len(tools) == len(EXPECTED_TOOLS) == 52
 
 
 def test_every_tool_name_is_namespaced(tools):
@@ -226,11 +240,25 @@ def test_every_tool_description_is_a_real_sentence_not_a_placeholder(tools):
         assert len(tool.description.strip()) > 40, "%s is barely documented" % tool.name
 
 
-def test_there_is_no_bulk_apply_tool(tools):
-    """Bulk apply must never exist on this server: Instahyre applications
-    cannot be withdrawn once sent."""
-    offenders = [tool.name for tool in tools if "bulk" in tool.name.lower()]
-    assert offenders == []
+def test_the_only_bulk_tool_is_the_one_that_was_ruled_on(tools):
+    """RE-RATIFIED 2026-08-25. It read "Bulk apply must never exist on this
+    server: Instahyre applications cannot be withdrawn once sent."
+
+    The premise is still true -- applications cannot be withdrawn -- and the
+    conclusion no longer follows from it, because the same is true of
+    instahyre_apply, which has existed all along. What a bulk call actually
+    removes is N-1 confirmations, and the tool's gate is built to hand those
+    back: a caller-supplied list, a preview naming every opportunity, a
+    separately-stated expected_count, and a cap that refuses rather than
+    truncates.
+
+    THE SHAPE OF THE CHECK IS KEPT because it caught a FAMILY, not an
+    instance. Pinned to one name, a second bulk tool -- a bulk decline most of
+    all, which cannot even be built, since the bulk body has no is_interested
+    key -- still fails here and still needs a human decision to admit.
+    """
+    bulk_tools = sorted(tool.name for tool in tools if "bulk" in tool.name.lower())
+    assert bulk_tools == ["instahyre_apply_bulk"], bulk_tools
 
 
 def test_no_tool_promises_a_sort_argument(tools):

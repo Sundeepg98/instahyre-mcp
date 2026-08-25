@@ -995,10 +995,25 @@ SENDABLE_LITERALS = frozenset(
     }
 )
 
-#: Paths that must STAY unreachable from the write channel. Two are the
-#: permanently-forbidden bulk applies; the other three are SIBLINGS of admitted
-#: paths on the same prefixes, which is where a rule-shaped guard would leak.
-STILL_REFUSED = sorted(C.FORBIDDEN_ENDPOINTS) + [
+#: Paths that must STAY unreachable from the INBOX write channel. Three are
+#: SIBLINGS of admitted paths on the same prefixes, which is where a
+#: rule-shaped guard would leak; two are the bulk applies.
+#:
+#: THE BULK PAIR IS NOW SPELLED OUT rather than read from
+#: ``C.FORBIDDEN_ENDPOINTS``, which is empty since the 2026-08-25 ruling built
+#: bulk apply. Deriving them from that set was fine while it was a ban and
+#: became silent the moment it was not: the list would simply have lost two
+#: entries and this parametrize would have gone on passing, having stopped
+#: checking the two paths it most needed to.
+#:
+#: THEY BELONG HERE MORE THAN BEFORE, NOT LESS. While bulk apply was forbidden,
+#: "the inbox guard refuses it" was one refusal among many. Now that it is a
+#: REACHABLE write with real permissions, this is the assertion that the inbox
+#: door cannot spend them -- two doors, two allowlists, neither reaching the
+#: other's paths.
+STILL_REFUSED = [
+    "/candidate_opportunities/candidate_matching/apply_bulk/",
+    "/candidate_opportunities/candidate_opportunity/apply_bulk/",
     "/resume_modal/emails/message/message_count/",
     "/resume_modal/emails/message/get_candidates_star_status",
     "/inbox_page/candidate_conversation/search/",

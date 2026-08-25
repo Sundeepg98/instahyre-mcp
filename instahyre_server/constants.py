@@ -477,8 +477,15 @@ EP_SEND_MESSAGE = "/resume_modal/emails/message/send_message/"
 # rather than through a hole in a blocklist; and the READ tier is byte-for-byte
 # unchanged -- MUTATING_PATH_MARKERS still holds all five markers and
 # guard_read_only still refuses every one of these paths, so a reader cannot
-# arrive at a write by editing a constant. FORBIDDEN_ENDPOINTS is untouched:
-# both apply_bulk spellings stay permanently banned at any evidence level.
+# arrive at a write by editing a constant.
+#
+# THE LAST CLAUSE OF THIS PARAGRAPH WAS TRUE WHEN WRITTEN AND IS NOT ANY MORE.
+# It read: "FORBIDDEN_ENDPOINTS is untouched: both apply_bulk spellings stay
+# permanently banned at any evidence level." Later the same day the ban was
+# lifted by ruling and bulk apply was built -- see FORBIDDEN_ENDPOINTS below
+# for what replaced it. The half of the sentence that still holds is the half
+# above it: the read tier did not move, and MUTATING_PATH_MARKERS still holds
+# all five markers, apply_bulk included.
 #
 # NO TRAILING SLASH ON THE TWO MESSAGE ACTIONS. The factory declares them
 # without one -- `star_conversation:{method:'POST',url:url+"star_conversation"}`
@@ -679,17 +686,100 @@ APPLY_IS_INTERESTED_DECLINE = False
 # it exactly would be cargo-culting a bug.
 APPLY_CSRF_HEADER = "X-CSRFToken"
 
-# BOTH bulk endpoints, not one. The ES/non-ES split applies here too, and the
-# earlier list held only the non-ES spelling -- so the ES bulk URL, which is
-# the one this account's branch would actually resolve, was NOT blocked.
-# Bulk has no is_interested key: it is apply-only, and one call is an
-# irreversible mass-apply across a whole queue.
-FORBIDDEN_ENDPOINTS = frozenset(
-    {
-        "/candidate_opportunities/candidate_opportunity/apply_bulk/",
-        "/candidate_opportunities/candidate_matching/apply_bulk/",
-    }
-)
+# --- The permanent ban, and its lifting on 2026-08-25 -----------------------
+#
+# THIS SET HELD THE TWO apply_bulk SPELLINGS AND THE WORD "PERMANENTLY". It is
+# now EMPTY, and the sentence it retired is quoted rather than deleted, because
+# a ban that vanishes without trace reads as an oversight to whoever finds the
+# gap next:
+#
+#   "Deliberately NOT merged into FORBIDDEN_ENDPOINTS, which means something
+#    stronger: those two bulk paths must never be built, at any evidence
+#    level."
+#
+# THE RULING THAT LIFTED IT. Whatever is technically possible gets built. Bulk
+# apply is possible -- its contract ships whole in Instahyre's own JavaScript,
+# the same evidence class as the four inbox writes admitted the same day -- so
+# "never at any evidence level" was a refusal that had stopped resting on
+# evidence and had become nerve. It is built, and it is gated harder than
+# anything else in this package.
+#
+# WHAT THE BAN WAS ACTUALLY PROTECTING, and where that protection went. The
+# argument was never "the endpoint is unknowable"; it was "one call there is an
+# irreversible mass-apply across a whole queue". That is a real hazard and it
+# did not evaporate with the ruling -- it MOVED, from a blocklist entry to a
+# stack of gates that between them make the feared call unconstructible:
+#
+#   * The caller passes an EXPLICIT list of opportunity ids. Nothing in this
+#     package assembles that list, so there is no "apply to all" to reach.
+#   * MAX_BULK_APPLY (writes.MAX_BULK_APPLY, 10) refuses a longer list rather
+#     than truncating it. His pending queue runs to ~30, so a whole-queue sweep
+#     is a refusal, not a silent first-ten.
+#   * Every id is checked against the LIVE pending queue before anything is
+#     sent, and an expected_count the caller states independently must equal
+#     what resolved.
+#   * The preview NAMES every opportunity, so a confirm is given against a list
+#     of companies and roles rather than against a number.
+#
+# WHAT DID NOT MOVE. MUTATING_PATH_MARKERS still holds "apply_bulk", so the
+# READ tier refuses these paths exactly as it did before -- reaching a write
+# from the reader stays impossible. The write side reaches them through
+# SENDABLE_BULK_APPLY_PATHS below, which is a named allowlist of two, never a
+# hole in a blocklist. And the SINGLE-apply guard in inbound.submit_interest is
+# unchanged and still fires on these paths: it tests this set OR the markers,
+# and the marker half is live.
+#
+# The set itself is kept rather than deleted. It is referenced by that guard,
+# and an empty allowlist-of-the-forbidden is the honest record of a ban that
+# was lifted by ruling -- where a deleted constant would leave the guard
+# looking like it had never had anything to check.
+FORBIDDEN_ENDPOINTS: frozenset = frozenset()
+
+# BOTH bulk endpoints, not one. The ES/non-ES split applies here exactly as it
+# does to single apply -- same flag, same service factory -- and the old ban
+# had to learn that the hard way: its first version listed only the non-ES
+# spelling, so the ES bulk URL, the one this account's branch actually
+# resolves, was not covered.
+#
+# THE FACTORY, verbatim, both services:
+#
+#   candidateMatchingService:      apply_bulk:{method:"POST",url:url+"apply_bulk/"}
+#   candidateOpportunitiesService: apply_bulk:{method:"POST",url:url+"apply_bulk/",}
+#
+# THE TRAILING SLASH IS DECLARED ON BOTH and is copied, not regularised, for
+# the same reason send_message's is: Django's APPEND_SLASH answers a slashless
+# POST with a 301 that drops the body, and this client does not follow
+# redirects -- so a wrong spelling fails loudly instead of sending an empty
+# bulk apply.
+EP_APPLY_BULK_ES = "/candidate_opportunities/candidate_matching/apply_bulk/"
+EP_APPLY_BULK_LEGACY = "/candidate_opportunities/candidate_opportunity/apply_bulk/"
+
+#: The complete set of paths this package may send a BULK APPLY to. TWO NAMED
+#: ENTRIES, the ES spelling and the legacy one, selected by the SAME
+#: APPLY_BRANCH_ES flag that picks the single-apply endpoint -- there is no
+#: second branch mechanism here and there must never be one, because two flags
+#: that could disagree is how the ES body got paired with the legacy URL in the
+#: first place.
+#:
+#: A SEPARATE DOOR FROM SENDABLE_INBOX_PATHS, deliberately. The inbox allowlist
+#: must go on refusing these paths (tests/test_writes.py asserts it does), and
+#: this one must refuse every inbox path. Two small enumerated sets that each
+#: refuse the other's members beats one larger set where a bug in either
+#: surface can reach the other.
+SENDABLE_BULK_APPLY_PATHS = frozenset({EP_APPLY_BULK_ES, EP_APPLY_BULK_LEGACY})
+
+#: The ONE body key, per branch. The factory sets exactly one and never both:
+#:
+#:   if(isESOppsEnabled(scope)){data.job_ids=selectedOpps.map((o)=>o.job_id);}
+#:   else{data.opp_ids=selectedOpps.map((o)=>o.id);}
+#:
+#: NOTE WHAT IS ABSENT. There is no is_interested key -- bulk is apply-only, so
+#: there is no bulk DECLINE and this server must never grow one by flipping a
+#: boolean that does not exist. There is no is_activity_page_job either, which
+#: single apply sets unconditionally; the bulk builder is a different function
+#: and sets neither.
+BULK_APPLY_BODY_KEY_ES = "job_ids"
+BULK_APPLY_BODY_KEY_LEGACY = "opp_ids"
 
 # --- Writes that CANNOT be built on the evidence this tree holds -------------
 #
@@ -720,10 +810,17 @@ FORBIDDEN_ENDPOINTS = frozenset(
 # succeeds and does something nobody chose. On this platform the second case is
 # permanent.
 #
-# Deliberately NOT merged into FORBIDDEN_ENDPOINTS, which means something
-# stronger: those two bulk paths must never be built, at any evidence level.
-# These six are UNBUILT PENDING MEASUREMENT. Capture the real request in a
-# signed-in browser, record the body here, and they become ordinary work.
+# THIS REGISTER WAS ONCE CONTRASTED WITH A PERMANENT BAN, and the contrast has
+# outlived the ban. It read: "Deliberately NOT merged into FORBIDDEN_ENDPOINTS,
+# which means something stronger: those two bulk paths must never be built, at
+# any evidence level." FORBIDDEN_ENDPOINTS is empty as of 2026-08-25 and bulk
+# apply is built, so the distinction now runs the other way and is worth
+# restating in the direction that survives: THIS register is about EVIDENCE and
+# nothing else. An entry here is not forbidden, disapproved of, or dangerous by
+# nature -- it is UNMEASURED. Capture the real request in a signed-in browser,
+# record the body here, and it becomes ordinary work. That was always the rule,
+# and bulk apply is the proof of it: its contract was readable, so it got read,
+# and then it got built behind gates sized to what it can do.
 UNVERIFIED_WRITE_SURFACES = {
     "screening_questionnaires": (
         "POST /questionnaires/answer is a name with an explicitly UNVERIFIED body, "
@@ -1150,6 +1247,42 @@ CAPTURED_WRITE_CONTRACTS = {
             "{candidate: <limited_candidate resource uri>, message, attachments: []}. "
             "The wire URL has NO trailing slash even though the factory declares "
             "one."
+        ),
+    },
+    "apply_bulk": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "captured": "2026-08-25",
+        "path": EP_APPLY_BULK_ES,
+        "body_keys": (BULK_APPLY_BODY_KEY_ES + " | " + BULK_APPLY_BODY_KEY_LEGACY,),
+        "note": (
+            "THE ONLY ENTRY IN THIS REGISTER THAT RETIRES A PERMANENT BAN rather than "
+            "an absence of evidence, and the distinction is the whole reason the note "
+            "is long. Both bulk paths sat in FORBIDDEN_ENDPOINTS under the words "
+            "'must never be built, at any evidence level'. The contract was never the "
+            "problem: the factory declares apply_bulk on BOTH services and the body "
+            "builder and its caller ship whole, quoted at EP_APPLY_BULK_ES above. "
+            "What the ban was really about was blast radius, and that is now handled "
+            "by gates rather than by a blocklist -- see writes.Writer.bulk_apply, "
+            "which refuses a list longer than MAX_BULK_APPLY instead of truncating "
+            "it, refuses an id that is not in the LIVE pending queue, names every "
+            "opportunity in its preview, and requires an expected_count that the "
+            "caller states independently of the list.\n\n"
+            "ONE BODY KEY, NEVER BOTH. The builder sets job_ids on the ES branch and "
+            "opp_ids on the legacy branch, chosen by the same enableCandidateESOpps "
+            "flag that switches the single-apply SERVICE -- so the URL and the id key "
+            "move together here exactly as they do for single apply, and this account "
+            "is on ES. There is no is_interested key: bulk is APPLY-ONLY, so there is "
+            "no bulk decline to build and no boolean to flip into one.\n\n"
+            "NOT WIRE-CONFIRMED, and unlike the inbox writes the reason is not that "
+            "the control is unreachable -- the site's own modal renders it readily. "
+            "It is that pressing it APPLIES, irreversibly, to whatever is selected, "
+            "and the site pre-selects EVERYTHING "
+            "(angular.forEach($scope.oppValues,function(oppVal){oppVal.isSelected="
+            "true;})). So the capture technique that recorded the other bodies -- "
+            "drive the control, abort at the router -- cannot be pointed at this one "
+            "without risking the exact event it is meant to make safe. This tool "
+            "deliberately inverts that default and selects NOTHING."
         ),
     },
     "saved_search_alert_toggle": {

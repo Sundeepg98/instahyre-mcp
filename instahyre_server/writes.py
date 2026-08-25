@@ -38,6 +38,21 @@ mutating markers. One of the three is a **GET**, and it is gated like a send;
 see :meth:`Writer.mark_all_conversations_read` for why that is not a category
 error.
 
+BULK APPLY LANDED ON 2026-08-25 AND IT IS THE MOST DESTRUCTIVE THING IN THIS
+PACKAGE. Both its paths sat in ``FORBIDDEN_ENDPOINTS`` under the words "must
+never be built, at any evidence level"; the ruling is that whatever is
+technically possible gets built, its contract ships whole in Instahyre's own
+JavaScript, and so it is built. The ban's protection did not evaporate -- it
+moved into the gate, which is the feature. A bulk apply is not more dangerous
+than N single applies; it is the same N applications MINUS N-1 confirmations,
+so the gate's whole job is handing back what the collapse takes: the preview
+NAMES every opportunity, an ``expected_count`` the caller states independently
+must match what resolved, every id is checked against the LIVE pending queue,
+and ``MAX_BULK_APPLY`` refuses an over-long list rather than truncating it.
+The caller supplies the ids; nothing here assembles them. See
+:meth:`Writer.bulk_apply`. The read tier did not move: ``apply_bulk`` is still
+in ``MUTATING_PATH_MARKERS`` and ``guard_read_only`` still refuses both paths.
+
 WHAT IS NOT HERE. No profile-image upload: its contract is captured but
 reproducing the browser's body needs a WebP encoder at width<=800 that this
 package has no dependency for, and the CREATE branch was never exercised. No
@@ -77,6 +92,25 @@ _ADDRESS_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 #: body that ran away, and a cap turns that into a refusal instead of a wall of
 #: text in a recruiter's inbox.
 MAX_REPLY_CHARS = 4000
+
+
+#: The most opportunities one bulk apply will send to. THE HARD CAP, and the
+#: single most load-bearing number in this module.
+#:
+#: IT IS SIZED AGAINST HIS QUEUE, NOT AGAINST THE PLATFORM. His pending queue
+#: runs to roughly thirty. Ten is deliberately well under that, so "apply to
+#: the whole queue" is not something this tool can do in one call, or in two.
+#: Instahyre publishes no bulk limit of its own; if it has one, it is not this,
+#: and this is not pretending to be it.
+#:
+#: OVER THE CAP IS A REFUSAL, NEVER A TRUNCATION. Silently applying to the
+#: first ten of twenty-five is the precise failure this tool exists not to
+#: have: the caller would be told ten applications were sent, having asked for
+#: twenty-five, with fifteen of them left in a state nobody can distinguish
+#: from "sent" without re-reading. A refusal costs one round trip. A truncation
+#: costs ten irreversible applications aimed at a list the caller never
+#: confirmed.
+MAX_BULK_APPLY = 10
 
 
 class ConfirmationRequired(InstahyreError):
@@ -125,6 +159,36 @@ def _guard_sendable(path: str) -> str:
                 path,
                 len(C.SENDABLE_INBOX_PATHS),
                 ", ".join(sorted(C.SENDABLE_INBOX_PATHS)),
+            ),
+            path=path,
+        )
+    return path
+
+
+def _guard_bulk_apply_sendable(path: str) -> str:
+    """Allow only the two named bulk-apply targets. Returns the path.
+
+    A SECOND DOOR, NOT A WIDER ONE. :func:`_guard_sendable` governs the inbox
+    and must go on refusing these two paths; this one governs bulk apply and
+    refuses every inbox path. Neither can reach the other's members, so a bug
+    in one surface cannot spend the other's permissions -- which is worth more
+    here than the tidiness of a single combined set would be.
+
+    THE PATH IS CHECKED, NOT THE CONSTANT NAME. The caller hands over the path
+    it is about to request, computed from the branch, so this fires on an
+    edited constant, on a hand-built string, and on a branch that resolves
+    somewhere unexpected. Asking "is this one of two named values" is a
+    question that keeps its meaning when Instahyre adds an action tomorrow;
+    asking "is this on the forbidden list" is a question that does not.
+    """
+    if path not in C.SENDABLE_BULK_APPLY_PATHS:
+        raise NotSendable(
+            "Refusing to send a bulk apply to %r. This server has exactly %d named "
+            "bulk-apply paths (%s) and this is not one of them."
+            % (
+                path,
+                len(C.SENDABLE_BULK_APPLY_PATHS),
+                ", ".join(sorted(C.SENDABLE_BULK_APPLY_PATHS)),
             ),
             path=path,
         )
@@ -191,12 +255,22 @@ def _contract(surface: str) -> dict:
             "the calling function, verbatim. It is what the browser WOULD build; it "
             "has never been serialized, so it is weaker than a wire capture."
         ),
-        "captured": "2026-08-23",
+        # READ OFF THE ENTRY, with the capture day as the default. It was a bare
+        # literal until apply_bulk joined the register: every surface before it
+        # was read or recorded on 2026-08-23, and a stamp that said so
+        # unconditionally would have dated the one contract read later to a day
+        # nobody read it on. A provenance field that can be wrong about
+        # provenance is worse than none.
+        "captured": entry.get("captured", "2026-08-23"),
     }
 
 
 class Writer:
-    """The eight captured write surfaces, each behind a confirm gate."""
+    """The nine captured write surfaces, each behind a confirm gate.
+
+    Bulk apply is the ninth and it is the only one whose gate is the feature
+    rather than the toll -- see :meth:`bulk_apply`.
+    """
 
     def __init__(self, http: Any, store: Any, inbound: Any, inbox: Any = None) -> None:
         self.http = http
@@ -1079,6 +1153,339 @@ class Writer:
             "unread_after": re_read if re_read is not None else from_response,
         }
 
+    # -- 0b. BULK APPLY: the one-way door, widened and railed ---------------
+
+    def _live_pending_index(self) -> tuple[dict, dict]:
+        """``({str(id): raw record}, meta)`` for the CURRENT pending queue.
+
+        ``use_cache=False`` is the whole point and is not a performance
+        oversight. Everything else in this package is happy to read a queue
+        that is a few minutes old; this one is deciding whether an irreversible
+        application is about to be aimed at something that is still there. A
+        cached queue would let an opportunity he actioned in the browser two
+        minutes ago validate cleanly here.
+
+        The meta block is returned alongside so the caller can tell a genuinely
+        empty pending queue from a truncated read. They are opposite facts and
+        they arrive looking identical -- a missing id would be refused either
+        way, which is the safe direction, but the REASON given would be a lie
+        in the second case.
+        """
+        payload = self.inbound.raw_queue(interest="pending", use_cache=False)
+        objects = payload.get("objects") or []
+        index = {}
+        for obj in objects:
+            raw_id = obj.get("id")
+            if raw_id is not None:
+                index[str(raw_id)] = obj
+        meta = payload.get("meta") or {}
+        return index, {
+            "pending_records_read": len(objects),
+            "pending_total_reported": meta.get("total_count"),
+            "complete": (
+                meta.get("total_count") is None
+                or len(objects) >= meta.get("total_count")
+            ),
+        }
+
+    def bulk_apply(
+        self,
+        opportunity_ids: Optional[list],
+        expected_count: Optional[int],
+        *,
+        confirm: bool = False,
+    ) -> dict:
+        """Apply to SEVERAL opportunities in ONE request. IRREVERSIBLE, all of them.
+
+        WHY THE GATE IS SHAPED THE WAY IT IS -- read this before the arguments.
+        A confirm-gated bulk apply is not inherently more dangerous than N
+        confirm-gated single applies: it is the same N applications, to the
+        same employers, with the same permanence. What it removes is N-1
+        CONFIRMATIONS. That is the entire delta, and every rail below exists to
+        give back specifically what the collapse takes away:
+
+        * the PREVIEW names every opportunity, restoring the sight of each item
+          that N separate previews would have given;
+        * ``expected_count`` restores the ARITHMETIC -- a second, independent
+          statement of how many applications are intended, so a list that
+          changed length between preview and confirm fails loudly instead of
+          applying;
+        * ``MAX_BULK_APPLY`` bounds the BLAST RADIUS, because the one thing N
+          single applies cannot do is spend the whole queue on one typo;
+        * the id list is the CALLER'S, always. Nothing in this package
+          assembles it. There is no "apply to all", no filter argument, no
+          "top N by score" -- a caller who wants a ranked selection ranks
+          first, reads the names, and passes ids.
+
+        AND NOTE WHICH WAY THE SITE'S OWN DEFAULT POINTS. Instahyre's bulk
+        modal opens with everything pre-selected --
+        ``angular.forEach($scope.oppValues,function(oppVal){oppVal.isSelected=
+        true;})`` -- so on their page the default action is "apply to
+        everything shown" and deselecting is the work. This tool deliberately
+        does the opposite and selects NOTHING: the empty list is refused rather
+        than treated as "all".
+
+        APPLICATIONS CANNOT BE WITHDRAWN. Instahyre's own FAQ says the
+        application is sent automatically by the system, so there is no undo,
+        no support path, and every employer on the list sees it immediately.
+        There is no bulk decline and there must never be one: the bulk body has
+        no ``is_interested`` key at all, so this endpoint is apply-only by
+        construction rather than by our choice.
+
+        THE PATHS THIS REACHES WERE PERMANENTLY BANNED until 2026-08-25. See
+        ``constants.FORBIDDEN_ENDPOINTS`` for the ban, the ruling that lifted
+        it, and where the protection it provided actually went.
+
+        Args:
+            opportunity_ids: An EXPLICIT list of opportunity ids from
+                instahyre_list_opportunities. Never assembled here.
+            expected_count: How many applications the caller intends. Must
+                equal the number that resolved, or nothing is sent.
+            confirm: Must be True to send. False returns the full preview and
+                issues no write at all.
+        """
+        wanted = _normalise_bulk_ids(opportunity_ids)
+
+        # THE CAP IS CHECKED BEFORE THE QUEUE IS READ, so an over-long list is
+        # refused without spending a request, and -- more importantly -- the
+        # refusal cannot be confused with a resolution failure.
+        if len(wanted) > MAX_BULK_APPLY:
+            raise NothingToDo(
+                "Refusing to bulk apply to %d opportunities: the cap is %d. This is a "
+                "REFUSAL, not a truncation -- applying to the first %d of your %d and "
+                "reporting success is the exact failure this tool is built not to "
+                "have. Send a shorter list, or several calls, each with its own "
+                "preview and its own confirm."
+                % (len(wanted), MAX_BULK_APPLY, MAX_BULK_APPLY, len(wanted)),
+                requested=len(wanted),
+                cap=MAX_BULK_APPLY,
+            )
+
+        pending, queue_meta = self._live_pending_index()
+        missing = [opp_id for opp_id in wanted if opp_id not in pending]
+        if missing:
+            raise NotFound(
+                "Refusing to bulk apply: %d of the %d ids given are not in his CURRENT "
+                "pending queue -- %s. An id that has already been actioned, expired out "
+                "of the queue, or was simply mistyped must not ride along inside a bulk "
+                "body where nothing would name it again. The pending queue was re-read "
+                "for this check and holds %d record(s)%s."
+                % (
+                    len(missing),
+                    len(wanted),
+                    ", ".join(missing),
+                    queue_meta["pending_records_read"],
+                    ""
+                    if queue_meta["complete"]
+                    else " out of %r reported -- the read was TRUNCATED, so a missing id "
+                    "here may exist further down the queue rather than not exist"
+                    % (queue_meta["pending_total_reported"],),
+                ),
+                missing=missing,
+            )
+
+        records = [pending[opp_id] for opp_id in wanted]
+        resolved = len(records)
+
+        # THE SECOND, INDEPENDENT CONFIRMATION. It is compared against what
+        # RESOLVED rather than against len(opportunity_ids), because the
+        # resolved count is the number of applications that would actually be
+        # sent -- and that is the number a human is being asked to agree to.
+        if expected_count is None or int(expected_count) != resolved:
+            raise ConfirmationRequired(
+                "expected_count=%r does not match the %d opportunit%s that would be "
+                "applied to (from %d id(s) given). Nothing has been sent. This check "
+                "exists because a bulk apply collapses N confirmations into one: if "
+                "the list changed length between the preview and this call, the count "
+                "is the only thing that notices."
+                % (
+                    expected_count,
+                    resolved,
+                    "y" if resolved == 1 else "ies",
+                    len(wanted),
+                ),
+                expected_count=expected_count,
+                would_apply_to=resolved,
+            )
+
+        path, body = _build_bulk_apply_request(records)
+        from . import shape
+
+        shaped = [shape.shape_opportunity(raw) for raw in records]
+        preview = {
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + path,
+                "json_body": body,
+                "headers": {
+                    "Content-Type": "application/json",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
+                    "Referer": C.SITE_BASE + "/",
+                },
+            },
+            "action": "BULK APPLY",
+            "would_apply_to_count": resolved,
+            # NAMED, NEVER COUNTED. A caller who confirms "12 opportunities"
+            # without seeing which twelve is the failure mode this whole tool
+            # is built around, so the list is not optional, not truncated, and
+            # not summarised.
+            "would_apply_to": [
+                {
+                    "opportunity_id": record.get("id"),
+                    "job_id": record.get("job_id"),
+                    "company": record.get("company"),
+                    "role": record.get("title"),
+                    "match_score": record.get("match_score"),
+                }
+                for record in shaped
+            ],
+            "would_apply_to_lines": [
+                "%s -- %s (opportunity %s, job %s)"
+                % (
+                    record.get("company") or "<unnamed company>",
+                    record.get("title") or "<untitled role>",
+                    record.get("id"),
+                    record.get("job_id"),
+                )
+                for record in shaped
+            ],
+            "branch": (
+                "ES (candidate_matching)" if C.APPLY_BRANCH_ES else "legacy (candidate_opportunity)"
+            ),
+            "body_carries_exactly_one_key": (
+                "The bulk builder sets job_ids on the ES branch and opp_ids on the "
+                "legacy branch, never both, and there is no is_interested key -- bulk "
+                "is apply-only, so no bulk DECLINE exists to be built."
+            ),
+            "irreversible": True,
+            "cap": MAX_BULK_APPLY,
+            "queue_read": queue_meta,
+            "contract": _contract("apply_bulk"),
+            "warning": (
+                "Instahyre applications CANNOT be withdrawn -- their FAQ says the "
+                "application is sent automatically by the system. This sends %d of "
+                "them in ONE request. Read every line of would_apply_to_lines above "
+                "before confirming; that list is the only place each application is "
+                "named." % resolved
+            ),
+            "the_site_pre_selects_everything": (
+                "Instahyre's own bulk modal opens with every opportunity already "
+                "ticked. This tool selects nothing by default and refuses an empty "
+                "list, which is the opposite default on purpose."
+            ),
+            "never_run_live": (
+                "No bulk apply has ever been sent by this server, so the RESPONSE "
+                "shape is unknown territory. The request was read out of Instahyre's "
+                "shipped JavaScript; it has never been serialized by a browser here, "
+                "because the only way to make the site build one is to actually apply."
+            ),
+        }
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Re-run with confirm=True and "
+                "expected_count=%d to apply to all %d, permanently."
+                % (resolved, resolved)
+            )
+            return preview
+
+        self._require_csrf("send a bulk apply")
+
+        # A LIVE guard on the path actually about to be requested, asked of an
+        # allowlist of two rather than of a blocklist. The single-apply guard in
+        # inbound.submit_interest still refuses these same paths from its side,
+        # and the READ tier still refuses them via MUTATING_PATH_MARKERS -- this
+        # is the only door in the package that opens onto them.
+        _guard_bulk_apply_sendable(path)
+
+        log.warning(
+            "irreversible BULK APPLY sent: %d opportunities (%s)",
+            resolved,
+            ", ".join(wanted),
+        )
+        # Two literal call sites rather than one call on a computed path, for
+        # the same reason submit_interest spells its branch out twice: the
+        # suite's POST census requires every write to name its endpoint as a
+        # bare constant, so "which endpoints can this package POST to" stays
+        # answerable without running it. The guard above has already proved
+        # `path` is one of these two.
+        if path == C.EP_APPLY_BULK_ES:
+            response = self.http.post(
+                C.EP_APPLY_BULK_ES, json_body=body, extra_headers={"Origin": C.SITE_BASE}
+            )
+        else:
+            response = self.http.post(
+                C.EP_APPLY_BULK_LEGACY, json_body=body, extra_headers={"Origin": C.SITE_BASE}
+            )
+
+        return {
+            "confirmed": True,
+            "sent": preview["would_send"],
+            "requested_count": resolved,
+            "requested": preview["would_apply_to"],
+            "response": response if isinstance(response, dict) else {"raw": str(response)[:200]},
+            "irreversible": True,
+            "verification": self._verify_bulk_apply(wanted, shaped),
+        }
+
+    def _verify_bulk_apply(self, wanted: list, shaped: list) -> dict:
+        """Re-read the pending queue and say WHICH applications actually took.
+
+        THE RESPONSE IS NOT THE EVIDENCE HERE, and this is the one surface
+        where that matters most. No bulk apply has ever been sent by this
+        server, so nobody knows what a bulk response looks like -- whether it
+        reports per-id outcomes, a count, or just a 200. Trusting it would be
+        trusting a shape nobody has seen. The queue, on the other hand, is
+        already understood: an opportunity that has been applied to LEAVES the
+        pending facet. So the check is "which of these are no longer pending",
+        which is a reading of state rather than of a status code.
+
+        Never raises. A verification that could take down the report of an
+        irreversible action already sent would destroy the only record of what
+        happened at the exact moment it is most needed.
+        """
+        titles = {record.get("id"): record for record in shaped}
+        try:
+            pending, _ = self._live_pending_index()
+        except InstahyreError as exc:
+            return {
+                "ok": False,
+                "how": "the pending queue could not be re-read (%s), so which "
+                "applications took is UNKNOWN. Read instahyre_list_opportunities "
+                "before doing anything else -- do NOT re-send." % exc.kind,
+                "applied": None,
+                "still_pending": None,
+            }
+
+        applied = [opp_id for opp_id in wanted if opp_id not in pending]
+        still_pending = [opp_id for opp_id in wanted if opp_id in pending]
+        result = {
+            "ok": not still_pending,
+            "how": (
+                "each id was looked for in a fresh read of the pending queue; an "
+                "opportunity that has been applied to leaves that facet"
+            ),
+            "applied": [
+                {
+                    "opportunity_id": opp_id,
+                    "company": (titles.get(opp_id) or {}).get("company"),
+                    "role": (titles.get(opp_id) or {}).get("title"),
+                }
+                for opp_id in applied
+            ],
+            "still_pending": still_pending,
+        }
+        if still_pending:
+            result["warning"] = (
+                "%d of %d are STILL in the pending queue after the request. That may "
+                "mean they did not take, or that Instahyre's queue has not caught up "
+                "yet. Do NOT re-send on this evidence -- a second bulk apply to an "
+                "opportunity that did take cannot be undone either. Re-read with "
+                "instahyre_list_opportunities first."
+                % (len(still_pending), len(wanted))
+            )
+        return result
+
     # -- 1. support tickets (WIRE) -----------------------------------------
 
     def support_ticket(self, message: str, *, confirm: bool = False) -> dict:
@@ -1453,6 +1860,126 @@ class Writer:
             "response": response,
             "note": "Sent. There is no unsend.",
         }
+
+
+def _normalise_bulk_ids(opportunity_ids: Optional[list]) -> list:
+    """The caller's id list, checked into shape. Never rewritten into a valid one.
+
+    THREE REFUSALS, and none of them is a repair. That is the distinction that
+    matters on this surface: every "helpful" normalisation available here --
+    dropping a duplicate, skipping a blank, coercing a stray type -- silently
+    changes HOW MANY applications get sent, and how many is the number the
+    caller is being asked to confirm. So each one raises instead.
+
+    * EMPTY IS REFUSED rather than treated as "all". Instahyre's own modal
+      pre-selects every opportunity, so "nothing selected means everything" is
+      a real interpretation on this platform and it is the wrong one.
+    * DUPLICATES ARE REFUSED rather than deduped. A list with a repeat in it is
+      a list the caller did not mean; deduping it would apply to fewer
+      employers than the count they confirmed, which is the same class of
+      silent-arithmetic bug as truncating an over-long list.
+    * A NON-ID IS REFUSED rather than skipped. Ids are the long numeric strings
+      the queue publishes; anything else is compared as text and would simply
+      fail to resolve later, one step further from the mistake.
+    """
+    if opportunity_ids is None or isinstance(opportunity_ids, (str, bytes, dict)):
+        raise NothingToDo(
+            "opportunity_ids must be a LIST of opportunity ids from "
+            "instahyre_list_opportunities, not %s. This tool never assembles the list "
+            "itself." % type(opportunity_ids).__name__
+        )
+
+    cleaned: list = []
+    for raw in opportunity_ids:
+        if isinstance(raw, bool) or not isinstance(raw, (str, int)):
+            raise NothingToDo(
+                "opportunity_ids contains %r, which is not an opportunity id. Ids are "
+                "the long numeric strings instahyre_list_opportunities returns."
+                % (raw,)
+            )
+        text = str(raw).strip()
+        if not text:
+            raise NothingToDo(
+                "opportunity_ids contains a blank entry. It is refused rather than "
+                "skipped: skipping it would change how many applications are sent "
+                "without changing the count anybody agreed to."
+            )
+        cleaned.append(text)
+
+    if not cleaned:
+        raise NothingToDo(
+            "Refusing a bulk apply with an empty list. An empty selection is NOT "
+            "'apply to everything' here -- Instahyre's own modal pre-selects the whole "
+            "queue, so that reading exists on this platform and it is the dangerous "
+            "one. Pass the explicit ids to apply to."
+        )
+
+    duplicated = sorted({item for item in cleaned if cleaned.count(item) > 1})
+    if duplicated:
+        raise NothingToDo(
+            "opportunity_ids contains duplicate id(s): %s. Refused rather than "
+            "deduplicated -- silently shrinking the list would send fewer "
+            "applications than the expected_count that was confirmed."
+            % ", ".join(duplicated),
+            duplicated=duplicated,
+        )
+    return cleaned
+
+
+def _build_bulk_apply_request(records: list) -> tuple[str, dict]:
+    """The exact (path, body) the frontend would send for these opportunities.
+
+    ONE BODY KEY, AND THE SAME FLAG PICKS IT AND THE URL. Instahyre's builder,
+    verbatim::
+
+        service.apply_bulk=function(scope,selectedOpps){
+          const data={};
+          if(isESOppsEnabled(scope)){data.job_ids=selectedOpps.map((o)=>o.job_id);}
+          else{data.opp_ids=selectedOpps.map((o)=>o.id);}
+          return getService(scope).apply_bulk({},data);};
+
+    ``isESOppsEnabled`` is ``enableCandidateESOpps``, the SAME flag that
+    switches the single-apply ``$resource`` service -- so this reads
+    :data:`constants.APPLY_BRANCH_ES` and does not introduce a second branch
+    mechanism. Two flags that could disagree is exactly how this package once
+    paired the ES body with the legacy URL, a combination the frontend never
+    produces.
+
+    THE VALUES ARE COPIED, NOT CONVERTED, which is the same rule the
+    single-apply builder follows and the same one the job-search profile
+    follows: what the server returned goes back exactly as it was returned. On
+    the ES branch that yields the ordinary integer job ids. On the legacy
+    branch it yields whatever the queue published for ``id``, which on this
+    account is a numeric STRING -- and the site does not convert it either, it
+    maps ``o.id`` straight off the object. Coercing would be inventing a step
+    the browser does not take.
+    """
+    if C.APPLY_BRANCH_ES:
+        path = C.EP_APPLY_BULK_ES
+        values = []
+        for raw in records:
+            job_id = (raw.get("job") or {}).get("id")
+            if job_id is None:
+                raise NothingToDo(
+                    "Opportunity %r has no job.id, which the ES bulk body is built "
+                    "from. Refusing to guess an id inside an irreversible bulk apply, "
+                    "where a wrong entry is one application to the wrong employer and "
+                    "nothing would name it again." % (raw.get("id"),)
+                )
+            values.append(job_id)
+        return path, {C.BULK_APPLY_BODY_KEY_ES: values}
+
+    path = C.EP_APPLY_BULK_LEGACY
+    values = []
+    for raw in records:
+        opp_id = raw.get("id")
+        if opp_id is None:
+            raise NothingToDo(
+                "A queue record carries no id, so the legacy bulk body cannot name it. "
+                "Refusing to send a bulk apply with a hole in it."
+            )
+        values.append(opp_id)
+    return path, {C.BULK_APPLY_BODY_KEY_LEGACY: values}
 
 
 def _normalise_addresses(emails: Optional[list]) -> tuple[list, list]:

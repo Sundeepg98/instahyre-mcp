@@ -870,16 +870,34 @@ def test_the_read_tiers_marker_list_is_byte_for_byte_what_it_was():
     )
 
 
-def test_the_forbidden_endpoints_set_is_untouched():
-    """Both apply_bulk spellings, banned at any evidence level. This build had
-    no business near them, and the assertion says so out loud."""
-    assert C.FORBIDDEN_ENDPOINTS == frozenset(
-        {
-            "/candidate_opportunities/candidate_opportunity/apply_bulk/",
-            "/candidate_opportunities/candidate_matching/apply_bulk/",
-        }
+def test_the_inbox_door_still_cannot_reach_a_bulk_apply():
+    """RE-RATIFIED 2026-08-25. It asserted a two-entry ban until that day.
+
+    It read ``C.FORBIDDEN_ENDPOINTS == frozenset({<both bulk paths>})`` under
+    the heading "banned at any evidence level. This build had no business near
+    them". The inbox build still has no business near them, and that half is
+    what this test now measures. The ban itself was lifted the same day by
+    ruling and bulk apply was built; ``tests/test_inbound_safety.py`` holds the
+    assertion about the empty set, and ``tests/test_bulk_apply.py`` holds the
+    gate.
+
+    WHAT IS CHECKED HERE IS THE THING THIS FILE IS ACTUALLY ABOUT: the inbox
+    write door and the bulk-apply door are SEPARATE ALLOWLISTS that do not
+    intersect, and neither can send to the other's paths. That was previously
+    guaranteed by one of them being a blocklist entry -- a guarantee that
+    evaporated with the blocklist. It is now guaranteed by enumeration, which
+    is the stronger form, and it needs asserting because nothing else would
+    notice if the two sets were merged "for tidiness".
+    """
+    assert not (C.SENDABLE_BULK_APPLY_PATHS & C.SENDABLE_INBOX_PATHS), (
+        "the inbox and bulk-apply allowlists have started to overlap"
     )
-    assert not (C.FORBIDDEN_ENDPOINTS & C.SENDABLE_INBOX_PATHS)
+    for path in C.SENDABLE_BULK_APPLY_PATHS:
+        with pytest.raises(writes_module.NotSendable):
+            writes_module._guard_sendable(path)
+    for path in C.SENDABLE_INBOX_PATHS:
+        with pytest.raises(writes_module.NotSendable):
+            writes_module._guard_bulk_apply_sendable(path)
 
 
 def package_sources():

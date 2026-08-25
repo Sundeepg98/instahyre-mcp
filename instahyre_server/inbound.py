@@ -844,13 +844,23 @@ class Inbound:
         # this account's branch resolves to.
         target = preview["would_send"]["url"]
         path = target[len(C.API_BASE) :] if target.startswith(C.API_BASE) else target
+        # THE FIRST HALF OF THIS TEST NOW MATCHES NOTHING, AND IT IS KEPT
+        # ANYWAY. FORBIDDEN_ENDPOINTS is empty since the 2026-08-25 ruling
+        # lifted the bulk-apply ban, so it is the MARKER half that fires --
+        # "apply_bulk" is still in MUTATING_PATH_MARKERS and always will be.
+        # The empty set is left in the condition because re-banning a path is a
+        # thing a future ruling may want to do in one line, and a guard that
+        # had dropped its blocklist clause would silently not honour it.
         if path in C.FORBIDDEN_ENDPOINTS or any(
             marker in path.lower() for marker in C.MUTATING_PATH_MARKERS
         ):
             raise InstahyreError(
-                f"Refusing to POST to {path}: it is on the forbidden list. Bulk apply is "
-                "permanently out of scope for this server -- one call there is an "
-                "irreversible mass-apply across a whole queue.",
+                f"Refusing to POST to {path} from the SINGLE-apply path: it names a "
+                "mutating action this door may not reach. Bulk apply is no longer out "
+                "of scope for this server -- it is instahyre_apply_bulk, which has its "
+                "own two-entry allowlist, a hard cap, live validation of every id and a "
+                "preview that names every opportunity. None of that is reachable by "
+                "pointing single apply at a bulk URL, which is what this refusal stops.",
             )
         if path not in (C.EP_APPLY_ES, C.EP_APPLY_LEGACY):
             raise InstahyreError(

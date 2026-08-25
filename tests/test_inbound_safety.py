@@ -24,13 +24,34 @@ Four properties are pinned here:
 3. **The preview is the truth.** What the preview says would be sent is
    byte-for-byte what a confirmed submit actually sends, so the human's
    decision is made on real information rather than a stale description.
-4. **The write surface is enumerated, and bulk apply is unreachable.**
-   Proven by reading the package's own source off disk and walking its AST:
-   every ``.post(`` call site targets ``C.EP_APPLY_ES``, ``C.EP_APPLY_LEGACY``
-   or ``C.EP_LOGIN``, and nothing else; and ``.patch(`` appears in exactly one
-   module. Both bulk URLs are blocked, not just the one that used to be --
-   the ES spelling, which is the branch this account actually resolves to,
-   was missing from the forbidden list until 2026-08-21.
+4. **The write surface is enumerated.** Proven by reading the package's own
+   source off disk and walking its AST: every ``.post(`` call site names its
+   endpoint as a bare constant, the set of those constants is pinned, and
+   ``.patch(`` appears in exactly one module.
+
+   THIS CLAUSE USED TO END "and bulk apply is unreachable". It was true from
+   the day this file was written until 2026-08-25, when the ruling that
+   whatever is technically possible gets built retired the one ban in this
+   package that had said "at any evidence level". Bulk apply is now
+   ``instahyre_apply_bulk`` and both its URLs are in the POST census above.
+
+   WHAT REPLACED THE UNREACHABILITY, since that is the question a reader of
+   this header is really asking. The ban was never about the endpoint being
+   unknown -- its contract ships whole in Instahyre's JavaScript -- it was
+   about blast radius: "one call there is an irreversible mass-apply across a
+   whole queue". That specific sentence is now false by construction, and not
+   by assurance. The caller supplies the id list and nothing in the package
+   assembles one; a cap of ten REFUSES a longer list instead of truncating it;
+   every id is checked against a freshly-read pending queue; the preview names
+   every company and role; and an ``expected_count`` stated apart from the
+   list must match what resolved. ``tests/test_bulk_apply.py`` holds one test
+   per rail and ``scripts/bulk_apply_controls.py`` breaks each of them in turn
+   to show the tests can fail.
+
+   WHAT DID NOT MOVE, and is still asserted here: the READ tier refuses both
+   bulk paths exactly as before (``apply_bulk`` never left
+   ``MUTATING_PATH_MARKERS``), and SINGLE apply still refuses to POST to a bulk
+   URL even when its own endpoint constant is repointed at one.
 
 The source scanners in the last two sections carry their own controls -- a
 check that cannot fail certifies nothing, so each scanner is also run against a
@@ -80,9 +101,20 @@ EMPLOYER_NAME = OPPORTUNITY["employer"]["company_name"]
 #: A csrftoken value chosen to be unmistakable if it ever leaks into a preview.
 CSRF_VALUE = "csrf-token-that-must-never-be-echoed-1234567890"
 
-#: The bulk endpoint, permanently out of scope. Taken from the constant rather
-#: than retyped, so a change to the constant cannot desynchronise this file.
+#: The two bulk endpoints. SPELLED OUT AS LITERALS, and the comment that used
+#: to sit here claimed the opposite -- "taken from the constant rather than
+#: retyped" -- while the line below it was a retyped literal all along. The
+#: literal is the right choice and now says so: a test built from the constant
+#: FOLLOWS the constant, so repointing ``EP_APPLY_BULK_ES`` at something else
+#: would move this file's idea of what a bulk path is along with it, and every
+#: assertion here would go on passing about a different URL. The same reasoning
+#: pins ``SENDABLE_LITERALS`` in tests/test_inbox_writes.py.
+#:
+#: NO LONGER "permanently out of scope": both were built on 2026-08-25 behind
+#: instahyre_apply_bulk. They remain out of scope for the READ tier and for
+#: single apply, which is what most of this file is about.
 BULK_PATH = "/candidate_opportunities/candidate_opportunity/apply_bulk/"
+ES_BULK_PATH = "/candidate_opportunities/candidate_matching/apply_bulk/"
 
 WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 
@@ -474,9 +506,92 @@ def test_the_preview_never_carries_a_real_csrf_token():
 # ---------------------------------------------------------------------------
 
 
-def test_the_forbidden_endpoint_set_contains_the_bulk_apply_path():
-    assert BULK_PATH in C.FORBIDDEN_ENDPOINTS
-    assert C.EP_APPLY not in C.FORBIDDEN_ENDPOINTS
+def test_the_emptied_blocklist_still_bites_when_something_is_put_back_on_it():
+    """The control for a brake with nothing currently on it.
+
+    Lifting the ban left `FORBIDDEN_ENDPOINTS` empty and left the clause that
+    reads it in place, deliberately, so a future ruling can re-ban a path in one
+    line. That is the right call and it has a cost nobody had paid: **an empty
+    blocklist means the clause never executes.** Every apply that gets refused
+    today is refused by the MARKER half of the same `if`, so the blocklist half
+    is dead code wearing a guard's clothes, and a typo in it -- or its quiet
+    deletion in some later tidy-up -- would change nothing observable until the
+    day it was needed, which is the worst possible day to find out.
+
+    So the set is planted with a path that carries NO marker, which isolates the
+    two halves: `EP_APPLY_ES` contains none of mark_all_read, send_message,
+    star_conversation, toggle_message_read or apply_bulk, so if the refusal
+    fires it can only have come from the blocklist clause.
+
+    The plant is monkeypatched and reverted, and the final assertion checks the
+    live constant is empty again -- a control that leaves a ban behind would be
+    worse than no control.
+    """
+    from instahyre_server.errors import InstahyreError
+
+    original = C.FORBIDDEN_ENDPOINTS
+    assert original == frozenset(), "precondition: the set is empty today"
+    assert not any(
+        marker in C.EP_APPLY_ES.lower() for marker in C.MUTATING_PATH_MARKERS
+    ), (
+        "the plant is only isolating if the planted path carries no marker; "
+        "EP_APPLY_ES now does, so this control is measuring the wrong clause"
+    )
+
+    client = queue_client(csrf=CSRF_VALUE)
+    try:
+        C.FORBIDDEN_ENDPOINTS = frozenset({C.EP_APPLY_ES})
+        with pytest.raises(InstahyreError) as excinfo:
+            client.inbound.submit_interest(
+                OPPORTUNITY_ID, is_interested=True, confirm=True
+            )
+    finally:
+        C.FORBIDDEN_ENDPOINTS = original
+
+    # The apply route is deliberately unwired in this harness, so a FAILURE to
+    # refuse would surface as an "Unmocked request" AssertionError rather than
+    # as a silent pass. Asserting the specific refusal is what separates "the
+    # blocklist stopped it" from "the route table did".
+    assert "Refusing to POST" in str(excinfo.value), (
+        "raised, but not by the blocklist: %s" % excinfo.value
+    )
+    assert write_requests(client) == [], "a forbidden path reached the network"
+    assert C.FORBIDDEN_ENDPOINTS == frozenset(), "the control left a ban behind"
+
+
+def test_the_permanent_ban_was_lifted_by_ruling_and_left_an_empty_set():
+    """RE-RATIFIED 2026-08-25. This asserted the opposite until that day.
+
+    It read::
+
+        assert BULK_PATH in C.FORBIDDEN_ENDPOINTS
+
+    and that was the strongest single claim in this file: both apply_bulk
+    spellings banned, in the words of the constant itself, "at any evidence
+    level". The ruling is that whatever is technically POSSIBLE gets built, the
+    contract for bulk apply ships whole in Instahyre's own JavaScript, and so
+    it was built. The ban is lifted and the set is empty.
+
+    THE ASSERTION IS NOT DELETED, because "is the ban still in force" stays a
+    question worth answering out loud -- and because an empty set that nobody
+    checks is indistinguishable from a set somebody emptied by accident. What
+    it now pins is the SHAPE of the lifting: the paths left the blocklist and
+    they went somewhere NAMED, not nowhere. The protection that blocklist
+    carried lives in three places that are each asserted elsewhere in this
+    suite -- the read tier's marker list (unchanged), the two-entry bulk
+    allowlist, and the gate on writes.Writer.bulk_apply.
+    """
+    assert C.FORBIDDEN_ENDPOINTS == frozenset(), (
+        "FORBIDDEN_ENDPOINTS regrew entries: %s. If a path is genuinely being "
+        "re-banned that is a ruling, not a patch." % sorted(C.FORBIDDEN_ENDPOINTS)
+    )
+    # Where the two paths went: a NAMED allowlist of exactly two, reachable
+    # only from the bulk write. Not a rule, not a prefix.
+    assert C.SENDABLE_BULK_APPLY_PATHS == frozenset({BULK_PATH, ES_BULK_PATH})
+    # And the reader is untouched: it still refuses them by marker.
+    assert "apply_bulk" in C.MUTATING_PATH_MARKERS
+    # Single apply is still not a bulk path, which was always the other half.
+    assert C.EP_APPLY not in C.SENDABLE_BULK_APPLY_PATHS
     assert "bulk" not in C.EP_APPLY
 
 
@@ -498,19 +613,41 @@ def test_no_executable_string_outside_constants_names_the_bulk_endpoint():
     """The token ``apply_bulk`` may appear in prose; it may not appear in a
     string that could form a URL.
 
-    It legitimately occurs twice outside constants.py today, and both are
-    harmless by construction: a docstring in inbound.py (excluded here -- a
-    docstring is ``__doc__`` and never reaches the HTTP client) and the literal
-    dict key ``"apply_bulk"`` in server.py's ``deliberately_not_built`` block,
-    which is a label in a returned payload. A label carries no slash and is not
-    a path; anything containing one is a URL fragment and fails here.
+    THE FILTER WAS RE-RATIFIED ON 2026-08-25 AND IT IS NOW WHAT THE PARAGRAPH
+    ABOVE ALWAYS SAID. This docstring has stated the rule as "a label carries no
+    slash and is not a path; anything containing one is a URL fragment and fails
+    here" since the day it was written, while the code underneath tested
+    something stricter and different: ``value.strip() != "apply_bulk"``, an
+    exact-match allowlist of one. The two agreed only as long as the single
+    permitted string was the only prose anybody wrote.
+
+    Building the bulk tool ended that. ``server.py`` now carries a payload
+    string that explains, to whoever calls the server, that apply_bulk was
+    banned and is now built and how it is gated -- prose, in a dict value,
+    carrying no slash and composable into nothing. Under the old filter that is
+    an offender, and the only ways to satisfy it were to stop naming the thing
+    the paragraph is about or to bend the prose around a keyword check. This
+    file has already learned once (see
+    ``test_a_shipped_entry_has_no_wire_recording_on_disk``) that bending prose
+    to satisfy a keyword list makes the prose worse to make a test pass.
+
+    SO THE RULE IS NOW THE COMPOSABILITY ONE, AND IT IS NOT WEAKER. A URL path
+    needs a separator: every spelling that could be joined into a request --
+    ``"apply_bulk/"``, ``"candidate_matching/apply_bulk/"``, a whole path --
+    carries a ``/`` and is caught. A bare ``"apply_bulk"`` with no slash was
+    ALREADY permitted by the old exact-match filter, so nothing that was
+    refused before is admitted now; what changed is that prose containing the
+    token alongside other words is no longer treated as a URL fragment. The
+    control below still fails on a synthetic path, and the sibling test
+    ``test_the_bulk_apply_path_appears_in_exactly_one_source_file`` pins the
+    full path strings to constants.py from the other direction.
     """
     sources = {name: text for name, text in package_sources().items() if name != "constants.py"}
 
     offenders = [
         (name, lineno, value)
         for name, lineno, value in executable_strings_mentioning(sources, "apply_bulk")
-        if value.strip() != "apply_bulk"
+        if "/" in value
     ]
 
     assert offenders == [], (
@@ -533,11 +670,28 @@ def test_the_bulk_string_scanner_reports_a_synthetic_bulk_url():
     assert [(name, value) for name, _, value in hits] == [("rogue.py", BULK_PATH)]
 
 
-def test_no_registered_tool_has_bulk_in_its_name(tools):
-    """Instahyre's API has a bulk apply. Exposing it would make one call
-    irreversible across a whole queue at once."""
-    offenders = sorted(tool.name for tool in tools if "bulk" in tool.name.lower())
-    assert offenders == []
+def test_the_only_bulk_tool_is_the_one_that_was_ruled_on(tools):
+    """RE-RATIFIED 2026-08-25. It asserted ``offenders == []`` until that day.
+
+    The old reading was: "Instahyre's API has a bulk apply. Exposing it would
+    make one call irreversible across a whole queue at once." The first
+    sentence is still true and the second is what the GATE now answers -- a
+    list the caller writes by hand, capped at ten, every id checked against the
+    live pending queue, every company and role named in the preview, and a
+    separately-stated expected_count. One call cannot reach a whole queue.
+
+    THE ASSERTION IS KEPT AND POINTED AT ONE NAME rather than deleted. "No tool
+    has bulk in its name" was doing real work: it caught the family, not the
+    instance, so nothing bulk-shaped could arrive unnoticed. Emptying the check
+    would retire that. Pinning it to the single ruled-on name keeps it -- a
+    SECOND bulk tool, a bulk decline above all, still fails here and still
+    needs somebody to come and change this line on purpose.
+    """
+    bulk_tools = sorted(tool.name for tool in tools if "bulk" in tool.name.lower())
+    assert bulk_tools == ["instahyre_apply_bulk"], (
+        "a bulk tool appeared that nobody ruled on: %s. Note there is no bulk "
+        "DECLINE to build -- the bulk body has no is_interested key." % bulk_tools
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -581,6 +735,15 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
 
     targets = sorted({target for _, _, target in sites})
     assert targets == [
+        # THE TWO BULK PATHS ENTERED THE CENSUS ON 2026-08-25, and they are the
+        # only entries here that were ever FORBIDDEN rather than merely
+        # unmeasured. Every other addition to this list filled a gap; these two
+        # retire a ban whose own constant said "at any evidence level". The
+        # terms of admission did not change for them -- a captured contract
+        # first, then a named allowlist, then a tool -- which is why they are
+        # checked against CAPTURED_WRITE_CONTRACTS below exactly like the rest.
+        "C.EP_APPLY_BULK_ES",
+        "C.EP_APPLY_BULK_LEGACY",
         "C.EP_APPLY_ES",
         "C.EP_APPLY_LEGACY",
         "C.EP_LOGIN",
@@ -613,6 +776,14 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         # contract, named, or they do not belong on the list.
         "C.EP_STAR_CONVERSATION": "inbox_star",
         "C.EP_TOGGLE_MESSAGE_READ": "inbox_mark_read",
+        # Added 2026-08-25 with the bulk apply. Note these are NOT added to the
+        # exemption below beside their single-apply siblings, even though they
+        # are apply endpoints: the two single-apply constants are exempt only
+        # because they predate this register, and inheriting that exemption is
+        # the one thing bulk apply must not do. It carries a captured contract
+        # like every other admitted write, and this line is what requires it.
+        "C.EP_APPLY_BULK_ES": "apply_bulk",
+        "C.EP_APPLY_BULK_LEGACY": "apply_bulk",
     }
     for target in targets:
         if target in ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"):
@@ -1007,7 +1178,14 @@ def test_the_bulk_guard_reads_the_endpoint_value_so_it_can_actually_fire(monkeyp
     be made to pass with the guard deleted, the guard is decorative again.
     """
     client = queue_client({C.EP_APPLY: {"success": True}}, csrf="tok")
-    bulk = sorted(C.FORBIDDEN_ENDPOINTS)[0]
+    # RE-SOURCED 2026-08-25. This read ``sorted(C.FORBIDDEN_ENDPOINTS)[0]``
+    # until the ban was lifted and that set went empty -- at which point the
+    # line would have raised IndexError, not failed an assertion, and a guard
+    # whose test cannot even construct its input is a guard nobody is checking.
+    # The literal is used rather than the constant on purpose: the point is to
+    # aim single apply at a path it must refuse, and reading that path from the
+    # very constant the tool is allowed to use would prove nothing.
+    bulk = ES_BULK_PATH
     # Point the branch's own endpoint at a bulk path. The guard reads the path
     # the request builder actually produced, so this reaches it.
     monkeypatch.setattr(C, "EP_APPLY_ES" if C.APPLY_BRANCH_ES else "EP_APPLY_LEGACY", bulk)
@@ -1015,5 +1193,13 @@ def test_the_bulk_guard_reads_the_endpoint_value_so_it_can_actually_fire(monkeyp
     with pytest.raises(Exception) as excinfo:
         client.inbound.submit_interest(OPPORTUNITY_ID, is_interested=True, confirm=True)
 
-    assert "forbidden" in str(excinfo.value).lower()
+    # ASSERTED ON THE REFUSAL'S SUBSTANCE, not on the word "forbidden", which
+    # is what this line checked until 2026-08-25. That word was load-bearing
+    # while a forbidden LIST was doing the refusing; now the marker half fires
+    # and the message says something more useful -- that single apply may not
+    # reach a bulk URL, and that the way to bulk apply is the tool built for
+    # it. A test keyed on a word that has left the design would pass on a
+    # message that no longer means anything.
+    message = str(excinfo.value).lower()
+    assert "refusing" in message and "bulk" in message, message
     assert write_requests(client) == [], describe(client.routes.requests)
