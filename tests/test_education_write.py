@@ -36,8 +36,17 @@ sent body rather than on the returned dict:
    TWO-row fixture, because a one-row fixture cannot tell "sends every row"
    apart from "sends the edited one".
 
-5. **The removal channel is unmeasured and stays unbuilt.** It is sent empty
-   and there is no argument that fills it.
+5. **The removal channel is built on SHIPPED source, not on the wire**, and
+   the two halves of that sentence pull in different directions. Its ELEMENT
+   shape is settled -- ``removeEmptyRow`` pushes ``education.resource_uri``
+   and splices the row out of ``$scope.educations`` in one handler, so the
+   list holds resource URI strings and a removal is BOTH halves of one
+   request. What is still unmeasured is the SERVER'S ANSWER: the capture
+   caught the channel empty, so no removal has ever been replied to. That is
+   why the removal asserts its payload before sending, re-reads afterwards,
+   and treats a 200 with the row still present as a finding. It is also why
+   the last remaining row cannot be removed at all, and why a removed row is
+   NOT restorable -- both asserted below rather than promised in prose.
 
 The harness is local rather than imported, on the same reasoning
 ``test_jsp_write.py`` gives for its own: the routes each file needs to leave
@@ -433,21 +442,36 @@ def test_the_deleted_objects_channel_is_sent_empty():
     assert sent_body(client)["deleted_objects"] == []
 
 
-def test_no_argument_anywhere_can_fill_the_deleted_objects_channel():
-    """An unmeasured branch is not a feature waiting for a caller."""
+def test_the_edit_tool_has_no_argument_that_can_delete_a_row():
+    """The old pin, moved to the surface where the claim is still true.
+
+    ``ProfileWriter.update_education`` grew a ``remove`` flag on 2026-08-25,
+    because a removal IS this resource's edit payload read the other way --
+    one request builder, one set of guards, one PATCH. What must stay
+    impossible is reaching that flag from the EDIT TOOL: an agent asking to
+    change a graduation year has no argument available to it that deletes the
+    row instead. That is a property of the SIGNATURE rather than a default
+    that could be flipped by a caller, which is exactly why it is pinned on
+    the two tools and no longer on the writer method they share.
+    """
     import inspect
 
-    signature = inspect.signature(
-        type(education_client().profile_writer).update_education
-    )
-    assert set(signature.parameters) == {
-        "self",
+    from instahyre_server import server as S
+
+    edit_params = set(inspect.signature(S.instahyre_update_education).parameters)
+    assert edit_params == {
         "education_id",
         "graduation_year",
         "gpa",
         "grading_scale",
         "confirm",
     }
+
+    remove_params = set(inspect.signature(S.instahyre_remove_education).parameters)
+    assert remove_params == {"education_id", "confirm"}, (
+        "the removal tool takes a row id and a confirmation and nothing else -- "
+        "no field value can ride along on a delete"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1078,3 +1102,305 @@ def test_the_snapshot_listing_says_which_snapshots_can_answer_this_scope():
     assert listed["skills-only"]["education_captured"] is False
     assert listed["pre-education-write"]["education_captured"] is True
     assert listed["pre-education-write"]["education_rows"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Removal
+# ---------------------------------------------------------------------------
+#
+# Added 2026-08-25. Removal was left unbuilt while the ELEMENT shape of
+# `deleted_objects` was unknown -- the wire capture caught the list EMPTY, so
+# the envelope was measured and its contents were not. What settled the element
+# is the site's own removeEmptyRow, which pushes `education.resource_uri` onto
+# $scope.deleted_educations AND splices the row out of $scope.educations before
+# one save. So the list holds resource URI STRINGS, and a removal is BOTH
+# HALVES of a single request.
+#
+# That leaves one thing still unmeasured and it is not the request: nobody has
+# ever seen this resource ANSWER a non-empty deleted_objects. Every assertion
+# below is shaped by that gap. The payload is checked against the source
+# reading before it is sent, the collection is re-read afterwards, and a 200
+# with the row still standing is reported as a finding rather than a success.
+
+
+def remove_row(client, education_id=TARGET_ID, **kwargs):
+    return client.profile_writer.update_education(
+        education_id, remove=True, **kwargs
+    )
+
+
+def test_a_removal_preview_sends_nothing_and_names_the_row_that_would_go():
+    """confirm=False on the destructive verb is zero requests, not a soft one.
+
+    And a preview that merely said "a row would be deleted" would be useless
+    for the one decision it exists to inform, so it names WHICH row, by id, by
+    resource_uri, and by what it currently reads as.
+    """
+    client = education_client()
+
+    plan = remove_row(client)
+
+    assert plan["executed"] is False
+    assert write_requests(client) == [], describe(client.routes.requests)
+    assert client.education.patch_bodies == []
+    assert list(snapshots_dir().glob("*.json")) == [], (
+        "a preview wrote a snapshot; nothing has happened yet to snapshot"
+    )
+    assert plan["would_remove"]["id"] == TARGET_ID
+    assert plan["would_remove"]["resource_uri"] == TARGET["resource_uri"]
+    assert plan["would_remove"]["reads_as"]["graduation_year"] == 2019
+    body = plan["would_send"]["json_body"]
+    assert [r["id"] for r in body["objects"]] == [OTHER_ID]
+    assert body["deleted_objects"] == [TARGET["resource_uri"]]
+    assert CSRF_VALUE not in json.dumps(plan), "the token leaked into the preview"
+
+
+def test_removing_the_last_education_row_is_refused_at_every_confirm_value():
+    """The refusal update_skills already makes for an empty skill list.
+
+    Instahyre is a reverse marketplace: employers filter on degree and
+    institute, so a profile with no education is not a shorter profile, it is
+    one that drops out of the filtered result sets it would otherwise have
+    appeared in. This account has exactly one row.
+
+    It fires in the PLAN, so confirm=False refuses too -- unlike the skills
+    version, which can afford to preview because the same request may also be
+    ADDING. A last-row removal request contains nothing else, and previewing a
+    payload that can never be sent would be the tool implying that it might.
+    """
+    client = education_client([copy.deepcopy(TARGET)])
+
+    for confirm in (False, True):
+        with pytest.raises(WriteRefused) as excinfo:
+            remove_row(client, confirm=confirm)
+        message = str(excinfo.value)
+        assert "only education row" in message, message
+        assert "filter" in message, "the refusal does not say why it costs him"
+
+    assert write_requests(client) == [], describe(client.routes.requests)
+    assert list(snapshots_dir().glob("*.json")) == []
+
+
+def test_a_payload_whose_two_halves_disagree_is_refused__CONTROL():
+    """The control for the guard that makes "both halves" a property, not a hope.
+
+    Every removal reaches this guard through the loop that builds the payload,
+    and that loop structurally cannot emit a row in both halves -- it appends
+    or it continues. Passing through it therefore proves nothing, exactly as
+    the key guards above do not. So it is called directly with the two payloads
+    the site never sends: a row pushed AND still riding, and a row spliced out
+    without being pushed.
+    """
+    writer = education_client().profile_writer
+    rows = copy.deepcopy(ROWS)
+
+    with pytest.raises(WriteRefused) as excinfo:
+        writer._guard_removal_halves(rows, rows, [TARGET["resource_uri"]])
+    assert str(TARGET_ID) in str(excinfo.value)
+    assert "push AND a splice" in str(excinfo.value)
+
+    with pytest.raises(WriteRefused) as excinfo:
+        writer._guard_removal_halves(rows, [rows[0]], [])
+    assert str(OTHER_ID) in str(excinfo.value)
+    assert "NOT" in str(excinfo.value), "the refusal drops the unmeasured premise"
+
+
+def test_a_confirmed_removal_sends_both_halves_in_one_patch():
+    """One request does the push and the splice, which is what the site does.
+
+    Asserted on the body rather than on the returned dict: the returned dict is
+    this server's account of what it did, and the body is what Instahyre was
+    actually asked for.
+    """
+    client = education_client()
+
+    result = remove_row(client, confirm=True)
+
+    writes = write_requests(client)
+    assert len(writes) == 1, describe(client.routes.requests)
+    assert writes[0].method == "PATCH"
+    assert writes[0].url.path.endswith(C.EP_EDUCATION)
+    body = sent_body(client)
+    assert body["deleted_objects"] == [TARGET["resource_uri"]]
+    assert [r["id"] for r in body["objects"]] == [OTHER_ID]
+    assert TARGET["resource_uri"] not in [r["resource_uri"] for r in body["objects"]], (
+        "the row was pushed onto the deleted list AND left riding objects"
+    )
+    assert result["executed"] is True
+    assert result["deleted_objects_sent"] == [TARGET["resource_uri"]]
+
+
+def test_every_surviving_row_rides_the_removal_verbatim():
+    """A removal of one row must not be a rewrite of the section.
+
+    The surviving row goes back exactly as the server returned it, with the one
+    permitted transformation applied and nothing else -- the same key guards
+    that hold on an edit, on the write that is most likely to disturb a
+    bystander.
+    """
+    client = education_client()
+
+    remove_row(client, confirm=True)
+
+    body = sent_body(client)
+    assert [r["id"] for r in body["objects"]] == [OTHER_ID]
+    survivor = row_by_id(body["objects"], OTHER_ID)
+    expected = dict(OTHER)
+    expected["university"] = OTHER["university"]["resource_uri"]
+    assert survivor == expected
+    assert set(survivor) == set(WIRE_ROW_KEYS), (
+        "the surviving row lost or gained a key on a request that was not about it"
+    )
+
+
+def test_removing_a_row_that_is_not_on_the_profile_is_refused_and_names_it():
+    """A typo that quietly removes nothing looks exactly like one that worked."""
+    client = education_client()
+    absent_id = 9090909
+
+    with pytest.raises(InvalidFilter) as excinfo:
+        remove_row(client, absent_id, confirm=True)
+
+    message = str(excinfo.value)
+    assert str(absent_id) in message
+    assert str(TARGET_ID) in message and str(OTHER_ID) in message, (
+        "the refusal does not say which rows DO exist"
+    )
+    assert write_requests(client) == [], describe(client.routes.requests)
+    assert list(snapshots_dir().glob("*.json")) == []
+
+
+def test_a_request_that_both_edits_and_removes_the_same_row_is_refused():
+    """The same call plan_skills makes on "add X and remove X".
+
+    There is no coherent serialization of it here: the edited row would ride
+    objects while its uri rode deleted_objects, which is the one combination
+    the site never sends. Resolving it either way would be guessing which of
+    the caller's two words was the real one.
+    """
+    client = education_client()
+
+    with pytest.raises(WriteRefused) as excinfo:
+        client.profile_writer.update_education(
+            TARGET_ID, graduation_year=2021, remove=True, confirm=True
+        )
+
+    message = str(excinfo.value)
+    assert "graduation_year" in message
+    assert str(TARGET_ID) in message
+    assert write_requests(client) == [], describe(client.routes.requests)
+    assert list(snapshots_dir().glob("*.json")) == []
+
+
+def test_a_confirmed_removal_without_a_csrf_token_refuses_before_the_wire():
+    """The removal goes through the same gate as the edit, not around it."""
+    client = education_client(csrf=None)
+
+    with pytest.raises(WriteRefused) as excinfo:
+        remove_row(client, confirm=True)
+
+    assert "CSRF" in str(excinfo.value)
+    assert write_requests(client) == [], "the refusal came AFTER the request"
+    assert list(snapshots_dir().glob("*.json")) == [], (
+        "a snapshot was taken for a removal that was then refused"
+    )
+
+
+def test_a_snapshot_carrying_the_removed_row_is_written_before_the_request():
+    """The snapshot is not an undo -- see the restore test -- but it is the only
+    record of what the row held, so it has to exist before the row does not."""
+    order = []
+    client = education_client(
+        on_patch=lambda request: order.append(
+            "patch after %d snapshots" % len(list(snapshots_dir().glob("*.json")))
+        )
+    )
+
+    result = remove_row(client, confirm=True)
+
+    assert order == ["patch after 1 snapshots"], "the request went out first"
+    record = json.loads(
+        (snapshots_dir() / ("%s.json" % result["snapshot_id"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [r["id"] for r in record["education"]] == [TARGET_ID, OTHER_ID]
+    assert record["education"][0]["graduation_year"] == 2019, (
+        "the snapshot holds the row as it was, or it records nothing"
+    )
+
+
+def test_a_removal_that_took_is_verified_by_re_reading():
+    client = education_client()
+
+    result = remove_row(client, confirm=True)
+
+    assert result["row_is_gone"] is True
+    assert result["verified"] is True
+    assert result["verified_by"].startswith("re-read of GET ")
+    assert result["rows_sent"] == 1
+    assert result["rows_now"] == 1
+    assert [r["id"] for r in result["rows_that_remain"]] == [OTHER_ID]
+    assert result["also_changed_by_the_server"] is None, (
+        "the row this request removed was reported as collateral damage"
+    )
+
+
+def test_a_removal_that_did_not_take_is_reported_unverified():
+    """The likelier of the two failures on this resource, and the quietest.
+
+    No removal has ever been ANSWERED by this server. If it ignores
+    deleted_objects the request still returns 200 and the row is still there --
+    which is the exact shape of a silent no-op, and the whole reason the write
+    re-reads instead of trusting the status.
+    """
+    client = education_client(apply_patch=False)
+
+    result = remove_row(client, confirm=True)
+
+    assert result["row_is_gone"] is False
+    assert result["verified"] is False
+    assert "DID NOT TAKE" in result["warning"]
+    assert "FINDING" in result["warning"], (
+        "an unanswered channel behaving differently from its own client is a "
+        "measurement, and the result has to say so"
+    )
+
+
+def test_a_removed_row_cannot_be_restored_and_the_tool_says_so():
+    """The honest answer, asserted rather than left as a hopeful docstring.
+
+    The snapshot DOES hold the removed row whole. What cannot happen is putting
+    it back: restore_education refuses to send a row whose id the server no
+    longer has, because whether this resource re-creates it, ignores it or
+    rejects the whole payload is not measured, and guessing could take the
+    surviving rows down with it. Even with that refusal lifted, a re-added row
+    gets a new id and a new resource_uri -- so the VALUES survive in the
+    snapshot and the ROW does not. The preview says NO before the write; this
+    is what makes that true.
+    """
+    client = education_client()
+
+    preview = remove_row(client)
+    assert preview["would_remove"]["restorable"].startswith("NO")
+
+    result = remove_row(client, confirm=True)
+    assert result["restorable"].startswith("NO")
+
+    record = json.loads(
+        (snapshots_dir() / ("%s.json" % result["snapshot_id"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [r["id"] for r in record["education"]] == [TARGET_ID, OTHER_ID], (
+        "the snapshot holds the removed row; what fails is putting it back"
+    )
+
+    before = len(client.education.patch_bodies)
+    with pytest.raises(WriteRefused) as excinfo:
+        client.profile_writer.restore_education(result["snapshot_id"], confirm=True)
+
+    assert str(TARGET_ID) in str(excinfo.value)
+    assert len(client.education.patch_bodies) == before, (
+        "the restore sent a payload carrying a row the server no longer has"
+    )

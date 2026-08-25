@@ -1852,8 +1852,11 @@ def instahyre_update_education(
     measured: the sibling resource that shares its save action DOES delete
     omitted rows, while education additionally has its own removal channel,
     which argues the other way. Sending every row is correct either way, so that
-    is what happens. The removal channel itself is sent EMPTY and there is no
-    way to fill it -- no removal has ever been serialized, so none is offered.
+    is what happens. THIS TOOL CANNOT DELETE A ROW. Its removal channel goes out
+    empty on every call and no argument here can fill it -- that is a property of
+    the signature, not a default that can be flipped. Removing a row is
+    instahyre_remove_education, which is a separate tool because it is a separate
+    consequence.
 
     With confirm=False nothing is sent and the whole payload is shown, including
     the rows that ride along untouched. A snapshot is written before any write,
@@ -1880,6 +1883,64 @@ def instahyre_update_education(
         gpa=gpa,
         grading_scale=grading_scale,
         confirm=confirm,
+    )
+
+
+@mcp.tool()
+@handled
+def instahyre_remove_education(
+    education_id: int,
+    confirm: bool = False,
+) -> dict:
+    """Delete one education row from his profile. This one does not come back.
+
+    IT IS THE SAME REQUEST AS AN EDIT, read the other way. One PATCH carries
+    every OTHER row verbatim in ``objects`` while the row being removed is
+    named in ``deleted_objects`` by its resource_uri and is absent from
+    ``objects``. That is both halves of the site's own removeEmptyRow -- push,
+    then splice, then save -- and the server refuses to send a payload where
+    the two halves disagree. There is no DELETE verb on this resource.
+
+    THE EVIDENCE IS SHIPPED SOURCE, NOT WIRE, and the distinction is the
+    reason this tool verifies instead of trusting. The envelope was captured
+    off his own browser on 2026-08-25 with ``deleted_objects`` EMPTY, so no
+    removal has ever been serialized or answered. What settles the element is
+    the page's own handler, which pushes education.resource_uri and nothing
+    else: the list holds resource URI STRINGS, not ids and not row objects. The
+    write therefore re-reads the collection afterwards and reports whether the
+    row is actually gone -- a 200 with the row still present is a finding about
+    this resource, not a success.
+
+    THE LAST EDUCATION ROW CANNOT BE REMOVED THROUGH THIS TOOL, at any confirm
+    value. On a reverse marketplace employers filter on degree and institute,
+    so a profile with no education is not a shorter profile -- it is one that
+    drops out of the filtered result sets it would otherwise appear in. This
+    account has exactly one row. That refusal arrives on the preview too,
+    rather than at the end of a confirm dance for a write that can never run.
+
+    THIS IS NOT UNDOABLE, and the snapshot does not make it so. A snapshot is
+    written before the request and holds the row whole, but
+    instahyre_restore_profile with scope="education" REFUSES to send a row
+    whose id the server no longer has -- whether this resource re-creates it,
+    ignores it or rejects the whole payload is unmeasured, and guessing would
+    risk the rows still standing. Even with that refusal lifted, a re-added row
+    gets a new id and a new resource_uri. The VALUES can be copied back out of
+    the snapshot by hand at the website; the row cannot be restored.
+
+    With confirm=False nothing is sent at all and the preview names exactly
+    which row would go, what it currently reads as, and which rows would
+    remain. Read ``would_remove`` before confirming.
+
+    Args:
+        education_id: The id of the row to delete, from instahyre_get_profile
+            or from this tool's own preview. Rows are addressed by id, never
+            by position, and an id that is not on the profile is refused by
+            name rather than quietly doing nothing.
+        confirm: Must be True to actually delete. False returns a preview and
+            sends no request.
+    """
+    return get_client().profile_writer.update_education(
+        education_id, remove=True, confirm=confirm
     )
 
 

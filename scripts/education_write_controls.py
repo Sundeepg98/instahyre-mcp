@@ -31,8 +31,16 @@ indistinguishable from a measured one:
   which argues the other way. Sending every row is correct under both readings,
   so a plant that sends only the edited row must be caught.
 
-  THE REMOVAL CHANNEL STAYS EMPTY. Its shape is known from source and no
-  removal has ever been serialized. A plant that fills it must be caught.
+  THE REMOVAL CHANNEL IS BUILT ON SOURCE, NOT ON THE WIRE. As of 2026-08-25
+  it has a door -- instahyre_remove_education -- and the evidence under it is
+  one class weaker than the envelope above it. removeEmptyRow settles the
+  ELEMENT (a resource URI, pushed, while the row is spliced out of the list
+  in the same handler); the capture caught the channel EMPTY, so the
+  SERVER'S ANSWER is still unmeasured. Every removal plant below aims at
+  that gap: the two halves agreeing, the last row refused, an unanswered
+  channel reported rather than assumed. A plant that fills the channel on an
+  EDIT must still be caught -- an edit that named a row there would be asking
+  to delete the row it is editing.
 
   gpa AND grading_scale ARE THE SERVER'S TO SEND. They appear in no shipped
   bundle, so the page cannot have invented them -- but a row that arrives
@@ -94,9 +102,9 @@ PLANTS = [
     case(
         "gate 1: confirm ignored -- the preview branch removed",
         PW,
-        "        plan = self.plan_education(education_id, **supplied_raw)\n"
+        "        plan = self.plan_education(education_id, remove=remove, **supplied_raw)\n"
         "        if not confirm:",
-        "        plan = self.plan_education(education_id, **supplied_raw)\n"
+        "        plan = self.plan_education(education_id, remove=remove, **supplied_raw)\n"
         "        if False:",
         "test_a_preview_sends_nothing_at_all",
     ),
@@ -202,20 +210,11 @@ PLANTS = [
     ),
     # -- GATE 6: the removal channel stays empty ---------------------------
     case(
-        "gate 6: THE REMOVAL CHANNEL FILLED -- with the rows that were not edited",
+        "gate 6: THE REMOVAL CHANNEL FILLED ON AN EDIT, which asks to delete the "
+        "row being edited",
         PW,
-        '                "json_body": {\n'
-        '                    "objects": objects,\n'
-        "                    C.EDUCATION_DELETED_OBJECTS_KEY: [],\n"
-        "                },\n"
-        '                "headers": {',
-        '                "json_body": {\n'
-        '                    "objects": objects,\n'
-        "                    C.EDUCATION_DELETED_OBJECTS_KEY: [\n"
-        '                        r.get("resource_uri") for r in rows if r is not target\n'
-        "                    ],\n"
-        "                },\n"
-        '                "headers": {',
+        "        deleted = [uri] if remove else []\n",
+        '        deleted = [uri] if remove else ["/api/v1/candidate_misc/profile/education/1"]\n',
         "test_the_deleted_objects_channel_is_sent_empty",
     ),
     # -- GATE 7: refusals by name ------------------------------------------
@@ -307,9 +306,11 @@ PLANTS = [
     case(
         "gate 9: the body built from a FRESH read, not the one the snapshot took",
         PW,
-        "        final = self._education_plan_from(captured, education_id, supplied)",
         "        final = self._education_plan_from(\n"
-        "            self.read_education(), education_id, supplied\n"
+        "            captured, education_id, supplied, remove=remove\n"
+        "        )",
+        "        final = self._education_plan_from(\n"
+        "            self.read_education(), education_id, supplied, remove=remove\n"
         "        )",
         "test_the_body_is_built_from_the_snapshots_read_not_the_previews",
     ),
@@ -386,6 +387,158 @@ PLANTS = [
         "        vanished = sorted(str(i) for i in snapshot_ids if i not in current_by_id)",
         "        vanished = []",
         "test_a_restore_refuses_when_a_row_has_been_deleted_since_the_snapshot",
+    ),
+    # -- GATE R1..R8: REMOVAL ----------------------------------------------
+    #
+    # Added 2026-08-25 with instahyre_remove_education. These plants carry more
+    # weight than the edit plants above them, and the reason is the evidence
+    # class: the envelope is WIRE, the element is SHIPPED SOURCE, and the
+    # server's ANSWER to a non-empty deleted_objects has never been observed at
+    # all. Nothing downstream can catch a wrong request here, because there is
+    # no recorded reply to compare one against -- so the gates ARE the
+    # instrument, and a gate that cannot fail is the whole failure mode.
+    case(
+        "gate R1: confirm ignored ON THE REMOVAL PATH -- the preview branch removed",
+        PW,
+        "        plan = self.plan_education(education_id, remove=remove, **supplied_raw)\n"
+        "        if not confirm:",
+        "        plan = self.plan_education(education_id, remove=remove, **supplied_raw)\n"
+        "        if False:",
+        "test_a_removal_preview_sends_nothing_and_names_the_row_that_would_go",
+    ),
+    case(
+        "gate R2: THE LAST EDUCATION ROW REMOVABLE -- the refusal removed",
+        PW,
+        "        if remove and len(rows) <= 1:",
+        "        if False:",
+        "test_removing_the_last_education_row_is_refused_at_every_confirm_value",
+    ),
+    case(
+        "gate R3: the push-without-splice half of the halves guard emptied",
+        PW,
+        "        both = sorted(\n"
+        '            str(r.get("id")) for r in objects if r.get("resource_uri") in gone\n'
+        "        )",
+        "        both = []",
+        "test_a_payload_whose_two_halves_disagree_is_refused__CONTROL",
+    ),
+    case(
+        "gate R3: the splice-without-push half of the halves guard emptied",
+        PW,
+        "        missing = sorted(\n"
+        '            str(r.get("id"))\n'
+        "            for r in rows\n"
+        '            if r.get("resource_uri") not in gone\n'
+        '            and r.get("resource_uri") not in riding\n'
+        "        )",
+        "        missing = []",
+        "test_a_payload_whose_two_halves_disagree_is_refused__CONTROL",
+    ),
+    case(
+        "gate R3: THE SPLICE NOT PERFORMED -- the removed row pushed AND still sent",
+        PW,
+        "                if remove:\n"
+        "                    # THE SPLICE, which is the half of a removal that is easy\n"
+        "                    # to forget. removeEmptyRow pushes the uri onto the deleted\n"
+        "                    # list AND splices the row out of $scope.educations, in one\n"
+        "                    # handler, before one save. A payload that did only the push\n"
+        "                    # would send a row the same request asks to delete.\n"
+        "                    continue",
+        "                if remove:\n"
+        "                    pass",
+        "test_a_confirmed_removal_sends_both_halves_in_one_patch",
+    ),
+    case(
+        "gate R4: THE SURVIVORS DROPPED from a removal payload, not just the target",
+        PW,
+        "            else:\n"
+        "                # UNTOUCHED rows still get the university collapse, because the\n"
+        "                # transformation is what the resource is sent, not an edit. What\n"
+        "                # they never get is a substitution.\n"
+        "                objects.append(self._education_body_row(row, {}))",
+        "            else:\n"
+        "                continue",
+        "test_every_surviving_row_rides_the_removal_verbatim",
+    ),
+    case(
+        "gate R5: an id that is not on the profile removes the FIRST row instead",
+        PW,
+        "        for row in rows:\n"
+        '            if row.get("id") == education_id:\n'
+        "                return row\n"
+        "        raise InvalidFilter(",
+        "        for row in rows:\n"
+        '            if row.get("id") == education_id:\n'
+        "                return row\n"
+        "        if rows:\n"
+        "            return rows[0]\n"
+        "        raise InvalidFilter(",
+        "test_removing_a_row_that_is_not_on_the_profile_is_refused_and_names_it",
+    ),
+    case(
+        "gate R6: edit-and-remove-the-same-row allowed through",
+        PW,
+        "        if remove and supplied:",
+        "        if False and supplied:",
+        "test_a_request_that_both_edits_and_removes_the_same_row_is_refused",
+    ),
+    case(
+        "gate R7: the CSRF refusal removed, on the removal path",
+        PW,
+        '        if not self.http.cookies.get("csrftoken"):\n'
+        "            raise WriteRefused(\n"
+        '                "Refusing to write without a CSRF token -- Django would reject the "\n'
+        '                "request and the result would be ambiguous. Run instahyre_auth_status."\n'
+        "            )\n"
+        "\n"
+        "        # The snapshot's rows ARE the rows the body is built from, so the restore",
+        "        if False:\n"
+        "            raise WriteRefused(\n"
+        '                "Refusing to write without a CSRF token -- Django would reject the "\n'
+        '                "request and the result would be ambiguous. Run instahyre_auth_status."\n'
+        "            )\n"
+        "\n"
+        "        # The snapshot's rows ARE the rows the body is built from, so the restore",
+        "test_a_confirmed_removal_without_a_csrf_token_refuses_before_the_wire",
+    ),
+    case(
+        "gate R7: the snapshot no longer carries the row that is about to go",
+        PW,
+        '        record, snap = self.take_snapshot(label="pre-education-write", education=rows)',
+        '        record, snap = self.take_snapshot(label="pre-education-write")',
+        "test_a_snapshot_carrying_the_removed_row_is_written_before_the_request",
+    ),
+    case(
+        "gate R7: THE REMOVAL ASSUMED TO HAVE WORKED instead of re-read",
+        PW,
+        "        row_is_gone = (education_id not in after) if remove else None",
+        "        row_is_gone = True if remove else None",
+        "test_a_removal_that_did_not_take_is_reported_unverified",
+    ),
+    case(
+        "gate R7: a successful removal reported as its own collateral damage",
+        PW,
+        "            if remove and row_id == education_id:\n"
+        "                # The row this request removed. Its absence is the OUTCOME and\n"
+        "                # is checked by name below; reporting it here would make every\n"
+        "                # successful removal read as collateral damage.\n"
+        "                continue\n",
+        "",
+        "test_a_removal_that_took_is_verified_by_re_reading",
+    ),
+    case(
+        "gate R8: a removed row restored anyway, on a shape nobody has measured",
+        PW,
+        "        vanished = sorted(str(i) for i in snapshot_ids if i not in current_by_id)",
+        "        vanished = []",
+        "test_a_removed_row_cannot_be_restored_and_the_tool_says_so",
+    ),
+    case(
+        "gate R8: the tool CLAIMS the removal is undoable",
+        PW,
+        '                    "NO, not cleanly, and this is the honest answer rather than "',
+        '                    "YES -- restore_education puts it straight back. "',
+        "test_a_removed_row_cannot_be_restored_and_the_tool_says_so",
     ),
     # -- the register and the surface --------------------------------------
     case(

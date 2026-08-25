@@ -1566,6 +1566,62 @@ class ProfileWriter:
         self._guard_education_untouched(read_row, body_row, set(validated))
         return body_row
 
+    def _guard_removal_halves(
+        self, rows: list[dict], objects: list[dict], deleted: list
+    ) -> None:
+        """Both halves or neither, asserted on the payload rather than in a test.
+
+        The site does TWO things to a removed row inside one handler: pushes
+        its resource_uri onto the deleted list and splices it out of the rows
+        it is about to send. A row that appears in ``deleted_objects`` while
+        still riding ``objects`` is a request the site has never made, and on
+        a resource whose removal semantics are UNMEASURED that is exactly the
+        payload whose answer nobody can predict.
+
+        The mirror is checked in the same breath and is the more dangerous of
+        the two: a row that quietly left ``objects`` WITHOUT being named for
+        removal would be a deletion nobody asked for under the omission
+        reading, and a survivor that ignored the request under the other.
+        Neither is a request this server is willing to send.
+        """
+        gone = {u for u in deleted if isinstance(u, str)}
+        riding = [r.get("resource_uri") for r in objects]
+        both = sorted(
+            str(r.get("id")) for r in objects if r.get("resource_uri") in gone
+        )
+        if both:
+            raise WriteRefused(
+                "Refusing a payload that names education row(s) "
+                + ", ".join(both)
+                + " in "
+                + C.EDUCATION_DELETED_OBJECTS_KEY
+                + " while still sending "
+                + ("it" if len(both) == 1 else "them")
+                + " in objects. A removal is a push AND a splice; half of one is "
+                "a request the site has never sent.",
+                fields=both,
+            )
+        missing = sorted(
+            str(r.get("id"))
+            for r in rows
+            if r.get("resource_uri") not in gone
+            and r.get("resource_uri") not in riding
+        )
+        if missing:
+            raise WriteRefused(
+                "Refusing a payload that drops education row(s) "
+                + ", ".join(missing)
+                + " from objects without naming "
+                + ("it" if len(missing) == 1 else "them")
+                + " in "
+                + C.EDUCATION_DELETED_OBJECTS_KEY
+                + ". Whether an omitted row is deleted by this resource is NOT "
+                "measured, so a row that leaves silently is either a deletion "
+                "nobody asked for or a removal that will not happen -- and which "
+                "one is unknowable from here.",
+                fields=missing,
+            )
+
     @staticmethod
     def _same_graduation_year(before: Any, after: Any) -> bool:
         """2019 and "2019" are the same year, and one is not a change to make.
@@ -1614,10 +1670,18 @@ class ProfileWriter:
             "grading_scale": row.get("grading_scale"),
         }
 
-    def plan_education(self, education_id: Any, **changes: Any) -> dict:
-        """What an education write would send, without sending it. Reads only."""
+    def plan_education(
+        self, education_id: Any, *, remove: bool = False, **changes: Any
+    ) -> dict:
+        """What an education write would send, without sending it. Reads only.
+
+        ``remove`` builds the OTHER request this resource answers. It is
+        keyword-only and deliberately outside ``**changes``: a field named
+        "remove" would otherwise be indistinguishable from the flag, and this
+        is the one argument on this method that deletes something.
+        """
         supplied = {k: v for k, v in changes.items() if v is not None}
-        if not supplied:
+        if not supplied and not remove:
             raise InvalidFilter(
                 "Nothing to update -- pass at least one of: "
                 + ", ".join(C.EDUCATION_WRITABLE_FIELDS),
@@ -1655,12 +1719,86 @@ class ProfileWriter:
             )
 
         rows = self.read_education()
-        return self._education_plan_from(rows, education_id, supplied)
+        return self._education_plan_from(rows, education_id, supplied, remove=remove)
 
     def _education_plan_from(
-        self, rows: list[dict], education_id: Any, supplied: dict
+        self,
+        rows: list[dict],
+        education_id: Any,
+        supplied: dict,
+        *,
+        remove: bool = False,
     ) -> dict:
+        # One request edits a row or removes it, never both. There is no
+        # coherent serialization of "set the year on row 7 and delete row 7":
+        # the edited row would ride ``objects`` while its uri rode
+        # ``deleted_objects``, which is the one combination the site never
+        # sends and precisely what _guard_removal_halves refuses. Same call
+        # plan_skills makes on "add X and remove X" -- refused rather than
+        # resolved, because either resolution guesses which word was meant.
+        #
+        # Both public doors pass one or the other, so this is a BACKSTOP for a
+        # direct call, in the same class as the final raise in
+        # _validate_education_value. It is kept because the two doors are the
+        # only thing making it unreachable, and a third one is an edit away.
+        if remove and supplied:
+            raise WriteRefused(
+                "Refusing a request that both edits and removes education row "
+                + str(education_id)
+                + ": "
+                + ", ".join(sorted(supplied))
+                + " would be written onto a row the same request deletes. An "
+                "edited row rides objects and a removed one is named in "
+                + C.EDUCATION_DELETED_OBJECTS_KEY
+                + "; a row in both is a payload the site has never sent and whose "
+                "answer nobody has measured. Ask for one or the other.",
+                fields=sorted(supplied),
+            )
+
         target = self._find_education_row(rows, education_id)
+
+        # A reverse marketplace finds him BY the filters on this row --
+        # employers filter on degree and institute -- so an empty education
+        # section is not a shorter profile, it is one that drops out of every
+        # filtered result set it would otherwise have appeared in. Same
+        # reasoning and same shape as update_skills' refusal to empty the
+        # skill list, with one deliberate difference: this fires in the PLAN,
+        # so confirm=False refuses too. A skills request that empties the list
+        # may still be ADDING, so its preview has something to show; a
+        # last-row removal request contains nothing else, and previewing a
+        # payload that can never be sent would be the tool implying it might.
+        if remove and len(rows) <= 1:
+            raise WriteRefused(
+                "Refusing to remove the only education row on the profile. "
+                "Instahyre is a reverse marketplace: employers filter on degree "
+                "and institute, so a profile with no education is not a shorter "
+                "profile but one that drops out of the filtered result sets it "
+                "would otherwise appear in -- this would suppress future match "
+                "cycles rather than one application. Refused outright rather than "
+                "confirm-gated: confirm=True does not reach this either. If it is "
+                "really wanted, do it on the website at "
+                + C.SITE_BASE
+                + "/candidate/profile/ where the consequence is visible.",
+                rows_on_profile=len(rows),
+                education_id=education_id,
+            )
+
+        # The removal channel is a list of RESOURCE URIS -- removeEmptyRow
+        # pushes education.resource_uri and nothing else. There is no id-shaped
+        # spelling to fall back on, so a row without one is reported rather
+        # than written around.
+        uri = target.get("resource_uri") if remove else None
+        if remove and not (isinstance(uri, str) and uri):
+            raise WriteRefused(
+                "Education row "
+                + str(education_id)
+                + " carries no resource_uri, and "
+                + C.EDUCATION_DELETED_OBJECTS_KEY
+                + " is a list of resource URIs -- that is the only spelling the "
+                "site's own removeEmptyRow pushes. Inventing an id-shaped one "
+                "would be the guessed body this package exists to refuse.",
+                education_id=education_id,
+            )
 
         absent = sorted(k for k in supplied if k not in target)
         if absent:
@@ -1680,12 +1818,19 @@ class ProfileWriter:
 
         objects = []
         target_index = None
-        for index, row in enumerate(rows):
+        for row in rows:
             if row is target:
                 # ``is``, never ``==``, and never list.index -- two education
                 # rows that happen to hold equal values would make an
                 # equality-based lookup edit whichever came first.
-                target_index = index
+                if remove:
+                    # THE SPLICE, which is the half of a removal that is easy
+                    # to forget. removeEmptyRow pushes the uri onto the deleted
+                    # list AND splices the row out of $scope.educations, in one
+                    # handler, before one save. A payload that did only the push
+                    # would send a row the same request asks to delete.
+                    continue
+                target_index = len(objects)
                 objects.append(self._education_body_row(row, supplied))
             else:
                 # UNTOUCHED rows still get the university collapse, because the
@@ -1693,7 +1838,15 @@ class ProfileWriter:
                 # they never get is a substitution.
                 objects.append(self._education_body_row(row, {}))
 
-        body_row = objects[target_index]
+        deleted = [uri] if remove else []
+        self._guard_removal_halves(rows, objects, deleted)
+
+        # ``supplied`` is empty on a removal -- the gate at the top of this
+        # method makes sure of it -- so the comparison loop below is a no-op
+        # there and ``changed`` stays empty. ``target`` stands in for a body
+        # row that no longer exists, only so row_key_count can report what the
+        # row that leaves was carrying.
+        body_row = target if remove else objects[target_index]
         changed = {}
         for key in supplied:
             before, after = target.get(key), body_row[key]
@@ -1708,13 +1861,13 @@ class ProfileWriter:
             for row in rows
             if isinstance(row.get("university"), dict)
         )
-        return {
+        plan = {
             "would_send": {
                 "method": C.EDUCATION_PATCH_METHOD,
                 "url": C.API_BASE + C.EP_EDUCATION,
                 "json_body": {
                     "objects": objects,
-                    C.EDUCATION_DELETED_OBJECTS_KEY: [],
+                    C.EDUCATION_DELETED_OBJECTS_KEY: deleted,
                 },
                 "headers": {
                     "Content-Type": "application/json",
@@ -1732,18 +1885,33 @@ class ProfileWriter:
             "rows_in_body": len(objects),
             "row_key_count": len(body_row),
             "reads_as_now": self._describe_education(target),
-            "would_read_as": self._describe_education(body_row),
+            "would_read_as": (
+                None if remove else self._describe_education(body_row)
+            ),
             "other_rows_ride_unchanged": [
                 r.get("id") for r in rows if r is not target
             ],
             "university_collapsed_on_rows": collapsed,
             "every_row_rides": (
-                "All %d rows the read returned are in this payload, not just the one "
-                "being edited. Whether an omitted ROW is deleted by this resource is "
-                "NOT measured -- the sibling multi_save resource does delete omitted "
-                "rows, and education additionally has its own deleted_objects channel, "
-                "so the two readings disagree. Sending every row is correct under both."
-                % len(rows)
+                (
+                    "%d of the %d rows the read returned are in this payload. The "
+                    "one that is not is the row being REMOVED, and it is named in "
+                    "%s by its resource_uri -- both halves of the site's own "
+                    "removeEmptyRow, in one request. Every other row still rides "
+                    "verbatim, which is what keeps this a removal of exactly one "
+                    "row rather than a rewrite of the section."
+                    % (len(objects), len(rows), C.EDUCATION_DELETED_OBJECTS_KEY)
+                )
+                if remove
+                else (
+                    "All %d rows the read returned are in this payload, not just the "
+                    "one being edited. Whether an omitted ROW is deleted by this "
+                    "resource is NOT measured -- the sibling multi_save resource does "
+                    "delete omitted rows, and education additionally has its own "
+                    "deleted_objects channel, so the two readings disagree. Sending "
+                    "every row is correct under both."
+                    % len(rows)
+                )
             ),
             "one_transformation": (
                 "university is sent as a resource URI, collapsed from the expanded "
@@ -1752,12 +1920,44 @@ class ProfileWriter:
                 "change. current_degree stays EXPANDED beside the degree URI, exactly "
                 "as the captured request carried it."
             ),
-            "deleted_objects_is_empty": (
-                "Always. removeEmptyRow pushes resource URIs onto this list in the "
-                "site's own code, so the shape is known -- but the capture caught it "
-                "EMPTY, so no removal has ever been serialized and none is built here."
-            ),
         }
+        if remove:
+            plan["would_remove"] = {
+                "id": target.get("id"),
+                "resource_uri": uri,
+                "reads_as": self._describe_education(target),
+                "how": (
+                    "BOTH HALVES, in one PATCH. The uri above is named in "
+                    + C.EDUCATION_DELETED_OBJECTS_KEY
+                    + " and the row is absent from objects, which is what "
+                    "removeEmptyRow does in the site's own code -- push, then "
+                    "splice, then save. No DELETE verb exists on this resource."
+                ),
+                "restorable": (
+                    "NO, not cleanly, and this is the honest answer rather than "
+                    "the reassuring one. A snapshot IS written before the request "
+                    "and it holds this row whole -- but restore_education REFUSES "
+                    "to send a row whose id the server no longer has, because "
+                    "whether this resource re-creates it, ignores it, or rejects "
+                    "the whole payload is NOT measured, and guessing would risk "
+                    "the rows that are still there. Even if that refusal were "
+                    "lifted, a re-added row gets a NEW id and a NEW resource_uri, "
+                    "so what came back would be a different row wearing the same "
+                    "values. Re-add the entry at "
+                    + C.SITE_BASE
+                    + "/candidate/profile/ and copy the values out of the "
+                    "snapshot by hand."
+                ),
+            }
+            plan["deleted_objects_carries"] = list(deleted)
+        else:
+            plan["deleted_objects_is_empty"] = (
+                "On an EDIT, always. The channel's shape is known from the site's "
+                "own removeEmptyRow -- a list of resource URIs -- and nothing but "
+                "a removal request fills it. An edit that named a row here would "
+                "be asking to delete the row it is editing."
+            )
+        return plan
 
     def update_education(
         self,
@@ -1766,6 +1966,7 @@ class ProfileWriter:
         graduation_year: Any = None,
         gpa: Optional[float] = None,
         grading_scale: Optional[float] = None,
+        remove: bool = False,
         confirm: bool = False,
     ) -> dict:
         """Write one education row. One PATCH, carrying every row.
@@ -1773,23 +1974,70 @@ class ProfileWriter:
         On a reverse marketplace degree, institute and graduation year are
         filters employers search on, so this is the same class of leverage as
         the job-search profile rather than a cosmetic detail.
+
+        ``remove`` REMOVES the row instead of editing it, and it is the one
+        argument here that destroys something. The request is the same PATCH
+        with the same envelope: the row is spliced out of ``objects`` and its
+        resource_uri is named in ``deleted_objects``, which is exactly what
+        the site's own removeEmptyRow does -- push, then splice, then save.
+
+        THE ELEMENT SHAPE IS READ FROM SHIPPED SOURCE, NOT FROM THE WIRE, and
+        the difference is worth holding on to. The envelope was captured; the
+        capture caught ``deleted_objects`` EMPTY, so no removal has ever been
+        serialized or answered. What settles the element is the page's own
+        handler, which pushes ``education.resource_uri`` and nothing else --
+        so the list is of resource URI strings, not ids and not objects. That
+        is why the removal verifies itself by re-reading rather than trusting
+        a 200, and why _guard_removal_halves asserts the payload's two halves
+        agree before anything is sent.
+
+        A REMOVAL IS NOT CLEANLY UNDOABLE, and saying otherwise would be the
+        comfortable lie. A snapshot is written first and holds the row whole,
+        but :meth:`restore_education` REFUSES to send a row whose id the
+        server no longer has -- whether this resource re-creates it, ignores
+        it or rejects the whole payload is not measured, and guessing would
+        risk the rows still standing. Even with that refusal lifted, a
+        re-added row gets a NEW id and a NEW resource_uri: the values can be
+        copied back by hand from the snapshot, the row itself cannot.
+
+        Two MCP tools sit on this one method, on purpose. The verb that
+        deletes gets its own name and its own docstring where a caller reads
+        it, and ``instahyre_update_education`` keeps -- structurally, not by a
+        default -- the property that no argument of its own can fill the
+        removal channel.
         """
         supplied_raw = {
             "graduation_year": graduation_year,
             "gpa": gpa,
             "grading_scale": grading_scale,
         }
-        plan = self.plan_education(education_id, **supplied_raw)
+        plan = self.plan_education(education_id, remove=remove, **supplied_raw)
         if not confirm:
             plan["executed"] = False
-            plan["next_step"] = (
-                "Nothing has been sent. Call again with confirm=True to write. A "
-                "snapshot is taken automatically first, and instahyre_restore_profile "
-                "with scope='education' puts every row back."
-            )
+            if remove:
+                plan["next_step"] = (
+                    "NOTHING HAS BEEN SENT. Call again with confirm=True to remove "
+                    "education row "
+                    + str(education_id)
+                    + ". Read would_remove first, and its restorable key most of "
+                    "all: that row is DELETED by this write and does not come back "
+                    "the way a changed field does. A snapshot is taken "
+                    "automatically, and it is not an undo."
+                )
+            else:
+                plan["next_step"] = (
+                    "Nothing has been sent. Call again with confirm=True to write. A "
+                    "snapshot is taken automatically first, and instahyre_restore_profile "
+                    "with scope='education' puts every row back."
+                )
             return plan
 
-        if not plan["would_change"]:
+        # A removal changes no FIELD, so would_change is empty by construction
+        # and this no-op refusal would fire on every removal if it were not
+        # scoped to the edit path. The removal has its own way of being a
+        # no-op -- a row that is not there -- and _find_education_row already
+        # refuses that by name, before a snapshot or a request.
+        if not remove and not plan["would_change"]:
             raise WriteRefused(
                 "Nothing to write: every field supplied already holds that value. "
                 "Refusing to send a request that cannot change anything -- a no-op "
@@ -1816,8 +2064,10 @@ class ProfileWriter:
             )
 
         supplied = {k: v for k, v in supplied_raw.items() if v is not None}
-        final = self._education_plan_from(captured, education_id, supplied)
-        if not final["would_change"]:
+        final = self._education_plan_from(
+            captured, education_id, supplied, remove=remove
+        )
+        if not remove and not final["would_change"]:
             raise WriteRefused(
                 "Between the preview and the write the row already moved to the "
                 "requested values. Nothing was sent."
@@ -1825,17 +2075,31 @@ class ProfileWriter:
         body = final["would_send"]["json_body"]
         before_rows = {r.get("id"): r for r in captured}
 
-        log.warning(
-            "writing education row %s on the live profile: %s",
-            education_id,
-            sorted(final["would_change"]),
-        )
+        if remove:
+            log.warning(
+                "REMOVING education row %s from the live profile; %d rows remain",
+                education_id,
+                len(body["objects"]),
+            )
+        else:
+            log.warning(
+                "writing education row %s on the live profile: %s",
+                education_id,
+                sorted(final["would_change"]),
+            )
         self.http.patch(C.EP_EDUCATION, json_body=body)
 
         after_rows = self.read_education()
         after = {r.get("id"): r for r in after_rows}
         target_after = after.get(education_id) or {}
-        sent_row = body["objects"][final["target_row_index"]]
+        # None on a removal: the row was spliced out, so no sent row exists to
+        # compare against. ``would_change`` is empty there too, which is what
+        # makes the comprehension below a no-op rather than a lookup into {}.
+        sent_row = (
+            {}
+            if final["target_row_index"] is None
+            else body["objects"][final["target_row_index"]]
+        )
         mismatched = {
             key: {"wanted": sent_row.get(key), "got": target_after.get(key)}
             for key in final["would_change"]
@@ -1848,6 +2112,11 @@ class ProfileWriter:
         # way to a caller, where an integer key is not a key.
         also_changed: dict = {}
         for row_id, before in before_rows.items():
+            if remove and row_id == education_id:
+                # The row this request removed. Its absence is the OUTCOME and
+                # is checked by name below; reporting it here would make every
+                # successful removal read as collateral damage.
+                continue
             now = after.get(row_id)
             if now is None:
                 also_changed[str(row_id)] = {"before": "present", "after": "GONE"}
@@ -1862,21 +2131,57 @@ class ProfileWriter:
                 also_changed[str(row_id)] = moved
         appeared = sorted(str(k) for k in after if k not in before_rows)
 
+        # The removal's own outcome, and the ONLY thing that makes a removal
+        # verified. A 200 with the row still on the profile is exactly the
+        # silent no-op this package refuses to call success -- and on this
+        # resource it is the likelier failure of the two, because no removal
+        # has ever been answered and the server may simply ignore the channel.
+        row_is_gone = (education_id not in after) if remove else None
         result = {
             "executed": True,
             "education_id": education_id,
             "updated": sorted(final["would_change"]),
             "changed": final["would_change"],
             "snapshot_id": snap["snapshot_id"],
-            "verified": not mismatched and not also_changed and not appeared,
+            "verified": (
+                (bool(row_is_gone) and not also_changed and not appeared)
+                if remove
+                else (not mismatched and not also_changed and not appeared)
+            ),
             "mismatched": mismatched or None,
             "verified_by": "re-read of GET " + C.EP_EDUCATION + " after the write",
-            "reads_as_now": self._describe_education(target_after),
+            "reads_as_now": (
+                None if remove else self._describe_education(target_after)
+            ),
             "rows_sent": len(body["objects"]),
             "rows_now": len(after_rows),
             "also_changed_by_the_server": also_changed or None,
             "rows_that_appeared": appeared or None,
         }
+        if remove:
+            result["removed"] = final["would_remove"]["reads_as"]
+            result["removed_row_id"] = education_id
+            result["deleted_objects_sent"] = body[C.EDUCATION_DELETED_OBJECTS_KEY]
+            result["row_is_gone"] = row_is_gone
+            result["rows_that_remain"] = [
+                self._describe_education(r) for r in after_rows
+            ]
+            result["restorable"] = final["would_remove"]["restorable"]
+            if not row_is_gone:
+                result["warning"] = (
+                    "THE REMOVAL DID NOT TAKE. The request was accepted and the row "
+                    "is still on the profile when read back. That is the branch "
+                    "nobody had measured -- it says this resource does not act on "
+                    + C.EDUCATION_DELETED_OBJECTS_KEY
+                    + " the way its own client implies, which is a FINDING and "
+                    "should be recorded before anything is retried. Nothing further "
+                    "has been attempted. The other rows were sent verbatim, so the "
+                    "profile should be unchanged; the snapshot above is how to check."
+                )
+                log.error(
+                    "education removal did not take: row %s is still on the profile",
+                    education_id,
+                )
         if also_changed or appeared:
             result["collateral_note"] = (
                 "These rows or keys were not requested and moved anyway. On this "

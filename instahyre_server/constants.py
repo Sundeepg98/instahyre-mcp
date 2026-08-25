@@ -1367,9 +1367,12 @@ CAPTURED_WRITE_CONTRACTS = {
             "own year options are numbers. Two keys, gpa and grading_scale, appear in "
             "NO shipped bundle at all and were both null: the page cannot have invented "
             "them, so the GET must return them. `deleted_objects` is the removal "
-            "channel and the capture caught it EMPTY, so removal is UNMEASURED and no "
-            "removal path is built on it -- this server sends [] and offers no way to "
-            "fill it."
+            "channel and the capture caught it EMPTY, which is why the ELEMENT shape "
+            "is not part of this WIRE record: it comes from shipped source instead, "
+            "where removeEmptyRow pushes education.resource_uri onto the list. A "
+            "removal path is built on that source reading as of 2026-08-25 -- see "
+            "EDUCATION_REMOVAL_IS_UNMEASURED for what remains unmeasured about it, "
+            "which is the server's ANSWER, not the request."
         ),
     },
 }
@@ -1540,12 +1543,27 @@ EDUCATION_WRITABLE_FIELDS = ("graduation_year", "gpa", "grading_scale")
 #: why it is the rule here rather than a preference.
 EDUCATION_OMISSION_SEMANTICS_MEASURED = False
 
-#: The removal channel, and the reason nothing is built on it. The shipped
-#: source is unambiguous about the SHAPE -- removeEmptyRow pushes
-#: `education.resource_uri` onto $scope.deleted_educations, so it is a list of
-#: resource URIs -- but the capture caught it EMPTY, so no removal has ever
-#: been serialized, let alone answered. This server sends [] and offers no way
-#: to fill it. An unmeasured branch is not a feature waiting for a caller.
+#: The removal channel. Two different things were unknown about it on
+#: 2026-08-25 and only one of them still is, so the flag below stays True with
+#: a narrower meaning than it started with.
+#:
+#:   THE SHAPE IS SETTLED, from shipped source rather than from the wire.
+#:   removeEmptyRow pushes `education.resource_uri` onto
+#:   $scope.deleted_educations and splices the row out of $scope.educations in
+#:   the same handler, so the list is of resource URI STRINGS -- not ids, not
+#:   row objects -- and a removal is BOTH halves of one request. That is a
+#:   SHIPPED reading, the same evidence class as the inbox writes, and it is
+#:   enough to build a request that reproduces the browser exactly.
+#:
+#:   THE SERVER'S ANSWER IS STILL UNMEASURED. The capture caught the channel
+#:   EMPTY, so no removal has ever been serialized, let alone answered. Nobody
+#:   knows whether this resource acts on the channel, ignores it, or rejects
+#:   the payload. THAT is what this flag still names, and it is why the removal
+#:   path re-reads the collection afterwards and reports a row that did not
+#:   actually go as a FINDING rather than shrugging at a 200.
+#:
+#: A removal is reachable only through instahyre_remove_education, never as an
+#: argument to the edit tool, and never for the LAST remaining row.
 EDUCATION_DELETED_OBJECTS_KEY = "deleted_objects"
 EDUCATION_REMOVAL_IS_UNMEASURED = True
 

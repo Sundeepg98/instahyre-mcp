@@ -110,6 +110,14 @@ EXPECTED_TOOLS = {
     # safe does not transfer, and exactly one transformation is permitted and
     # guarded. See tests/test_education_write.py.
     "instahyre_update_education",
+    # Added 2026-08-25, and a SEPARATE tool rather than a flag on the one
+    # above, which is the whole point of it. A boolean on a tool named
+    # "update" would hide a deleted row behind a default on a call that is
+    # otherwise about a graduation year; a name carries the consequence to
+    # the caller that reads it. The split also keeps the edit tool unable to
+    # fill the removal channel STRUCTURALLY rather than by a default, which
+    # is what test_the_edit_tool_has_no_argument_that_can_delete_a_row pins.
+    "instahyre_remove_education",
     "instahyre_restore_profile",
     "instahyre_list_profile_snapshots",
     "instahyre_verify_apply_target",
@@ -218,15 +226,16 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_fifty_three_tools(tools):
+def test_the_server_registers_exactly_fifty_four_tools(tools):
     """48 until 2026-08-25, when the three remaining measured inbox writes were
     built; then 52, when the bulk-apply ban was lifted by ruling and
     instahyre_apply_bulk was built; then 53, when the education PATCH was
     captured off the wire and instahyre_update_education replaced a read-only
-    section. The number is pinned rather than derived so that a tool appearing
+    section; then 54, when the removal channel that PATCH carries got a door of
+    its own. The number is pinned rather than derived so that a tool appearing
     on the MCP surface is an edit somebody made here on purpose -- which is
-    exactly what the last two were."""
-    assert len(tools) == len(EXPECTED_TOOLS) == 53
+    exactly what the last three were."""
+    assert len(tools) == len(EXPECTED_TOOLS) == 54
 
 
 def test_every_tool_name_is_namespaced(tools):
