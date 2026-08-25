@@ -169,7 +169,12 @@ class Inbound:
 
         meta = payload.get("meta") or {}
         objects = payload.get("objects") or []
-        records = [shape.shape_opportunity(o) for o in objects]
+        # The facet this page was FETCHED under, handed to the shaper so a row
+        # can stay silent about a status that merely restates it.
+        records = [
+            shape.shape_opportunity(o, expected_status=interest)
+            for o in objects
+        ]
         records, dropped = shape.dedupe(records)
         records.sort(key=lambda r: -(r.get("match_score") or 0))
 

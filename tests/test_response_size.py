@@ -85,13 +85,28 @@ FAT_RECORD = {
 REQUIRED_COMPACT_FIELDS = ("id", "company", "title", "locations", "match_score")
 
 
+#: What each SOURCE field is emitted as. The two differ for exactly one field
+#: and the distinction is the point: COMPACT_OPPORTUNITY_FIELDS names what is
+#: READ off the shaped record, the row names what a caller SEES. Conflating them
+#: is what made this test fail when the rename landed, which is the test working.
+REQUIRED_COMPACT_EMITTED = ("opportunity_id", "company", "title", "locations", "match_score")
+
+
 def test_a_compact_row_carries_every_field_a_chooser_needs():
     row = shape.compact_opportunity(FAT_RECORD)
 
     assert tuple(shape.COMPACT_OPPORTUNITY_FIELDS) == REQUIRED_COMPACT_FIELDS
-    for field in REQUIRED_COMPACT_FIELDS:
+    emitted = tuple(
+        shape.COMPACT_FIELD_RENAMES.get(f, f) for f in REQUIRED_COMPACT_FIELDS
+    )
+    assert emitted == REQUIRED_COMPACT_EMITTED
+    for field in REQUIRED_COMPACT_EMITTED:
         assert field in row, field
-    assert row["id"] == FAT_RECORD["id"], "the id is what apply and decline accept"
+    # RE-RATIFIED 2026-08-25. This read row["id"]. The value is unchanged and it
+    # is still "what apply and decline accept" -- it is now NAMED after the
+    # parameter those tools declare, so a caller does not have to be told.
+    assert row["opportunity_id"] == FAT_RECORD["id"]
+    assert "id" not in row, "the un-named spelling came back"
     assert row["match_score"] == FAT_RECORD["match_score"]
 
 
@@ -251,7 +266,7 @@ def test_the_digest_embeds_compact_rows_not_near_full_records(monkeypatch, pendi
     assert digest["top_opportunities"], "nothing was surfaced, so nothing was proved"
     for row in digest["top_opportunities"]:
         assert "about" not in row and "tagline" not in row and "url" not in row
-        assert "id" in row and "title" in row and "match_score" in row
+        assert "opportunity_id" in row and "title" in row and "match_score" in row
 
 
 def test_the_digest_keeps_the_three_keys_it_added_after_shaping(monkeypatch, pending):
@@ -607,3 +622,93 @@ def test_no_read_tool_ships_anywhere_near_the_cap(wired):
 
     assert budget.REPORT_KEY not in result
     assert size(result) < budget.MAX_RESPONSE_BYTES / 4
+
+
+# ---------------------------------------------------------------------------
+# Relevance: a field that restates the query, and one that names its consumer
+# ---------------------------------------------------------------------------
+
+
+def test_status_is_silent_when_it_merely_restates_the_query():
+    """Thirty rows repeating the caller's own filter carry no information.
+
+    Measured before the change: `status` was distinct=1 across a thirty-row page,
+    value "pending", while the envelope already said interest="pending". And it
+    cannot differ by construction in the ordinary case -- `interest` is REQUIRED
+    to be one of three facets, there is no unfiltered mode, so a row returned
+    under a filter matches it.
+    """
+    from instahyre_server import shape
+
+    row = shape.shape_opportunity(_min_record(0), expected_status="pending")
+    assert "status" not in row, "status restated the query instead of staying silent"
+    assert "status_disagrees_with_query" not in row
+
+
+def test_status_speaks_up_exactly_when_it_disagrees__CONTROL():
+    """The control for the silence, and the reason the field was not deleted.
+
+    `status` is derived from the record's OWN interview_status with an "unknown"
+    fallback, so it CAN differ from the filter -- and the row where it differs is
+    the anomalous one a caller most needs to see. Deleting the field would have
+    removed the signal precisely where it mattered while keeping it in all thirty
+    places it did not. Silence has to be conditional, and this proves the
+    condition.
+    """
+    from instahyre_server import shape
+
+    disagreeing = shape.shape_opportunity(_min_record(1), expected_status="pending")
+    assert disagreeing["status"] == "interested"
+    assert disagreeing["status_disagrees_with_query"] == "pending"
+
+    unmapped = shape.shape_opportunity(_min_record(99), expected_status="pending")
+    assert unmapped["status"] == "unknown", "an unseen facet must not be swallowed"
+    assert unmapped["status_disagrees_with_query"] == "pending"
+
+
+def test_a_caller_that_states_no_expectation_still_gets_status():
+    """The other three shape_opportunity call sites pass no expectation, and must
+    be unaffected. A conditional field that silently vanished for them would be a
+    regression dressed as a saving."""
+    from instahyre_server import shape
+
+    row = shape.shape_opportunity(_min_record(0))
+    assert row["status"] == "pending"
+    assert "status_disagrees_with_query" not in row
+
+
+def test_the_compact_id_is_named_after_the_tools_that_consume_it():
+    """An id a caller cannot spend is noise; an id they can is a saved round-trip.
+
+    Four tools take this value and all four call the parameter `opportunity_id`.
+    The row now agrees with them, so the linkage needs no documentation to be
+    obvious. Asserted against the real signatures rather than a literal, so the
+    day a tool renames its parameter this fails instead of drifting.
+    """
+    import inspect
+
+    from instahyre_server import shape
+    import instahyre_server.server as srv
+
+    assert shape.COMPACT_FIELD_RENAMES.get("id") == "opportunity_id"
+
+    for tool in (
+        srv.instahyre_get_opportunity,
+        srv.instahyre_apply,
+        srv.instahyre_decline_opportunity,
+    ):
+        assert "opportunity_id" in inspect.signature(tool).parameters, (
+            "%s no longer takes opportunity_id; the compact row is now named after "
+            "a parameter that does not exist" % tool.__name__
+        )
+
+
+def _min_record(interview_status):
+    """The smallest record shape_opportunity will shape, with one facet varied."""
+    return {
+        "id": 1,
+        "score": 80,
+        "interview_status": interview_status,
+        "job": {"id": 9, "title": "T", "locations": ["X"], "skills": ["a"]},
+        "employer": {"company_name": "C"},
+    }

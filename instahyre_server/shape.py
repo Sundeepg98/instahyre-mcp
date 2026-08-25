@@ -288,7 +288,12 @@ def collapse_duplicates(records: list[dict]) -> list[dict]:
 # ===========================================================================
 
 
-def shape_opportunity(obj: dict, *, max_skills: int = MAX_SKILLS_IN_LIST) -> dict:
+def shape_opportunity(
+    obj: dict,
+    *,
+    max_skills: int = MAX_SKILLS_IN_LIST,
+    expected_status: str = None,
+) -> dict:
     """One curated-queue record -> a compact opportunity.
 
     Two ids live on this object and they are not interchangeable. ``id`` is the
@@ -309,8 +314,29 @@ def shape_opportunity(obj: dict, *, max_skills: int = MAX_SKILLS_IN_LIST) -> dic
         "locations": _as_list(job.get("locations")),
         "skills": skills[:max_skills],
         "match_score": _as_float(obj.get("score")),
-        "status": C.INTEREST_FACET_NAMES.get(obj.get("interview_status"), "unknown"),
     }
+    # STATUS IS EMITTED ONLY WHEN IT DISAGREES WITH THE QUERY, and the
+    # measurement is why. On a thirty-row page it was distinct=1 -- every row
+    # said "pending" while the envelope already said interest="pending", so
+    # thirty rows repeated the caller's own filter back at them.
+    #
+    # It is NOT simply deleted, and the near-miss is worth recording: the value
+    # is derived from the record's OWN interview_status with an "unknown"
+    # fallback, so it CAN differ -- and the case where it differs is exactly the
+    # anomalous one. A record whose facet does not match the filter it was
+    # fetched under, or whose status is an integer this package has never seen,
+    # is the row a caller most needs to know about. Deleting the field would
+    # have removed the signal precisely where it mattered and kept it in all
+    # thirty places it did not.
+    #
+    # So: silent when it agrees, loud when it does not. Same shape the compact
+    # warning flags already use -- zero bytes on a healthy row, decision-critical
+    # on the one that is not.
+    status = C.INTEREST_FACET_NAMES.get(obj.get("interview_status"), "unknown")
+    if expected_status is None or status != expected_status:
+        record["status"] = status
+        if expected_status is not None:
+            record["status_disagrees_with_query"] = expected_status
     if len(skills) > max_skills:
         record["skills_more"] = len(skills) - max_skills
     if employer.get("id"):
@@ -382,7 +408,21 @@ SCORE_NOTE = (
 # call that was asked to help choose.
 
 #: Every compact row carries exactly these, and no compact row omits one.
+#: `id` is renamed to `opportunity_id` on the way out. It is the SAME value,
+#: and the rename is the whole point: four tools consume it --
+#: instahyre_get_opportunity, instahyre_apply, instahyre_decline_opportunity
+#: and instahyre_apply_bulk -- and every one of them calls the parameter
+#: `opportunity_id` while the row called it `id`. A noise census flagged it as
+#: "an identifier no tool accepts", which was half right and the wrong half:
+#: deleting it would have put a round-trip in front of the most important
+#: action this server has. Naming it after the parameter makes the linkage
+#: self-evident at the point of use.
+#:
+#: `full` keeps `id`. It is documented as "the previous shape, unchanged" and
+#: a test asserts that field-for-field; renaming there would break the
+#: guarantee that makes the escape hatch worth having.
 COMPACT_OPPORTUNITY_FIELDS = ("id", "company", "title", "locations", "match_score")
+COMPACT_FIELD_RENAMES = {"id": "opportunity_id"}
 
 #: The ONE differentiator, capped. Titles on this platform repeat ("Software
 #: Engineer" eleven times in one thirty-row sample) and ``match_score`` orders
@@ -425,7 +465,7 @@ def compact_opportunity(
     """
     out: dict[str, Any] = {}
     for field in COMPACT_OPPORTUNITY_FIELDS:
-        out[field] = record.get(field)
+        out[COMPACT_FIELD_RENAMES.get(field, field)] = record.get(field)
     skills = record.get("skills") or []
     if skills:
         out["skills"] = list(skills[:max_skills])
