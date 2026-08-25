@@ -781,6 +781,195 @@ SENDABLE_BULK_APPLY_PATHS = frozenset({EP_APPLY_BULK_ES, EP_APPLY_BULK_LEGACY})
 BULK_APPLY_BODY_KEY_ES = "job_ids"
 BULK_APPLY_BODY_KEY_LEGACY = "opp_ids"
 
+# --- The leaderboard cluster: the channel that asks HIM something ----------
+#
+# EVERY OTHER WRITE IN THIS PACKAGE IS HIM TALKING TO INSTAHYRE. This one is
+# Instahyre talking to him, and that is the whole reason it exists: two of the
+# endpoints below carry a QUESTION DIRECTED AT THE ACCOUNT HOLDER -- "were you
+# hired at this company?" and "how did that opportunity go?" -- and until
+# 2026-08-25 this server could not see either. A terminal status change
+# (hired) arrives on a channel nothing here read.
+#
+# THE PREFIX. Instahyre's constant block declares
+# "LEADERBOARD":`${API_PREFIX}/leaderboard`, and API_PREFIX resolves to the
+# same /api/v1 that CANDIDATE_MISC_PROFILE resolves to -- which this package
+# already pins as API_BASE. So every path here is /leaderboard/... relative to
+# API_BASE, read off the constant rather than assembled.
+#
+# THE TWO FACTORIES, verbatim, both captured whole:
+#
+#   verifyHiredCandidateService (output.21b603b2eaf1.js)
+#     var url = `${API_PATHS.LEADERBOARD}/verify_hired_candidate/`;
+#     $resource(url,{id:"@id"},{
+#       get:{method:"GET",url:url},
+#       update:{method:"PATCH",url:url},
+#       add_joining_date:{method:"POST",url:url},
+#       submit_response:{method:"POST",url:url+"submit_response"},
+#       show_verify_modal:{method:"GET",url:url+"show_verify_modal"}})
+#
+#   candidateRatingService (output.646b3ad915ba.js)
+#     var url = `${API_PATHS.LEADERBOARD}/candidate_rating`;
+#     $resource(url,{},{
+#       get_opportunity_info:{method:"GET",url:url+"/get_opportunity_info"},
+#       submit_rating:{method:'POST',url:url+"/submit_rating",
+#                      params:{rating_uri:'@rating_uri',ask_later:'@ask_later',
+#                              rating:'@rating'}}})
+#
+# THE SLASH SPELLINGS ARE COPIED, NOT REGULARISED, exactly as they are for the
+# three inbox actions. The verify_hired base url ENDS in a slash and the two
+# action names are concatenated straight onto it, so they come out WITHOUT a
+# separator slash of their own; the candidate_rating base url has NO trailing
+# slash and its actions supply their own leading one. That asymmetry is in the
+# shipped source, and a tidied version of it would be a different request --
+# Django's APPEND_SLASH answers a slashless POST with a 301 that drops the
+# body, and this client does not follow redirects.
+EP_VERIFY_HIRED = "/leaderboard/verify_hired_candidate/"
+EP_VERIFY_HIRED_SHOW_MODAL = "/leaderboard/verify_hired_candidate/show_verify_modal"
+EP_VERIFY_HIRED_SUBMIT_RESPONSE = "/leaderboard/verify_hired_candidate/submit_response"
+EP_CANDIDATE_RATING_INFO = "/leaderboard/candidate_rating/get_opportunity_info"
+EP_CANDIDATE_RATING_SUBMIT = "/leaderboard/candidate_rating/submit_rating"
+
+#: The complete set of paths this package may send a LEADERBOARD write to. TWO
+#: NAMED ENTRIES, one per captured contract.
+#:
+#: A THIRD DOOR, NOT A WIDER ONE, on the same reasoning that gave bulk apply
+#: its own set rather than folding it into the inbox's. This one refuses every
+#: inbox path and both bulk paths, and they refuse these two, so a bug on one
+#: surface cannot spend another's permissions.
+#:
+#: NOTE WHAT IS ABSENT: EP_VERIFY_HIRED itself. The base path is READ here (the
+#: collection GET) and is deliberately not sendable, which is what makes the
+#: unbuilt add_joining_date POST below unreachable -- see its note for why a
+#: path-shaped guard could never have stopped it.
+SENDABLE_LEADERBOARD_PATHS = frozenset(
+    {EP_VERIFY_HIRED_SUBMIT_RESPONSE, EP_CANDIDATE_RATING_SUBMIT}
+)
+
+#: WHERE AN ANGULAR $resource ACTION'S ``params`` ACTUALLY GO, which is the one
+#: detail in this cluster a reasonable person gets backwards.
+#:
+#: ``submit_rating`` declares ``params`` ON THE ACTION, and ``$resource``'s
+#: second argument declares ``{id:"@id"}`` for every action on the verify-hired
+#: service. Both are URL parameters, not body fields: ``Route.setUrlParams``
+#: copies any key that does NOT appear as a ``:name`` placeholder in the
+#: action's url into the request's ``params``, which ``$http`` serializes into
+#: the QUERY STRING. Neither action url carries a placeholder, so all of them
+#: ride the query.
+#:
+#: AND THE BODY IS SENT TOO -- this is not an either/or, and reproducing only
+#: one half would be the guessed request. For a method in POST/PUT/PATCH a
+#: single non-function argument is taken as the request DATA, and the
+#: ``@``-prefixed params are then EXTRACTED FROM that same object. So
+#: ``submit_rating({rating_uri, ask_later, rating})`` puts the whole object in
+#: the JSON body AND repeats those three fields in the query string, and
+#: ``submit_response({id, choice})`` puts both keys in the body and repeats
+#: ``id`` in the query.
+#:
+#: THE EVIDENCE CLASS OF THAT SENTENCE, stated because it is weaker than
+#: everything else in this block. The two factory declarations are CAPTURED --
+#: quoted above, verbatim, off disk. The mapping from a declaration to a wire
+#: request is angular-resource's, and angular-resource IS NOT AMONG THE TEN
+#: CAPTURED BUNDLES: "ngResource" appears in them only as a module-dependency
+#: string, while ``resourceFactory``, ``hasBody``, ``extractParams`` and
+#: ``isQueryParamValue`` appear in none of them. So this half is library
+#: behaviour applied to a captured declaration, not a reading of the wire.
+#: Sending BOTH halves is what the browser does; it is also, not by accident,
+#: the reproduction that stays correct if the un-instrumented half of that
+#: inference is wrong in either direction.
+ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING = True
+
+#: ``{id, choice}``, from BOTH shipped callers of ``submit_response``.
+#: ``$scope.submitResponse`` sends ``{id:hired_id, choice:$scope.candidateChoice}``
+#: and ``$scope.closeResponse`` sends ``{id:hired_id, choice:0}``.
+HIRE_RESPONSE_BODY_KEYS = ("id", "choice")
+#: ``id`` again, from the resource-level ``{id:"@id"}``. See above.
+HIRE_RESPONSE_QUERY_KEYS = ("id",)
+
+#: THE ONE ``choice`` VALUE WITH A SHIPPED CALLER, and the reason this is a
+#: bare constant instead of an enum.
+#:
+#: ``$scope.closeResponse`` sends ``choice:0`` -- that is the DISMISS branch and
+#: it is measured. Every other value comes from ``$scope.candidateChoice``,
+#: which is set by ``$scope.setCandidateChoice(choice)`` -- a function that is
+#: DEFINED in the shipped bundle and CALLED NOWHERE IN ANY OF THE TEN. Its
+#: callers are ``ng-click`` attributes in an HTML template that was never
+#: captured, so the integers behind "yes, I was hired" and "no, I was not" are
+#: NOT KNOWN. This package will not invent a mapping for them: the tool takes
+#: the integer it is given, says in its preview that only 0 is measured, and
+#: refuses to describe an unmeasured value as if it meant something.
+HIRE_CHOICE_DISMISS = 0
+HIRE_CHOICE_MEANINGS_ARE_UNMEASURED = (
+    "Only choice=0 has a shipped caller (closeResponse -- the dismiss branch). "
+    "setCandidateChoice, which produces every other value, is defined in the "
+    "bundle and called nowhere in it; its callers live in an HTML template no "
+    "capture holds. So this server does not know which integer means hired and "
+    "which means not hired, and will not guess one."
+)
+
+#: ``{rating_uri, ask_later, rating}``, from ``$scope.submitRating`` -- the whole
+#: object, in the body and repeated in the query. ``rating`` is ``$scope.rating``,
+#: which is ``null`` until a star is picked, and the ask-later branch sends it
+#: null on purpose.
+RATING_BODY_KEYS = ("rating_uri", "ask_later", "rating")
+RATING_QUERY_KEYS = ("rating_uri", "ask_later", "rating")
+
+#: 1 to 5, READ off the controller rather than assumed from the widget:
+#: ``$scope.LOWEST_RATING=1 ... $scope.HIGHEST_RATING=5``, and
+#: ``ratingSelected`` walks ``for(var i=1;i<=5;++i)``.
+RATING_SCALE_MIN = 1
+RATING_SCALE_MAX = 5
+
+#: THE TWO GUARDS THE SITE ITSELF APPLIES BEFORE IT WILL SUBMIT A RATING, both
+#: quoted out of ``$scope.submitRating`` and both reproduced by this package:
+#:
+#:   if(!ask_later && $scope.rating==null){$scope.showRatingError=true;return;}
+#:   if(ask_later && $scope.opportunity_info.asked_before){...;return;}
+#:
+#: The first refuses a rating submission with no rating. The second refuses to
+#: ask later TWICE -- ``asked_before`` is a field on the live payload, so it is
+#: read rather than remembered.
+RATING_REFUSES_EMPTY_RATING = True
+RATING_REFUSES_A_SECOND_ASK_LATER = True
+
+# --- The two leaderboard actions that are NOT built -------------------------
+#
+# ``update`` (PATCH) HAS A CALLER AND IS STILL NOT BUILT. ``$scope.askmeLater``
+# ships whole: ``verifyHiredCandidateService.update({id:hired_id,
+# ask_me_later:true})``. So the request is fully known -- PATCH
+# EP_VERIFY_HIRED, body ``{"id": <hired_id>, "ask_me_later": true}``, with
+# ``id`` repeated in the query string by the resource-level ``{id:"@id"}``. It
+# is recorded here and left unbuilt because it is a DEFERRAL of a question
+# nobody is currently being asked: show_verify_modal answers ``{"data": []}``
+# on this account, so there is no hire check pending to postpone. Building the
+# postpone button for a question that does not exist is the kind of surface
+# this package's register exists to keep out. If a hire check ever appears, the
+# body above is the body -- it does not need re-deriving.
+VERIFY_HIRED_ASK_ME_LATER_METHOD = "PATCH"
+VERIFY_HIRED_ASK_ME_LATER_BODY_KEYS = ("id", "ask_me_later")
+#
+# ``add_joining_date`` (POST to the BASE url) HAS NO CALLER AT ALL, and nothing
+# is built on it -- not even a recorded body, because there is none to record.
+# The name occurs EXACTLY ONCE across all ten captured bundles, in the factory
+# declaration itself. No function anywhere invokes it, so its body is not
+# merely unserialized, it is unwritten: there is no shipped code that says what
+# fields a joining date is sent as.
+#
+# AND NOTE WHY A PATH-SHAPED GUARD COULD NEVER HAVE STOPPED IT. It POSTs to
+# EP_VERIFY_HIRED -- the SAME url the collection GET reads. A blocklist keyed
+# on the path would have to ban the read to ban the write. What actually makes
+# it unreachable is that EP_VERIFY_HIRED is absent from
+# SENDABLE_LEADERBOARD_PATHS, so the allowlist refuses it while the read side
+# goes on using it, which is the difference between an allowlist and a
+# blocklist doing real work rather than decorative work.
+VERIFY_HIRED_ADD_JOINING_DATE_HAS_NO_CALLER = (
+    "It occurs exactly once in all ten captured bundles -- in the factory "
+    "declaration. Nothing calls it, so no shipped code states its body. It "
+    "POSTs to the same url the collection GET reads, so it is kept unreachable "
+    "by EP_VERIFY_HIRED's absence from SENDABLE_LEADERBOARD_PATHS rather than "
+    "by any rule about the path."
+)
+
+
 # --- Writes that CANNOT be built on the evidence this tree holds -------------
 #
 # Six write surfaces were commissioned on 2026-08-23 and none was built. This
@@ -1373,6 +1562,74 @@ CAPTURED_WRITE_CONTRACTS = {
             "removal path is built on that source reading as of 2026-08-25 -- see "
             "EDUCATION_REMOVAL_IS_UNMEASURED for what remains unmeasured about it, "
             "which is the server's ANSWER, not the request."
+        ),
+    },
+    "hire_check": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "captured": "2026-08-25",
+        "path": EP_VERIFY_HIRED_SUBMIT_RESPONSE,
+        "body_keys": HIRE_RESPONSE_BODY_KEYS,
+        "query_keys": HIRE_RESPONSE_QUERY_KEYS,
+        "note": (
+            "THE ONLY SURFACE IN THIS REGISTER WHERE INSTAHYRE IS THE ONE ASKING. "
+            "Every other entry here is a request he initiates; show_verify_modal is "
+            "the platform putting a question to him -- were you hired at this company "
+            "-- and answering it changes a TERMINAL status. TWO shipped callers agree "
+            "on the body and both are quoted whole in writes.py: $scope.submitResponse "
+            "sends {id:hired_id, choice:$scope.candidateChoice} and $scope.closeResponse "
+            "sends {id:hired_id, choice:0}. The resource-level {id:'@id'} repeats id in "
+            "the query string as well; see "
+            "ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING for where that reading comes "
+            "from and how strong it is.\n\n"
+            "WHAT IS DELIBERATELY NOT IN THIS ENTRY IS THE MEANING OF choice. Only 0 "
+            "is measured. setCandidateChoice produces every other value and is called "
+            "nowhere in any captured bundle, so which integer means hired is NOT "
+            "known -- see HIRE_CHOICE_MEANINGS_ARE_UNMEASURED. A register entry that "
+            "listed a plausible mapping would be the exact failure this register "
+            "exists to prevent, one level up from a guessed body.\n\n"
+            "NOT WIRE-CONFIRMED and it cannot be on this account today: "
+            "show_verify_modal answers {\"data\": []} and the collection GET answers "
+            "{\"objects\": [], \"meta\": {...}} -- both 200, both read from his own "
+            "signed-in session on 2026-08-25. The channel is EMPTY, not absent, and "
+            "there is no pending hire check to intercept a response on. Every write "
+            "here therefore refuses today, by design: the id is validated against a "
+            "live re-read of show_verify_modal, and an empty read means no id can "
+            "ever match."
+        ),
+    },
+    "opportunity_rating": {
+        "evidence": CONTRACT_SHIPPED,
+        "method": "POST",
+        "captured": "2026-08-25",
+        "path": EP_CANDIDATE_RATING_SUBMIT,
+        "body_keys": RATING_BODY_KEYS,
+        "query_keys": RATING_QUERY_KEYS,
+        "note": (
+            "THE ENTRY THAT MADE THE QUERY-STRING QUESTION UNAVOIDABLE, and it is the "
+            "reason this cluster was read out of the factory twice rather than once. "
+            "submit_rating is the only action in this whole register that declares "
+            "params ON THE ACTION -- params:{rating_uri:'@rating_uri', "
+            "ask_later:'@ask_later', rating:'@rating'} -- and in AngularJS those are "
+            "URL parameters, not body fields. They ride the QUERY STRING, and the same "
+            "object is ALSO sent as the JSON body, because a POST action takes its "
+            "single argument as data and then extracts the @-params back out of it. "
+            "Both halves are reproduced. See "
+            "ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING, which states plainly which "
+            "half of that is captured off disk and which half is library behaviour, "
+            "since angular-resource itself is not among the ten bundles.\n\n"
+            "THE SITE'S OWN TWO GUARDS ARE PART OF THE CONTRACT and are reproduced "
+            "rather than improved on: $scope.submitRating refuses to send when "
+            "ask_later is false and rating is null, and refuses to send a SECOND "
+            "ask-later when opportunity_info.asked_before is set. rating goes out as "
+            "null on the ask-later branch on purpose -- that is the site's own value, "
+            "not a missing field.\n\n"
+            "NOT WIRE-CONFIRMED and it cannot be on this account today: "
+            "get_opportunity_info answers {\"show_modal\": false} -- 200, read from his "
+            "own signed-in session on 2026-08-25 -- with no data object at all, so "
+            "there is no resource_uri to rate and nothing pending. The rating_uri is "
+            "validated against a live re-read of that endpoint, so with nothing "
+            "offered every write refuses."
         ),
     },
 }

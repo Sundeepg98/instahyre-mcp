@@ -1403,6 +1403,144 @@ def instahyre_apply_bulk(
 
 
 # ---------------------------------------------------------------------------
+# TIER 2b -- the channel that asks HIM something.
+#
+# Every other tool on this server is him asking Instahyre. These three read and
+# answer the one channel where INSTAHYRE ASKS HIM: were you hired at this
+# company, and how did that opportunity go. The first of those is a TERMINAL
+# status change, and until 2026-08-25 nothing here could see it.
+#
+# MEASURED EMPTY, 2026-08-25, from his own signed-in session, all three routes
+# answering 200: show_verify_modal -> {"data": []}, verify_hired_candidate ->
+# {"objects": [], "meta": {...}}, get_opportunity_info -> {"show_modal": false}.
+# Nothing in this cluster has ever been exercised against live data. The
+# channel is EMPTY, not absent -- and because both writes validate their id
+# against a live re-read, both refuse today. That is the gate, not a bug.
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+@handled
+def instahyre_pending_requests() -> dict:
+    """What is Instahyre ASKING YOU right now? Reads only; changes nothing.
+
+    THE ONLY PLACE THE PLATFORM PUTS A QUESTION TO HIM. Everywhere else on this
+    server he is the one initiating -- searching, applying, replying. This
+    channel runs the other way, and the question it carries is terminal: were
+    you hired at this company. There is also a lighter one, how did that
+    opportunity go, which feeds their leaderboard.
+
+    ONE CALL COVERS THE WHOLE CHANNEL. Three endpoints answer three parts of
+    one question and are read together, because a caller who had to know all
+    three route names in advance would simply never look -- which is exactly
+    how a hire check sits unanswered.
+
+    NOTHING PENDING IS A RESULT. When the channel is empty this returns
+    ``anything_pending: False`` and a sentence saying so in as many words. It
+    is never an error and never a bare empty dict: "I could not tell" dressed
+    up as "nothing" is the one answer that would cost him the thing this tool
+    exists to catch. The mirror holds too -- a read that genuinely fails raises
+    instead of returning, so "nothing pending" can never be what a lapsed
+    session looks like.
+
+    IT IS EMPTY TODAY, and that was measured rather than assumed: all three
+    routes answered 200 and empty on 2026-08-25 from his own signed-in session.
+    So this cluster has never been read populated, and the shape of a populated
+    record comes from Instahyre's shipped JavaScript rather than from anything
+    anybody has seen.
+    """
+    return get_client().writer.pending_requests()
+
+
+@mcp.tool()
+@handled
+def instahyre_answer_hire_check(
+    hired_id: str,
+    choice: int,
+    confirm: bool = False,
+) -> dict:
+    """Answer ONE "were you hired here?" question. A TERMINAL status change.
+
+    This is the platform asking whether he took a job at a named company, and
+    this tool sends the answer. It is the only write on this server that
+    reports an OUTCOME rather than an intent, and nothing in Instahyre's
+    product edits or retracts one.
+
+    THE ID MUST COME FROM A LIVE READ. Before anything is sent the hire-check
+    modal is re-read and ``hired_id`` must be one of the checks it is currently
+    offering. A fabricated id is impossible to submit -- not discouraged,
+    impossible -- and today, with that read empty on this account, EVERY call
+    refuses by name. That refusal is correct behaviour: there is no hire check
+    pending, so there is nothing to answer.
+
+    WHAT choice MEANS IS NOT KNOWN, AND IS NOT GUESSED. Only 0 has a shipped
+    caller -- Instahyre's own ``closeResponse`` sends ``choice:0``, the dismiss
+    branch. Every other value is produced by a function that is defined in
+    their JavaScript and called nowhere in it, because its callers live in an
+    HTML template no capture holds. So this server does not know which integer
+    means "yes, I was hired", says so in every preview, and will not invent
+    one. Do not tell him a value means something it has not been measured to
+    mean.
+
+    ``confirm=False`` (the default) sends nothing and returns the exact
+    request, naming the company and role being answered about.
+
+    Args:
+        hired_id: The ``hired_id`` of a check reported by
+            instahyre_pending_requests. Validated against a live re-read.
+        choice: The integer answer. 0 is the measured dismiss value; any other
+            value's meaning is unmeasured and the preview says so.
+        confirm: Must be True to actually send.
+    """
+    return get_client().writer.answer_hire_check(hired_id, choice, confirm=confirm)
+
+
+@mcp.tool()
+@handled
+def instahyre_rate_opportunity(
+    rating_uri: str,
+    rating: int = None,
+    ask_later: bool = False,
+    confirm: bool = False,
+) -> dict:
+    """Rate ONE opportunity 1-5, or defer the question. Cannot be withdrawn.
+
+    A rating is a judgement recorded against a named employer and it feeds
+    Instahyre's leaderboard. There is no shipped path that edits or withdraws
+    one.
+
+    THE URI MUST COME FROM A LIVE READ. The rating offer is re-read before
+    anything is sent and ``rating_uri`` must equal the ``resource_uri`` it is
+    currently offering. A fabricated uri cannot be submitted, and today -- with
+    that endpoint answering ``show_modal: false`` on this account -- EVERY call
+    refuses. Nothing is pending, which is the normal state of this channel.
+
+    TWO OF THE RAILS HERE ARE INSTAHYRE'S OWN, reproduced rather than invented,
+    and the distinction is kept because a rail of ours dressed up as theirs is
+    misleading: their page refuses to submit a rating with no rating, and
+    refuses to defer a second time once it has already been asked to. Both
+    refusals happen here, both read off the live payload.
+
+    ``confirm=False`` (the default) sends nothing and returns the exact
+    request -- including the detail worth seeing once: the three fields ride
+    the QUERY STRING as well as the JSON body, because Instahyre declares them
+    as action-level ``params``, and reproducing only one half would be a
+    guessed request.
+
+    Args:
+        rating_uri: The ``resource_uri`` reported by
+            instahyre_pending_requests. Validated against a live re-read.
+        rating: 1 to 5. May be omitted only when ask_later is True.
+        ask_later: Defer instead of rating. Sends a null rating, exactly as
+            the site's own defer branch does.
+        confirm: Must be True to actually send.
+    """
+    return get_client().writer.rate_opportunity(
+        rating_uri, rating, ask_later=ask_later, confirm=confirm
+    )
+
+
+# ---------------------------------------------------------------------------
 # TIER 3 -- the inbox. Read-only, plain HTTP, no browser.
 # ---------------------------------------------------------------------------
 

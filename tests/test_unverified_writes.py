@@ -274,8 +274,25 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_eleven_that_were_captured(self):
+    def test_it_names_the_thirteen_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
+            # Added 2026-08-25, and the two entries in this register that run
+            # in the opposite direction from every other one. The eleven below
+            # are requests HE initiates; these two ANSWER a question Instahyre
+            # put to him, and hire_check's answer is a terminal employment
+            # outcome on a channel nothing in this server could previously see.
+            # Both are SHIPPED: two callers agree on the hire-check body, one
+            # ships the rating body, and the rating entry is the one that
+            # forced the register to record WHERE a field goes -- its action
+            # declares Angular params, so its three fields ride the query
+            # string as well as the body.
+            #
+            # Neither has ever been exercised against live data and neither can
+            # be today: all three routes in the cluster answered 200 and EMPTY
+            # on 2026-08-25, so both writes refuse every call. The notes say
+            # so rather than implying a test that did not happen.
+            "hire_check",
+            "opportunity_rating",
             # Added 2026-08-25, and the entry with the cleanest evidence in the
             # whole register: a real serialized body, from his own signed-in
             # browser, aborted at the router. It is also the one whose capture

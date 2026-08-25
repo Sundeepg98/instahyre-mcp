@@ -746,6 +746,16 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         "C.EP_APPLY_BULK_LEGACY",
         "C.EP_APPLY_ES",
         "C.EP_APPLY_LEGACY",
+        # THE TWO LEADERBOARD WRITES ENTERED THE CENSUS ON 2026-08-25, and they
+        # are the only entries here aimed at a channel INSTAHYRE initiates. The
+        # terms of admission were identical to everything else: the contract
+        # read whole out of the shipped factory and both callers first, then a
+        # named allowlist (SENDABLE_LEADERBOARD_PATHS, two entries), then a
+        # tool. Note which sibling is ABSENT -- EP_VERIFY_HIRED, the collection
+        # url, is read and never written, and its absence from that allowlist
+        # is the only thing keeping add_joining_date unreachable, since that
+        # action POSTs to the same url the read uses.
+        "C.EP_CANDIDATE_RATING_SUBMIT",
         "C.EP_LOGIN",
         "C.EP_REFERRAL",
         "C.EP_REFERRAL_INVITES",
@@ -753,6 +763,7 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         "C.EP_STAR_CONVERSATION",
         "C.EP_SUPPORT_QUERY",
         "C.EP_TOGGLE_MESSAGE_READ",
+        "C.EP_VERIFY_HIRED_SUBMIT_RESPONSE",
     ], "a new write path appeared in the package: %s" % (sites,)
 
     # The re-ratification, asserted rather than trusted to review: every POST
@@ -784,6 +795,14 @@ def test_every_post_call_site_in_the_package_targets_a_measured_endpoint():
         # like every other admitted write, and this line is what requires it.
         "C.EP_APPLY_BULK_ES": "apply_bulk",
         "C.EP_APPLY_BULK_LEGACY": "apply_bulk",
+        # Added 2026-08-25 with the leaderboard cluster. These two are the
+        # first writes in this package that ANSWER something rather than ask
+        # for something, and hire_check is the only one anywhere here that
+        # reports an employment OUTCOME. Both carry a captured contract, and
+        # this line is what requires it -- neither inherits any exemption, and
+        # neither can, since the two exempt names below predate the register.
+        "C.EP_VERIFY_HIRED_SUBMIT_RESPONSE": "hire_check",
+        "C.EP_CANDIDATE_RATING_SUBMIT": "opportunity_rating",
     }
     for target in targets:
         if target in ("C.EP_APPLY_ES", "C.EP_APPLY_LEGACY", "C.EP_LOGIN"):

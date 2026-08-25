@@ -74,6 +74,19 @@ EXPECTED_TOOLS = {
     # the list. There is no bulk DECLINE and there cannot be -- the bulk body
     # has no is_interested key.
     "instahyre_apply_bulk",
+    # Added 2026-08-25. THE ONLY CHANNEL ON THIS SERVER THAT RUNS THE OTHER
+    # WAY -- Instahyre asking him something rather than him asking Instahyre,
+    # and what it asks is terminal: were you hired at this company. The read
+    # covers all three routes in one call because a caller who had to know
+    # three route names in advance would never look, which is how a hire check
+    # goes unanswered. The two writes are gated exactly like every other write
+    # here and, on top of that, validate their id against a LIVE re-read -- so
+    # today, with all three routes measured EMPTY on 2026-08-25, both refuse
+    # every call by name. That is the gate working; the channel is empty, not
+    # absent.
+    "instahyre_pending_requests",
+    "instahyre_answer_hire_check",
+    "instahyre_rate_opportunity",
     # Tier 3 -- the inbox. Reads are plain HTTP with no browser; the four
     # writes below run on a NAMED allowlist of four URLs, one per captured
     # contract.
@@ -226,16 +239,19 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_fifty_four_tools(tools):
+def test_the_server_registers_exactly_fifty_seven_tools(tools):
     """48 until 2026-08-25, when the three remaining measured inbox writes were
     built; then 52, when the bulk-apply ban was lifted by ruling and
     instahyre_apply_bulk was built; then 53, when the education PATCH was
     captured off the wire and instahyre_update_education replaced a read-only
     section; then 54, when the removal channel that PATCH carries got a door of
-    its own. The number is pinned rather than derived so that a tool appearing
-    on the MCP surface is an edit somebody made here on purpose -- which is
-    exactly what the last three were."""
-    assert len(tools) == len(EXPECTED_TOOLS) == 54
+    its own; then 57, when the leaderboard cluster was built -- one read and
+    two gated writes on the only channel where INSTAHYRE asks HIM something,
+    and the only one carrying a terminal status change (hired). The number is
+    pinned rather than derived so that a tool appearing on the MCP surface is
+    an edit somebody made here on purpose -- which is exactly what the last six
+    were."""
+    assert len(tools) == len(EXPECTED_TOOLS) == 57
 
 
 def test_every_tool_name_is_namespaced(tools):

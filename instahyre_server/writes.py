@@ -53,6 +53,23 @@ The caller supplies the ids; nothing here assembles them. See
 :meth:`Writer.bulk_apply`. The read tier did not move: ``apply_bulk`` is still
 in ``MUTATING_PATH_MARKERS`` and ``guard_read_only`` still refuses both paths.
 
+THE LEADERBOARD CLUSTER LANDED ON 2026-08-25 AND IT IS THE ONLY CHANNEL HERE
+THAT RUNS THE OTHER WAY. Everything above is him talking to Instahyre; these
+three read and answer a channel where INSTAHYRE ASKS HIM -- were you hired at
+this company, and how did that opportunity go -- and the first of those is a
+TERMINAL status change that no other tool on this server could see. All three
+routes were measured EMPTY on 2026-08-25 from his own signed-in session, all
+200: ``{"data": []}``, ``{"objects": [], "meta": {...}}``, and
+``{"show_modal": false}``. EMPTY IS NOT ABSENT, and the consequence is stated
+rather than discovered: both writes validate their id against a LIVE re-read of
+the endpoint that offers it, so with those reads empty EVERY WRITE IN THE
+CLUSTER REFUSES TODAY. That is the gate working. Two of the actions on the same
+factories are deliberately NOT built -- the ask-me-later PATCH, whose body is
+known and recorded because its caller ships, and ``add_joining_date``, which
+has no caller anywhere and therefore no body to record. See
+:func:`_guard_leaderboard_sendable` for why an allowlist rather than a
+blocklist is what keeps the second one unreachable.
+
 WHAT IS NOT HERE. No profile-image upload: its contract is captured but
 reproducing the browser's body needs a WebP encoder at width<=800 that this
 package has no dependency for, and the CREATE branch was never exercised. No
@@ -195,6 +212,45 @@ def _guard_bulk_apply_sendable(path: str) -> str:
     return path
 
 
+def _guard_leaderboard_sendable(path: str) -> str:
+    """Allow only the two named leaderboard targets. Returns the path.
+
+    A THIRD DOOR, NOT A WIDER ONE, on exactly the reasoning that gave bulk
+    apply its own set instead of folding it into the inbox's:
+    :func:`_guard_sendable` refuses these two, :func:`_guard_bulk_apply_sendable`
+    refuses them, and this one refuses every member of both. Three small
+    enumerated sets that each refuse the others' members beat one large set in
+    which a bug on any surface can spend every surface's permissions.
+
+    THE MEMBER THIS SET DOES NOT HAVE IS THE INTERESTING ONE.
+    ``EP_VERIFY_HIRED`` -- the collection url -- is READ by
+    :meth:`Writer._live_hire_queue` and is absent here, which is the only thing
+    standing between this package and ``add_joining_date``. That action POSTs to
+    the SAME url the collection GET reads, so no rule about the path could
+    admit the read and refuse the write; an allowlist can, because it is asked
+    about the exact value and not about a family. And it must refuse it: the
+    name occurs exactly once in all ten captured bundles, in the factory
+    declaration, with no caller anywhere, so nothing states what its body would
+    be.
+    """
+    if path not in C.SENDABLE_LEADERBOARD_PATHS:
+        raise NotSendable(
+            "Refusing to send a leaderboard write to %r. This server has exactly %d "
+            "named leaderboard paths (%s) and this is not one of them. Note in "
+            "particular that the verify_hired_candidate COLLECTION url is not a "
+            "member: it is read, never written, which is what keeps add_joining_date "
+            "-- an action with no caller in any captured bundle, and therefore no "
+            "known body -- unreachable."
+            % (
+                path,
+                len(C.SENDABLE_LEADERBOARD_PATHS),
+                ", ".join(sorted(C.SENDABLE_LEADERBOARD_PATHS)),
+            ),
+            path=path,
+        )
+    return path
+
+
 #: Characters that change meaning inside the HTML body the editor produces.
 _HTML_ESCAPES = (("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"))
 
@@ -266,10 +322,18 @@ def _contract(surface: str) -> dict:
 
 
 class Writer:
-    """The nine captured write surfaces, each behind a confirm gate.
+    """The eleven captured write surfaces, each behind a confirm gate.
 
     Bulk apply is the ninth and it is the only one whose gate is the feature
     rather than the toll -- see :meth:`bulk_apply`.
+
+    The tenth and eleventh joined on 2026-08-25 and they are the only two here
+    that ANSWER rather than ask: see :meth:`answer_hire_check` and
+    :meth:`rate_opportunity`, plus the read that finds them,
+    :meth:`pending_requests`. Their gate carries one rail the others do not --
+    the id is validated against a LIVE re-read of the very endpoint that offers
+    it -- and since all three routes in that cluster are measured EMPTY, both
+    writes refuse today.
     """
 
     def __init__(self, http: Any, store: Any, inbound: Any, inbox: Any = None) -> None:
@@ -1486,6 +1550,609 @@ class Writer:
             )
         return result
 
+    # -- the leaderboard cluster: the channel that asks HIM something ------
+    #
+    # THE INVERSION THIS SECTION EXISTS FOR. Every other method on this class
+    # is him initiating something -- a reply, an application, a ticket. These
+    # three read and answer a channel where INSTAHYRE IS THE ONE ASKING, and
+    # the question it asks is terminal: were you hired at this company. Until
+    # 2026-08-25 nothing in this server could see that a hire check existed.
+    #
+    # THE CHANNEL IS EMPTY TODAY, AND THAT IS A MEASUREMENT RATHER THAN AN
+    # ASSUMPTION. Read from his own signed-in browser on 2026-08-25, all three
+    # answering 200:
+    #
+    #   show_verify_modal       -> {"data": []}
+    #   verify_hired_candidate  -> {"objects": [], "meta": {...}}
+    #   get_opportunity_info    -> {"show_modal": false}
+    #
+    # So nothing in this cluster has ever been exercised against live data, and
+    # every docstring here says so instead of implying a test that did not
+    # happen. EMPTY IS NOT ABSENT: the endpoints exist, answer, and are
+    # authenticated -- there is simply nothing pending on this account today.
+    # One consequence is worth stating plainly rather than discovering later:
+    # because both writes validate their id against a LIVE re-read, and both
+    # live reads are empty, EVERY WRITE IN THIS SECTION REFUSES TODAY. That is
+    # the gate working, not a defect.
+
+    def _live_hire_checks(self) -> dict:
+        """``show_verify_modal``, read fresh, with the two empty cases kept apart.
+
+        ``use_cache`` does not arise here -- this endpoint is not cached
+        anywhere in the package -- but the freshness requirement is the same one
+        :meth:`_live_pending_index` documents: this read decides whether an
+        answer is about to be sent about a hire that may already have been
+        answered in the browser.
+
+        ABSENT AND EMPTY ARE DIFFERENT FACTS and are reported as different
+        facts. Instahyre's own reader tests ``if(response.data===undefined)``
+        and returns before touching the list, so a payload with no ``data`` key
+        is a shape the site itself treats as "say nothing", while ``data: []``
+        is a definite "nothing pending". They arrive looking identical to a
+        caller that only counts, and only one of them means the channel
+        answered the question.
+        """
+        payload = self.http.get(
+            C.EP_VERIFY_HIRED_SHOW_MODAL,
+            params={"id": self.inbound.candidate_id()},
+        )
+        if not isinstance(payload, dict):
+            return {"records": [], "data_key_present": False, "shape_was_unexpected": True}
+        data = payload.get("data")
+        return {
+            "records": list(data) if isinstance(data, list) else [],
+            "data_key_present": "data" in payload,
+            "shape_was_unexpected": "data" in payload and not isinstance(data, list),
+        }
+
+    def _live_hire_queue(self) -> dict:
+        """The ``verify_hired_candidate`` COLLECTION, read fresh.
+
+        A DIFFERENT PROVENANCE FROM ITS SIBLING, and the difference is recorded
+        rather than smoothed over. ``show_verify_modal`` has a shipped caller
+        that this package copies; the collection ``get`` action is declared on
+        the same factory and NO shipped code calls it. What makes it readable
+        is that it was probed directly on 2026-08-25 and answered 200 with a
+        tastypie envelope. So the modal read reproduces the browser, and this
+        one does not reproduce anything -- it reads a route that exists.
+
+        The truncation fact is carried for the same reason
+        :meth:`_live_pending_index` carries it: an empty list and a truncated
+        read are opposite facts that arrive looking identical.
+        """
+        payload = self.http.get(C.EP_VERIFY_HIRED)
+        objects = payload.get("objects") if isinstance(payload, dict) else None
+        meta = (payload.get("meta") if isinstance(payload, dict) else None) or {}
+        records = list(objects) if isinstance(objects, list) else []
+        total = meta.get("total_count")
+        return {
+            "records": records,
+            "records_read": len(records),
+            "total_reported": total,
+            "complete": total is None or len(records) >= total,
+        }
+
+    def _live_rating_offer(self) -> dict:
+        """``get_opportunity_info``, read fresh.
+
+        ``show_modal`` is the site's own gate -- ``if(response.show_modal)`` --
+        and ``data`` carries the two fields the rating write needs:
+        ``resource_uri``, which IS the ``rating_uri`` the write sends, and
+        ``asked_before``, which the site consults before it will accept a
+        second ask-later. Both are read live rather than remembered, because a
+        remembered ``asked_before`` is a guard that stops guarding the moment
+        the caller restarts.
+
+        On this account today the payload is ``{"show_modal": false}`` with no
+        ``data`` object at all, so ``resource_uri`` is ``None`` and no
+        ``rating_uri`` can match it.
+        """
+        payload = self.http.get(C.EP_CANDIDATE_RATING_INFO)
+        if not isinstance(payload, dict):
+            return {
+                "show_modal": False,
+                "resource_uri": None,
+                "asked_before": None,
+                "data_key_present": False,
+            }
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        return {
+            "show_modal": bool(payload.get("show_modal")),
+            "resource_uri": data.get("resource_uri"),
+            "asked_before": data.get("asked_before"),
+            "data_key_present": "data" in payload,
+        }
+
+    def pending_requests(self) -> dict:
+        """What is Instahyre asking him RIGHT NOW. Reads only; changes nothing.
+
+        ONE CALL ACROSS THE WHOLE CHANNEL, because the channel is the unit a
+        person cares about. Three endpoints answer three halves of one
+        question, and a caller who had to know all three names in advance
+        would never have asked -- which is exactly how a hire check goes
+        unanswered for a month.
+
+        NOTHING PENDING IS A RESULT, NOT A FAILURE, and this method's whole
+        contract is refusing to blur those two. An empty channel returns
+        ``anything_pending: False`` with a sentence saying so, alongside the
+        three reads that produced it -- never an error, never a bare empty
+        dict a caller could read as "the tool did not work". The distinction
+        matters more here than anywhere else in this package: the reason to
+        call this is to find out whether a terminal status change is waiting,
+        and "I could not tell" dressed as "nothing" is the one answer that
+        would cost him the thing this tool exists to catch.
+
+        A READ THAT FAILS STILL FAILS. If a session has lapsed or a route
+        answers something unusable, the typed error propagates and the caller
+        sees an error -- because the mirror of the paragraph above is just as
+        important: "nothing pending" must never be what a broken read looks
+        like.
+        """
+        checks = self._live_hire_checks()
+        queue = self._live_hire_queue()
+        offer = self._live_rating_offer()
+
+        hire_checks = [_shape_hire_check(record) for record in checks["records"]]
+        rating_pending = bool(offer["show_modal"] and offer["resource_uri"])
+        pending_count = len(hire_checks) + (1 if rating_pending else 0)
+
+        result = {
+            "anything_pending": bool(pending_count),
+            "pending_count": pending_count,
+            "hire_checks": {
+                "pending": hire_checks,
+                "count": len(hire_checks),
+                "source": C.EP_VERIFY_HIRED_SHOW_MODAL,
+                "the_question": (
+                    "Instahyre is asking whether he was HIRED at this company. "
+                    "Answering it is a terminal status change and it is the only "
+                    "question this platform puts to him directly."
+                ),
+                "answer_with": "instahyre_answer_hire_check",
+                "data_key_present": checks["data_key_present"],
+            },
+            "hire_verification_queue": {
+                "records": queue["records"],
+                "count": queue["records_read"],
+                "total_reported": queue["total_reported"],
+                "complete": queue["complete"],
+                "source": C.EP_VERIFY_HIRED,
+                "provenance": (
+                    "This collection route has NO caller in any captured bundle. It "
+                    "was probed directly on 2026-08-25 and answered 200 with a "
+                    "tastypie envelope, so it is read as a route that exists rather "
+                    "than as a reproduction of anything the browser does."
+                ),
+            },
+            "opportunity_rating": {
+                "pending": rating_pending,
+                "rating_uri": offer["resource_uri"],
+                "asked_before": offer["asked_before"],
+                "show_modal": offer["show_modal"],
+                "scale": "%d to %d" % (C.RATING_SCALE_MIN, C.RATING_SCALE_MAX),
+                "source": C.EP_CANDIDATE_RATING_INFO,
+                "answer_with": "instahyre_rate_opportunity",
+            },
+        }
+
+        if pending_count:
+            result["summary"] = (
+                "%d thing(s) pending: %d hire check(s) and %s"
+                % (
+                    pending_count,
+                    len(hire_checks),
+                    "an opportunity rating" if rating_pending else "no rating request",
+                )
+            )
+        else:
+            result["summary"] = (
+                "NOTHING PENDING. Instahyre is not asking him anything right now. "
+                "All three endpoints answered and all three answered empty: no hire "
+                "check, no verification row, and show_modal is false on the rating "
+                "offer. This is a clean result, not a failed read -- a read that "
+                "failed would have raised rather than returned this."
+            )
+        result["empty_is_a_result_not_an_error"] = (
+            "anything_pending is False only when every read SUCCEEDED and returned "
+            "nothing. Any read that fails raises a typed error instead, so this "
+            "field never stands in for 'could not tell'."
+        )
+        result["what_this_channel_is"] = (
+            "The only surface on Instahyre where the platform asks HIM something "
+            "rather than the other way round. It carries a terminal status change "
+            "(hired) that no other tool on this server can see."
+        )
+        result["never_seen_populated"] = (
+            "This cluster has never been read non-empty. Measured empty on "
+            "2026-08-25 from his own signed-in session, all three routes 200, so "
+            "the shape of a POPULATED record is read out of Instahyre's shipped "
+            "JavaScript rather than out of a response anybody has seen."
+        )
+        return result
+
+    def answer_hire_check(
+        self, hired_id: Any, choice: Any, *, confirm: bool = False
+    ) -> dict:
+        """Answer ONE "were you hired here?" question. A TERMINAL status change.
+
+        WHAT THIS ACTUALLY DOES, said before the arguments. Instahyre is asking
+        whether he took a job at a named company, and this sends the answer. It
+        is the only write in this package that reports an OUTCOME rather than
+        an intent, and there is no shipped path anywhere in their product that
+        edits or retracts one.
+
+        THE ID MUST COME FROM A LIVE READ. Before anything is sent,
+        ``show_verify_modal`` is re-read and ``hired_id`` must be one of the
+        checks it currently offers. A fabricated id is therefore impossible to
+        submit -- not discouraged, impossible -- and today, with that read
+        empty on this account, EVERY call here refuses. That refusal is the
+        correct behaviour and is tested as a gate rather than worked around.
+
+        WHAT IS NOT KNOWN, AND IS NOT GUESSED. The MEANING of ``choice`` is
+        unmeasured except for 0. ``$scope.closeResponse`` sends ``choice:0`` --
+        that is the dismiss branch. Every other value comes from
+        ``setCandidateChoice``, which is defined in the shipped bundle and
+        called nowhere in any of the ten captured ones; its callers are
+        ng-click attributes in an HTML template no capture holds. So this
+        method sends the integer it is handed, prints in the preview that only
+        0 is measured, and refuses to label an unmeasured value as if it meant
+        "yes".
+
+        Args:
+            hired_id: The ``hired_id`` of a check currently offered by
+                instahyre_pending_requests. Validated against a live re-read.
+            choice: The integer answer. Only 0 (dismiss) has a shipped caller;
+                see the preview's own warning about the rest.
+            confirm: Must be True to send. False (the default) returns the
+                exact request that would go out and issues nothing at all.
+        """
+        wanted = _normalise_hired_id(hired_id)
+        answer = _normalise_choice(choice)
+
+        checks = self._live_hire_checks()
+        offered = {
+            str(record.get("hired_id")): record
+            for record in checks["records"]
+            if record.get("hired_id") is not None
+        }
+        if wanted not in offered:
+            raise NotFound(
+                "Refusing to answer hire check %r: it is not one of the %d check(s) "
+                "Instahyre is currently offering%s. The modal was re-read for this "
+                "call rather than remembered, because an answer aimed at a check that "
+                "has already been answered -- or that never existed -- is a report "
+                "about a job nobody asked about, and it cannot be retracted.%s"
+                % (
+                    wanted,
+                    len(offered),
+                    "" if offered else " (the channel is EMPTY -- no hire check is "
+                    "pending on this account, which is the normal state and not an "
+                    "error)",
+                    ""
+                    if checks["data_key_present"]
+                    else " Note also that the payload carried NO data key at all, which "
+                    "is the shape Instahyre's own reader treats as 'say nothing' "
+                    "rather than as 'nothing pending'.",
+                ),
+                hired_id=wanted,
+                offered=sorted(offered),
+            )
+
+        record = _shape_hire_check(offered[wanted])
+        body = {"id": wanted, "choice": answer}
+        query = {"id": wanted}
+        preview = {
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + C.EP_VERIFY_HIRED_SUBMIT_RESPONSE,
+                "query_string": query,
+                "json_body": body,
+                "headers": {
+                    "Content-Type": "application/json",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
+                    "Referer": C.SITE_BASE + "/",
+                },
+            },
+            "action": "ANSWER A HIRE CHECK",
+            "answering": record,
+            "choice": answer,
+            "why_the_id_is_in_two_places": (
+                "The resource declares {id:'@id'} as its paramDefaults, so Angular "
+                "extracts id out of the body and repeats it in the QUERY STRING while "
+                "the body still carries it. Both halves are reproduced because both "
+                "halves are what the browser sends; see "
+                "constants.ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING for which half "
+                "is captured off disk and which is library behaviour."
+            ),
+            "choice_meaning": C.HIRE_CHOICE_MEANINGS_ARE_UNMEASURED,
+            "choice_is_the_measured_dismiss_value": answer == C.HIRE_CHOICE_DISMISS,
+            "irreversible": True,
+            "contract": _contract("hire_check"),
+            "warning": (
+                "This reports an EMPLOYMENT OUTCOME to the platform and there is no "
+                "shipped path that edits or retracts one. Read 'answering' above and "
+                "make sure it is the right company before confirming."
+            ),
+            "never_run_live": (
+                "No hire-check answer has ever been sent by this server, and none can "
+                "be until Instahyre offers a check. The request was read out of two "
+                "shipped callers; it has never been serialized by a browser here."
+            ),
+        }
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Re-run with confirm=True to answer hire check "
+                "%s with choice=%d." % (wanted, answer)
+            )
+            return preview
+
+        self._require_csrf("answer a hire check")
+        _guard_leaderboard_sendable(C.EP_VERIFY_HIRED_SUBMIT_RESPONSE)
+
+        log.warning("irreversible HIRE CHECK answer sent: id=%s choice=%s", wanted, answer)
+        response = self.http.post(
+            C.EP_VERIFY_HIRED_SUBMIT_RESPONSE,
+            params=query,
+            json_body=body,
+            extra_headers={"Origin": C.SITE_BASE},
+        )
+
+        return {
+            "confirmed": True,
+            "sent": preview["would_send"],
+            "answered": record,
+            "choice": answer,
+            "response": response if isinstance(response, dict) else {"raw": str(response)[:200]},
+            "irreversible": True,
+            "verification": self._verify_hire_check(wanted),
+        }
+
+    def _verify_hire_check(self, hired_id: str) -> dict:
+        """Re-read the modal and say whether the check has left it.
+
+        THE RESPONSE IS NOT THE EVIDENCE. Nobody has ever seen this endpoint's
+        reply, so trusting its shape would be trusting something unmeasured at
+        the exact moment an irreversible thing has already happened. The modal
+        is the readable state: a check that has been answered should stop being
+        offered.
+
+        Never raises, for the same reason :meth:`_verify_bulk_apply` never
+        does -- a verification that could destroy the report of an action
+        already taken fails precisely when the report matters most.
+        """
+        try:
+            checks = self._live_hire_checks()
+        except InstahyreError as exc:
+            return {
+                "ok": False,
+                "how": "the hire-check modal could not be re-read (%s), so whether "
+                "the answer registered is UNKNOWN. Do NOT re-send; run "
+                "instahyre_pending_requests before doing anything else." % exc.kind,
+                "still_offered": None,
+            }
+        still = [
+            str(record.get("hired_id"))
+            for record in checks["records"]
+            if str(record.get("hired_id")) == hired_id
+        ]
+        result = {
+            "ok": not still,
+            "how": (
+                "the modal was re-read; an answered check should no longer be offered"
+            ),
+            "still_offered": bool(still),
+        }
+        if still:
+            result["warning"] = (
+                "Hire check %s is STILL being offered after the answer. That may mean "
+                "it did not register, or that Instahyre has not caught up. Do NOT "
+                "re-send on this evidence -- an employment outcome reported twice "
+                "cannot be un-reported either." % hired_id
+            )
+        return result
+
+    def rate_opportunity(
+        self,
+        rating_uri: Any,
+        rating: Any = None,
+        *,
+        ask_later: bool = False,
+        confirm: bool = False,
+    ) -> dict:
+        """Rate ONE opportunity 1-5, or ask to be asked later.
+
+        THE SITE'S OWN TWO GUARDS ARE REPRODUCED, not improved on, because a
+        rail of ours dressed up as the platform's is the confusion this
+        package's register exists to avoid. ``$scope.submitRating`` refuses to
+        send when ``ask_later`` is false and no rating was picked, and refuses
+        to send a SECOND ask-later once ``asked_before`` is set on the live
+        payload. Both refusals happen here, both read off the live payload
+        rather than off memory.
+
+        THE URI MUST COME FROM A LIVE READ. ``get_opportunity_info`` is re-read
+        before anything is sent and ``rating_uri`` must equal the
+        ``resource_uri`` it currently offers. A fabricated uri cannot be
+        submitted, and today -- with that endpoint answering
+        ``{"show_modal": false}`` on this account -- EVERY call here refuses.
+
+        WHERE THE FIELDS GO. All three ride the QUERY STRING, because
+        ``submit_rating`` declares them as action-level ``params``, and the same
+        object is ALSO the JSON body. Reproducing one half only would be a
+        guessed request; see
+        ``constants.ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING``. ``rating``
+        goes out as ``null`` on the ask-later branch on purpose -- that is
+        ``$scope.rating``, which is null until a star is clicked -- and this
+        client drops a null from the query string exactly as Angular's own
+        parameter serializer does, while keeping it in the body.
+
+        Args:
+            rating_uri: The ``resource_uri`` currently offered by
+                instahyre_pending_requests. Validated against a live re-read.
+            rating: 1 to 5. May be None only when ask_later is True.
+            ask_later: Send the defer answer instead of a rating.
+            confirm: Must be True to send. False (the default) returns the
+                exact request that would go out and issues nothing at all.
+        """
+        wanted = _normalise_rating_uri(rating_uri)
+        score = _normalise_rating(rating, ask_later=bool(ask_later))
+        defer = bool(ask_later)
+
+        offer = self._live_rating_offer()
+        if not offer["show_modal"] or not offer["resource_uri"]:
+            raise NotFound(
+                "Refusing to rate %r: Instahyre is not currently offering a rating. "
+                "get_opportunity_info was re-read for this call and answered "
+                "show_modal=%r with %s. Nothing is pending, which is the normal state "
+                "of this channel on this account and not an error -- but it means "
+                "there is no opportunity to rate and no uri that could match."
+                % (
+                    wanted,
+                    offer["show_modal"],
+                    "no resource_uri"
+                    if not offer["resource_uri"]
+                    else "resource_uri %r" % offer["resource_uri"],
+                ),
+                rating_uri=wanted,
+            )
+        if wanted != offer["resource_uri"]:
+            raise NotFound(
+                "Refusing to rate %r: that is not the opportunity Instahyre is asking "
+                "about. The live offer names %r. The uri is re-read rather than "
+                "remembered because a rating aimed at the wrong opportunity is a "
+                "judgement recorded against an employer nobody meant to judge."
+                % (wanted, offer["resource_uri"]),
+                rating_uri=wanted,
+                offered=offer["resource_uri"],
+            )
+        if defer and offer["asked_before"]:
+            raise NothingToDo(
+                "Refusing to ask later a second time: the live payload says "
+                "asked_before=%r. This is Instahyre's own rule, not ours -- "
+                "$scope.submitRating returns without sending when ask_later is set "
+                "and asked_before is true -- and it is read off the live payload "
+                "rather than remembered." % (offer["asked_before"],),
+                rating_uri=wanted,
+            )
+
+        body = {"rating_uri": wanted, "ask_later": defer, "rating": score}
+        # THE SAME THREE FIELDS, IN BOTH PLACES, which is what Angular does
+        # here -- with one asymmetry that is real rather than tidy. A null
+        # rating is DROPPED from the query string and KEPT in the body, by
+        # Angular's own parameter serializer and by this client's alike. The
+        # query is therefore filtered here rather than at the transport, so
+        # that the PREVIEW shows what will actually go out: a preview that
+        # printed rating=None in a query string the wire would not carry would
+        # be describing a request nobody sends, on a surface whose whole gate
+        # is the preview.
+        query = {key: value for key, value in body.items() if value is not None}
+        preview = {
+            "would_send": {
+                "method": "POST",
+                "url": C.API_BASE + C.EP_CANDIDATE_RATING_SUBMIT,
+                "query_string": query,
+                "json_body": body,
+                "headers": {
+                    "Content-Type": "application/json",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
+                    "Referer": C.SITE_BASE + "/",
+                },
+            },
+            "action": "ASK LATER" if defer else "SUBMIT A RATING",
+            "rating": score,
+            "ask_later": defer,
+            "rating_uri": wanted,
+            "asked_before": offer["asked_before"],
+            "scale": "%d to %d" % (C.RATING_SCALE_MIN, C.RATING_SCALE_MAX),
+            "why_the_fields_are_in_two_places": (
+                "submit_rating declares rating_uri, ask_later and rating as "
+                "action-level params, which in Angular are URL parameters and ride "
+                "the query string, while the same object is also the POST data. Both "
+                "halves are reproduced; see "
+                "constants.ANGULAR_ACTION_PARAMS_RIDE_THE_QUERY_STRING for which half "
+                "is captured off disk and which is library behaviour."
+            ),
+            "irreversible": True,
+            "contract": _contract("opportunity_rating"),
+            "warning": (
+                "A rating is a judgement recorded against a named employer and there "
+                "is no shipped path that edits or withdraws one."
+            ),
+            "never_run_live": (
+                "No rating has ever been sent by this server, and none can be until "
+                "Instahyre offers one. The request was read out of the shipped "
+                "caller; it has never been serialized by a browser here."
+            ),
+        }
+        if not confirm:
+            preview["confirmed"] = False
+            preview["next"] = (
+                "NOTHING HAS BEEN SENT. Re-run with confirm=True to %s."
+                % ("ask later" if defer else "submit a rating of %s" % score)
+            )
+            return preview
+
+        self._require_csrf("submit an opportunity rating")
+        _guard_leaderboard_sendable(C.EP_CANDIDATE_RATING_SUBMIT)
+
+        log.warning(
+            "irreversible OPPORTUNITY RATING sent: uri=%s rating=%s ask_later=%s",
+            wanted,
+            score,
+            defer,
+        )
+        response = self.http.post(
+            C.EP_CANDIDATE_RATING_SUBMIT,
+            params=query,
+            json_body=body,
+            extra_headers={"Origin": C.SITE_BASE},
+        )
+
+        return {
+            "confirmed": True,
+            "sent": preview["would_send"],
+            "rating": score,
+            "ask_later": defer,
+            "rating_uri": wanted,
+            "response": response if isinstance(response, dict) else {"raw": str(response)[:200]},
+            "irreversible": True,
+            "verification": self._verify_rating(wanted),
+        }
+
+    def _verify_rating(self, rating_uri: str) -> dict:
+        """Re-read the offer and say whether it has stopped being made.
+
+        State, not status code, for the same reason every other verification
+        here reads state: nobody has seen this endpoint's reply.
+
+        THE ONE HONEST LIMIT, stated rather than papered over: an ask-later
+        that succeeded may legitimately leave the SAME uri on offer, since
+        deferring is not answering. So a still-offered uri is reported as a
+        fact and not as a failure, and the caller is told which reading applies.
+        """
+        try:
+            offer = self._live_rating_offer()
+        except InstahyreError as exc:
+            return {
+                "ok": False,
+                "how": "the rating offer could not be re-read (%s), so whether the "
+                "rating registered is UNKNOWN. Do NOT re-send; run "
+                "instahyre_pending_requests first." % exc.kind,
+                "still_offered": None,
+            }
+        still = bool(offer["show_modal"]) and offer["resource_uri"] == rating_uri
+        return {
+            "ok": not still,
+            "how": (
+                "get_opportunity_info was re-read; a rated opportunity should stop "
+                "being offered. An ASK LATER may legitimately still be offered, so "
+                "still_offered is a fact here rather than a verdict"
+            ),
+            "still_offered": still,
+            "asked_before": offer["asked_before"],
+        }
+
     # -- 1. support tickets (WIRE) -----------------------------------------
 
     def support_ticket(self, message: str, *, confirm: bool = False) -> dict:
@@ -1860,6 +2527,151 @@ class Writer:
             "response": response,
             "note": "Sent. There is no unsend.",
         }
+
+
+# ---------------------------------------------------------------------------
+# The leaderboard cluster's normalisers
+#
+# EACH ONE REFUSES RATHER THAN REPAIRS, which is the same rule the bulk-apply
+# normaliser follows and for the same reason: a repaired argument is a
+# different request than the one the caller read in the preview, and both of
+# these surfaces are irreversible.
+# ---------------------------------------------------------------------------
+
+
+def _shape_hire_check(record: Any) -> dict:
+    """One hire-check row, named the way a person would name it.
+
+    THE FIELD NAMES ARE THE SITE'S, read off its own reader rather than
+    invented: ``rec_name``, ``company_name``, ``designation``, ``month``,
+    ``day``, ``hired_id``, ``can_image``, ``company_image``, ``ask_me_later_at``
+    -- every one of them assigned in the shipped block that populates
+    ``$scope.verifyHireData``.
+
+    THE TWO IMAGE URLS ARE NAMED HERE AND DELIBERATELY NOT ECHOED. The site
+    reads them to draw two avatars in a modal; they carry nothing a person
+    deciding how to answer would use, and one of them is a URL to his own
+    photograph. Their PRESENCE is reported, because that is the part that says
+    something about the payload; their values are not, because echoing a
+    personal asset URL into a tool result buys nothing.
+
+    NEVER SEEN POPULATED. Every field below comes from shipped source. The live
+    endpoint answered ``{"data": []}`` on 2026-08-25, so no record of this
+    shape has ever been read.
+    """
+    row = record if isinstance(record, dict) else {}
+    return {
+        "hired_id": row.get("hired_id"),
+        "company": row.get("company_name"),
+        "designation": row.get("designation"),
+        "recruiter": row.get("rec_name"),
+        "joining_day": row.get("day"),
+        "joining_month": row.get("month"),
+        "ask_me_later_at": row.get("ask_me_later_at"),
+        "has_candidate_image": bool(row.get("can_image")),
+        "has_company_image": bool(row.get("company_image")),
+    }
+
+
+def _normalise_hired_id(hired_id: Any) -> str:
+    """One non-empty id, as a string. Refuses anything else."""
+    if isinstance(hired_id, bool) or hired_id is None:
+        raise NothingToDo(
+            "A hire check needs an id. Read one off instahyre_pending_requests -- "
+            "this server will not invent one, and an id that did not come from a "
+            "live read cannot be submitted anyway.",
+            hired_id=repr(hired_id),
+        )
+    text = str(hired_id).strip()
+    if not text:
+        raise NothingToDo(
+            "A hire check needs a non-empty id. Read one off "
+            "instahyre_pending_requests.",
+            hired_id=repr(hired_id),
+        )
+    return text
+
+
+def _normalise_choice(choice: Any) -> int:
+    """The answer, as an integer, with NO meaning attached to it.
+
+    A BOOLEAN IS REFUSED even though Python would happily widen it, because
+    ``True`` would silently become ``choice=1`` -- a value whose meaning is
+    exactly what this cluster does not know. A caller who typed a boolean meant
+    something, and quietly turning it into an unmeasured integer on an
+    irreversible surface is the class of repair this module refuses everywhere
+    else.
+    """
+    if isinstance(choice, bool) or not isinstance(choice, int):
+        raise NothingToDo(
+            "choice must be an integer. %r is not one, and it is not coerced: only "
+            "choice=0 has a shipped caller (the dismiss branch), so this server "
+            "cannot tell you what any other value means and will not turn a "
+            "different type into one. %s" % (choice, C.HIRE_CHOICE_MEANINGS_ARE_UNMEASURED),
+            choice=repr(choice),
+        )
+    return choice
+
+
+def _normalise_rating_uri(rating_uri: Any) -> str:
+    """One non-empty resource uri, as a string. Refuses anything else."""
+    if not isinstance(rating_uri, str) or not rating_uri.strip():
+        raise NothingToDo(
+            "rating_uri must be the non-empty resource_uri that "
+            "instahyre_pending_requests reports. This server never assembles one: "
+            "the uri is the platform's own handle for the opportunity being rated, "
+            "and a constructed one would name a different row or none at all.",
+            rating_uri=repr(rating_uri),
+        )
+    return rating_uri.strip()
+
+
+def _normalise_rating(rating: Any, *, ask_later: bool) -> Optional[int]:
+    """1 to 5, or None -- and None is only allowed on the ask-later branch.
+
+    THIS IS INSTAHYRE'S RULE, reproduced rather than invented:
+    ``if(!ask_later && $scope.rating==null){$scope.showRatingError=true;return;}``
+    Their page refuses to submit a rating that has no rating, so this refuses
+    it too, at the same place and for the same reason.
+
+    The bounds are read off the controller -- ``LOWEST_RATING=1``,
+    ``HIGHEST_RATING=5``, and ``ratingSelected`` walking ``i=1..5`` -- not
+    guessed from the number of stars in a screenshot.
+    """
+    if rating is None:
+        if not ask_later:
+            raise NothingToDo(
+                "A rating submission needs a rating. Instahyre's own page refuses "
+                "this exact case (submitRating returns early when ask_later is false "
+                "and the rating is null), so this is their rule reproduced, not a "
+                "rail of ours. Pass rating=%d..%d, or ask_later=True to defer."
+                % (C.RATING_SCALE_MIN, C.RATING_SCALE_MAX),
+                rating=None,
+                ask_later=ask_later,
+            )
+        return None
+    if isinstance(rating, bool) or not isinstance(rating, int):
+        raise NothingToDo(
+            "rating must be an integer between %d and %d. %r is not one, and it is "
+            "not coerced." % (C.RATING_SCALE_MIN, C.RATING_SCALE_MAX, rating),
+            rating=repr(rating),
+        )
+    if not C.RATING_SCALE_MIN <= rating <= C.RATING_SCALE_MAX:
+        raise NothingToDo(
+            "rating must be between %d and %d; %d is outside the scale Instahyre's "
+            "own widget can produce. The bounds are read off its controller "
+            "(LOWEST_RATING=%d, HIGHEST_RATING=%d), so an out-of-range value is a "
+            "request the site could not have made."
+            % (
+                C.RATING_SCALE_MIN,
+                C.RATING_SCALE_MAX,
+                rating,
+                C.RATING_SCALE_MIN,
+                C.RATING_SCALE_MAX,
+            ),
+            rating=rating,
+        )
+    return rating
 
 
 def _normalise_bulk_ids(opportunity_ids: Optional[list]) -> list:
