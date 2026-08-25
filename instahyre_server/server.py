@@ -16,7 +16,7 @@ from typing import Any, Optional
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
-from . import buildinfo, constants as C
+from . import budget, buildinfo, constants as C
 from . import lifecycle, policy, scoring, shape, skillgap
 from .cache import Store, default_db_path
 from .paths import display_path
@@ -66,17 +66,26 @@ def get_sessions() -> SessionStore:
 
 
 def handled(func):
-    """Turn a typed error into an MCP tool error.
+    """Turn a typed error into an MCP tool error, and cap what a result costs.
 
     This is the guard against the failure mode that has already bitten this
     codebase twice: a tool that swallows a problem and returns an innocent
     empty list. Here a failure raises, and the caller sees ``isError``.
+
+    IT IS ALSO WHERE THE RESPONSE CAP IS MOUNTED, and this decorator is the
+    reason the cap can be called package-wide rather than tool-by-tool: all 57
+    tools wear ``@handled``, so a tool added tomorrow is bounded without anyone
+    remembering to bound it. See :mod:`instahyre_server.budget` for what the
+    cap does, the two carve-outs it will not touch, and where its number came
+    from. The cap only ever drops WHOLE rows and reports what it dropped; it
+    never edits a result that already fits, which is every result this server
+    produces today.
     """
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any):
         try:
-            return func(*args, **kwargs)
+            return budget.enforce(func(*args, **kwargs), tool=func.__name__)
         except InstahyreError as exc:
             detail = " ".join(
                 f"{k}={v}" for k, v in exc.context.items() if v is not None and k != "path"
@@ -736,7 +745,7 @@ def instahyre_logout() -> dict:
 
 @mcp.tool()
 @handled
-def instahyre_server_info() -> dict:
+def instahyre_server_info(section: Optional[str] = None) -> dict:
     """What this server is, what code it is running, and what it cannot do.
 
     START HERE WHEN BEHAVIOUR DISAGREES WITH THE SOURCE. ``build.code.commit``
@@ -769,6 +778,24 @@ def instahyre_server_info() -> dict:
 
     Also reports the local index size, request count this process, and the
     known-absent data fields. Costs no request.
+
+    Args:
+        section: Narrow to one block and get it VERBATIM. One of
+            "build", "config", "index", "not_available_on_this_platform",
+            "deliberately_not_built", "irreversible_tools".
+
+            Omit for everything -- with the two long prose blocks
+            (``not_available_on_this_platform`` and ``deliberately_not_built``)
+            cut to their opening line each. Those two were 7,018 of this
+            tool's 8,563 bytes when it was measured on 2026-08-25, and they are
+            standing documentation: the same paragraphs, unchanged for weeks,
+            paid for on every single call. Nothing is deleted and nothing is
+            paraphrased -- ``section=`` returns the same text byte for byte,
+            so the reasoning costs once instead of every time. Every summarised
+            entry keeps the verdict it opens with, which is the half that
+            changes what a reader does next: "BUILT ON 2026-08-25" is not the
+            same answer as "NOT BUILT", and ``message_bodies`` opens by saying
+            it is READABLE, contrary to what that field used to claim.
     """
     # DELIBERATELY NOT get_client(). This tool is reached for when the server is
     # already suspect, and building the client would open the sqlite store,
@@ -802,7 +829,7 @@ def instahyre_server_info() -> dict:
             "min_seconds_between_requests": client.http.min_interval,
             "index": client.store.index_stats(),
         }
-    return {
+    full = {
         "server": "instahyre",
         "tier": "public tools always live; authenticated tools need instahyre_login",
         # Frozen at import -- see instahyre_server.buildinfo. Re-resolving here
@@ -963,6 +990,68 @@ def instahyre_server_info() -> dict:
         "page_size": C.PAGE_SIZE,
         "opportunity_page_size": C.OPP_DEFAULT_LIMIT,
     }
+    return _project_server_info(full, section)
+
+
+#: The blocks ``instahyre_server_info(section=...)`` will narrow to. The exact
+#: top-level key names, deliberately -- a reader who sees a shortened entry in
+#: the default view can name the block it came from without translating.
+SERVER_INFO_SECTIONS = (
+    "build",
+    "config",
+    "index",
+    "not_available_on_this_platform",
+    "deliberately_not_built",
+    "irreversible_tools",
+)
+
+#: The two blocks that are standing prose rather than state: the same
+#: paragraphs on every call, 7,018 of 8,563 bytes measured 2026-08-25. These
+#: are the ONLY keys the default view shortens, and ``section=`` returns each
+#: verbatim. Named here rather than detected by size, because "long" is not
+#: the property that makes a field summarisable -- being unchanging
+#: documentation is, and only a person can tell those apart.
+SERVER_INFO_PROSE_SECTIONS = (
+    "not_available_on_this_platform",
+    "deliberately_not_built",
+)
+
+
+def _project_server_info(full: dict, section: Optional[str]) -> dict:
+    """Everything with the prose shortened, or one block verbatim.
+
+    THE SUMMARY IS NEVER THE LAST COPY. Both shortened blocks name the exact
+    call that returns them in full, in the result itself rather than only in a
+    docstring, because a reader who is holding a truncated sentence is exactly
+    the reader who has stopped reading docstrings. Losing the reasoning to save
+    bytes would be the worse trade: what these blocks record is why a surface
+    was built, retired or refused, and it does not exist anywhere else in a
+    form a caller can reach.
+    """
+    if section is None:
+        out = dict(full)
+        for key in SERVER_INFO_PROSE_SECTIONS:
+            out[key] = shape.summarise_prose(full[key])
+            out[key]["_full_text"] = (
+                "Shortened. instahyre_server_info(section=%r) returns every entry "
+                "above in full, unedited." % key
+            )
+        return out
+    key = str(section).strip().lower()
+    if key not in SERVER_INFO_SECTIONS:
+        raise InvalidFilter(
+            "unknown section %r; expected one of %s"
+            % (section, ", ".join(SERVER_INFO_SECTIONS)),
+            field="section",
+        )
+    # The identity fields, for the same reason the narrowed view of
+    # instahyre_config carries both hashes: a block read out of context has to
+    # say which build it came off, or it cannot be compared with anything --
+    # and this tool's own docstring sends a reader to ``build.code.commit``
+    # first whenever behaviour and source disagree.
+    narrowed = {"section": key, key: full.get(key), "server": full["server"]}
+    narrowed.setdefault("build", full["build"])
+    return narrowed
 
 
 @mcp.tool()
@@ -997,7 +1086,14 @@ def instahyre_config(section: Optional[str] = None) -> dict:
 
     Args:
         section: Narrow to "candidate", "scoring", "server" or "provenance".
-            Omit for everything.
+            Omit for everything -- with ``provenance`` COUNTED rather than
+            enumerated. That block is one of two words per config key and it
+            was 4,784 of this readout's 6,873 bytes on 2026-08-25, 103 entries
+            of which 3,509 bytes were the dotted key names. The summary reports
+            the file-versus-default split per block and NAMES every key still
+            on a default, which is the half a reader can act on; the other 90
+            are answerable from the counts. section="provenance" returns all
+            103 entries verbatim, unchanged.
     """
     try:
         return policy.report(section)
@@ -1035,7 +1131,13 @@ def instahyre_inbound_digest(
             jobcore engine using the skills on his own Instahyre profile, so
             scores are comparable with the Naukri server's. Costs one extra
             (cached) request. Instahyre's own score still drives the order.
-        top_n: How many opportunities to surface.
+        top_n: How many opportunities to surface. Each is a COMPACT row --
+            id, company, title, locations, both scores, the first three
+            keywords and which of his own skills matched. The full record for
+            any one of them is instahyre_get_opportunity, which is where the
+            employer blurb, the tagline, the url and the remaining keywords
+            live. They used to be embedded here, all eight rows of them, which
+            made a triage tool cost more than the queue it was triaging.
         explain: Add the arithmetic behind each jobcore score to that
             opportunity's own row -- the weights, the base skills/experience
             split, every bonus and the cap, and the ``scoring_hash`` it was
@@ -1095,7 +1197,19 @@ def instahyre_inbound_digest(
                 "instahyre_get_profile lists the gaps."
             )
 
-    digest["top_opportunities"] = top
+    # COMPACT ROWS, and the reason is this tool's own job description. A digest
+    # exists to say what deserves attention; embedding near-full opportunity
+    # records inside it made the summary cost more than the thing it summarises
+    # -- measured 2026-08-25, ``top_opportunities`` was 6,185 bytes of a 10,166
+    # byte digest, 61% of a call whose entire purpose is triage. The three keys
+    # this tool ADDED after shaping are named explicitly and kept: the jobcore
+    # score, which of his skills the role wants, and the explain block when it
+    # was asked for. instahyre_get_opportunity remains the way to open the one
+    # row that gets chosen.
+    digest["top_opportunities"] = [
+        shape.compact_opportunity(row, keep=("fit_score", "matched_skills", "explain"))
+        for row in top
+    ]
     digest["queue_total"] = queue.get("total_matching")
     digest["score_note"] = shape.SCORE_NOTE
     if queue.get("queue_recalculated_at"):
@@ -1126,6 +1240,7 @@ def instahyre_list_opportunities(
     limit: int = 30,
     offset: int = 0,
     include_unindexed: bool = False,
+    detail: str = "compact",
 ) -> dict:
     """The curated queue: roles employers matched TO him, with match scores.
 
@@ -1150,8 +1265,31 @@ def instahyre_list_opportunities(
             disagree. The default matches the count shown on the website; this
             switches to the wider one, which returns roughly 15 more records
             that their search index has dropped.
+        detail: "compact" (default) or "full".
+
+            COMPACT carries what choosing between these roles actually needs
+            and nothing else: ``id`` (the only thing apply and decline accept),
+            ``company``, ``title``, ``locations``, ``match_score``, and the
+            first three keywords with ``skills_more`` counting the rest. It
+            also keeps ``is_active`` and ``location_match`` WHEN THEY ARE
+            FALSE, because a dead posting or an out-of-area role presented as
+            neither is a wrong answer rather than a smaller one; on a healthy
+            row those fields are absent and cost nothing.
+
+            FULL is the previous shape, unchanged field for field: it adds the
+            employer blurb, tagline, founding year, company id and size, the
+            job id, the status, the opportunity url and all eight keywords.
+
+            The default changed on 2026-08-25 and the reason is measured rather
+            than stylistic. Thirty default rows were 20,902 bytes, about 5,200
+            tokens; two thirds of that described EMPLOYERS, ``about`` alone was
+            31% and repeats verbatim for every role at the same employer, and
+            ``strong_match`` was true on all thirty, so it separated nothing.
+            None of it is lost -- instahyre_get_opportunity assembles the whole
+            record from three sources for the one row that gets chosen, which
+            is where that detail is worth paying for.
     """
-    return get_client().inbound.list_opportunities(
+    result = get_client().inbound.list_opportunities(
         interest=interest,
         location=location,
         company_size=company_size,
@@ -1161,6 +1299,18 @@ def instahyre_list_opportunities(
         offset=offset,
         full_queue=include_unindexed,
     )
+    try:
+        result["opportunities"] = shape.project_opportunities(
+            result["opportunities"], detail
+        )
+    except ValueError as exc:
+        # A misspelled mode RAISES rather than falling back to either shape.
+        # Serving compact rows to a caller who asked for full is how fields go
+        # missing with nobody told; serving full to a caller who asked for
+        # compact silently spends the context this parameter exists to save.
+        raise InvalidFilter(str(exc), field="detail") from exc
+    result["detail"] = str(detail).strip().lower()
+    return result
 
 
 @mcp.tool()

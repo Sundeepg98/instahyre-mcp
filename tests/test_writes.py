@@ -1493,11 +1493,22 @@ def test_a_send_that_cannot_be_confirmed_says_so_and_says_do_not_retry():
 
 def test_the_reply_tool_is_declared_irreversible_by_the_server_itself():
     """A server that can send and does not say so is worse than one that never
-    could -- and the mirror: it must not claim the inbox is unwritable."""
-    info = server_module.instahyre_server_info()
+    could -- and the mirror: it must not claim the inbox is unwritable.
 
+    RE-POINTED 2026-08-25, when ``deliberately_not_built`` moved behind
+    ``section=`` so it costs once instead of on every call. This test caught
+    that move, which is the whole reason it is written against the CONTENT
+    rather than against the tool's default shape. It now asserts both halves of
+    what "moved" has to mean: the prose is reachable and byte-for-byte intact
+    under its section, and the default view still says the block exists and
+    names the call that returns it. A summary that was the last remaining copy
+    would pass neither.
+    """
+    info = server_module.instahyre_server_info()
     assert "instahyre_reply_to_conversation" in info["irreversible_tools"]
-    inbox = info["deliberately_not_built"]["inbox_writes"]
+
+    narrowed = server_module.instahyre_server_info(section="deliberately_not_built")
+    inbox = narrowed["deliberately_not_built"]["inbox_writes"]
     assert "ALL FOUR MEASURED INBOX WRITES ARE NOW REACHABLE" in inbox
     assert "allowlist" in inbox
     # The mirror of the mirror, added 2026-08-25: the block must not go on
@@ -1507,6 +1518,14 @@ def test_the_reply_tool_is_declared_irreversible_by_the_server_itself():
     assert "instahyre_star_conversation" in inbox
     assert "instahyre_mark_conversation_read" in inbox
     assert "instahyre_mark_all_conversations_read" in inbox
+
+    # RELOCATED, NOT REMOVED. The default view keeps the entry and its verdict,
+    # and states where the rest is -- so a reader of the cheap view is never
+    # left believing the short line is all there ever was.
+    summary = info["deliberately_not_built"]
+    assert "inbox_writes" in summary
+    assert "ALL FOUR MEASURED INBOX WRITES ARE NOW REACHABLE" in summary["inbox_writes"]
+    assert "section='deliberately_not_built'" in summary["_full_text"]
 
 
 # ===========================================================================

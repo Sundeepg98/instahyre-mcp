@@ -349,6 +349,171 @@ SCORE_NOTE = (
 )
 
 
+# ===========================================================================
+# COMPACT PROJECTION -- what a caller needs to DECIDE, not everything we know
+# ===========================================================================
+#
+# MEASURED, on this account's real pending queue on 2026-08-25, thirty rows:
+# ``opportunities`` was 20,902 bytes, about 5,200 tokens of a caller's context
+# for one default call, and the ranking of what made it big is the argument for
+# this projection rather than any opinion about verbosity::
+#
+#     about         6,497 bytes  (31%)   employer blurb, IDENTICAL for every
+#                                        role at that employer
+#     url           2,916               derivable from the id, one call later
+#     skills        1,893               the role's actual content
+#     tagline       1,520               employer one-liner, same per employer
+#     title         1,015
+#     locations       897
+#     company_size    700
+#     company         697
+#     strong_match    600   present on 30 of 30 rows, so it separates nothing
+#     match_score     586
+#     status          570   equal to the ``interest`` echoed once per result
+#     company_id      565
+#     id              540
+#     job_id          478
+#     founded         450
+#
+# Two thirds of that payload describes EMPLOYERS. Picking between opportunities
+# needs identity, place and rank -- and one thing that says what the role is.
+# ``instahyre_get_opportunity`` already assembles the rest from three sources,
+# so nothing here is lost; it is only no longer paid for thirty times over on a
+# call that was asked to help choose.
+
+#: Every compact row carries exactly these, and no compact row omits one.
+COMPACT_OPPORTUNITY_FIELDS = ("id", "company", "title", "locations", "match_score")
+
+#: The ONE differentiator, capped. Titles on this platform repeat ("Software
+#: Engineer" eleven times in one thirty-row sample) and ``match_score`` orders
+#: but does not describe, so the keywords are what separates two adjacent rows.
+#: Three, not eight: measured at 63 bytes per row for eight and 28 for three,
+#: and the first three are the ones Instahyre itself ranked on.
+COMPACT_MAX_SKILLS = 3
+
+#: NEGATIVE flags only, and they are not a second differentiator -- they are
+#: the reason a compact row cannot simply be the five fields above. Each is
+#: emitted by ``shape_opportunity`` ONLY when it is false, so each costs zero
+#: bytes on a healthy row and is decision-critical on the row that has it: a
+#: dead posting presented as live, or an out-of-area role presented as local,
+#: is a WRONG answer rather than a smaller one. Neither appeared on any of the
+#: thirty rows measured above, so keeping them cost nothing measurable.
+COMPACT_WARNING_FIELDS = ("is_active", "location_match")
+
+#: What ``detail`` accepts. "full" is today's shape, byte for byte.
+DETAIL_MODES = ("compact", "full")
+
+
+def compact_opportunity(
+    record: dict, *, max_skills: int = COMPACT_MAX_SKILLS, keep: Iterable[str] = ()
+) -> dict:
+    """One shaped queue record -> the smallest row that can still be chosen between.
+
+    A PROJECTION of :func:`shape_opportunity`, never a second shaping path.
+    It takes a record that function already built and drops from it, so the two
+    cannot drift into disagreeing about what a field means -- there is one
+    place where a queue object becomes a record, and this narrows the result.
+
+    Args:
+        record: an already-shaped opportunity.
+        max_skills: how many keywords survive. ``skills_more`` reports the
+            remainder rather than letting the list end silently.
+        keep: extra keys the caller added AFTER shaping and needs back --
+            ``instahyre_inbound_digest`` scores these rows, so it names
+            ``fit_score``, ``matched_skills`` and ``explain``. Nothing is kept
+            that the caller did not name.
+    """
+    out: dict[str, Any] = {}
+    for field in COMPACT_OPPORTUNITY_FIELDS:
+        out[field] = record.get(field)
+    skills = record.get("skills") or []
+    if skills:
+        out["skills"] = list(skills[:max_skills])
+        # The count, not the list: a reader who needs all of them asks for
+        # detail="full" or opens the opportunity. A list that just stops is
+        # how a caller concludes a role wants three things and no more.
+        hidden = max(0, len(skills) - max_skills) + int(record.get("skills_more") or 0)
+        if hidden:
+            out["skills_more"] = hidden
+    for field in COMPACT_WARNING_FIELDS:
+        if field in record:
+            out[field] = record[field]
+    for field in keep:
+        if field in record:
+            out[field] = record[field]
+    return out
+
+
+def project_opportunities(
+    records: list, detail: str, *, keep: Iterable[str] = ()
+) -> list:
+    """Apply ``detail`` to a list of shaped records.
+
+    ``"full"`` returns the same list object's records untouched. Raises on any
+    other spelling rather than silently serving one mode while the caller
+    believes it asked for the other -- a compact row that a caller read as full
+    is a row missing fields nobody was told about.
+    """
+    mode = str(detail).strip().lower()
+    if mode not in DETAIL_MODES:
+        raise ValueError(
+            "detail must be one of %s, not %r" % (", ".join(DETAIL_MODES), detail)
+        )
+    if mode == "full":
+        return records
+    return [compact_opportunity(r, keep=keep) for r in records]
+
+
+
+#: How much of a prose entry a SUMMARY view keeps. Long enough to carry the
+#: verdict each of these blocks opens with -- "BUILT ON 2026-08-25", "NOT
+#: BUILT", "READABLE, contrary to what this field said before" -- because a
+#: summary that kept only the key NAMES would turn an entry recording that
+#: something IS reachable into a line in a list headed "not available".
+SUMMARY_HEAD_CHARS = 120
+
+
+def headline(text: Any, *, limit: int = SUMMARY_HEAD_CHARS) -> Any:
+    """The opening of a prose block, for a summary that points at the full text.
+
+    Cuts on a word boundary and says so with a trailing marker, so a reader can
+    tell a shortened entry from a complete one. Anything that is not a string
+    is returned untouched -- this narrows prose, it does not reshape data.
+
+    NOT a replacement for the prose. Every caller of this pairs it with the
+    parameter that returns the entry verbatim, and the summary names that
+    parameter. Shortening documentation is only acceptable while the long form
+    is one call away; a summary that is the ONLY remaining copy is a deletion
+    wearing a smaller name.
+
+    A PURE TRUNCATION, and that is a deliberate constraint rather than an
+    implementation detail. An entry already inside the limit comes back BYTE
+    FOR BYTE -- no added punctuation, no tidying -- so a test can assert that
+    every short form is a literal prefix of its long form, and no rewrite that
+    softened a verdict or dropped a correction could pass. An earlier draft
+    appended a full stop to entries it was otherwise leaving alone; that is a
+    small thing to get wrong and a small thing to notice, which is exactly the
+    kind of edit that erodes documentation nobody is checking.
+    """
+    if not isinstance(text, str):
+        return text
+    if len(text) <= limit:
+        return text
+    head = text.split(". ")[0]
+    if len(head) < len(text):
+        # The split ate the terminator that ended this sentence; put it back,
+        # because the result is a whole sentence and should read as one.
+        head += "."
+    if len(head) <= limit:
+        return head
+    return head[:limit].rsplit(" ", 1)[0] + " [...]"
+
+
+def summarise_prose(block: dict, *, limit: int = SUMMARY_HEAD_CHARS) -> dict:
+    """A dict of prose entries -> the same keys, each cut to its opening."""
+    return {key: headline(value, limit=limit) for key, value in block.items()}
+
+
 def shape_sibling_role(row: dict) -> dict:
     """A sibling role from opps_from_this_company.
 
