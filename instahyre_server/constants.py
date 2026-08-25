@@ -1333,6 +1333,45 @@ CAPTURED_WRITE_CONTRACTS = {
             "guessed variant this whole register exists to refuse."
         ),
     },
+    "education": {
+        "evidence": CONTRACT_WIRE,
+        "method": "PATCH",
+        "path": EP_EDUCATION,
+        # SPELLED OUT rather than referencing EDUCATION_ROW_KEYS, which is
+        # defined several hundred lines BELOW this dict. A forward reference
+        # here is a NameError at import, which pytest reports as exit 4 and a
+        # careless control harness reports as a passing check.
+        "body_keys": ("objects", "deleted_objects"),
+        "row_keys": (
+            "resource_uri",
+            "candidate",
+            "university",
+            "degree",
+            "specialization",
+            "id",
+            "graduation_year",
+            "gpa",
+            "grading_scale",
+            "current_degree",
+        ),
+        "note": (
+            "Wire-captured 2026-08-25 by invoking $scope.onBoardingProfileSave on the "
+            "live profile page -- a handler that is DEFINED on a scope while nothing "
+            "in the DOM binds to it, so a census by ng-click could never have found "
+            "it. The page built its own body out of its own scope and the router threw "
+            "it away. THE FINDING IS THAT THE READ AND THE WRITE ARE DIFFERENT SHAPES. "
+            "constructEducationObj collapses `university` from the expanded object the "
+            "GET returns down to a bare resource URI, while `current_degree` stays "
+            "EXPANDED alongside the `degree` URI -- both spellings of the degree ride "
+            "the same row. graduation_year goes out as a STRING even though the page's "
+            "own year options are numbers. Two keys, gpa and grading_scale, appear in "
+            "NO shipped bundle at all and were both null: the page cannot have invented "
+            "them, so the GET must return them. `deleted_objects` is the removal "
+            "channel and the capture caught it EMPTY, so removal is UNMEASURED and no "
+            "removal path is built on it -- this server sends [] and offers no way to "
+            "fill it."
+        ),
+    },
 }
 
 # --- Profile writes --------------------------------------------------------
@@ -1381,6 +1420,143 @@ SKILL_ELEMENT_KEYS = frozenset({"resource_uri", "candidate", "id", "name"})
 # our choice -- a resume with 32 skills does not fit and must be prioritised.
 MAX_SKILLS = 20
 MAX_SKILL_NAME_CHARS = 50
+
+# --- Education writes ------------------------------------------------------
+#
+# EP_EDUCATION (defined far above, beside the candidate-id recovery it powers)
+# answers PATCH as well as GET. The contract below is WIRE, recorded 2026-08-25
+# by scripts/capture_write_contracts.py and aborted at the router: the page's
+# own $scope.onBoardingProfileSave was invoked on the live profile page, and
+# educationService.multi_save serialized a real body that never left the box.
+#
+#   PATCH /api/v1/candidate_misc/profile/education
+#   {"objects": [ <row>, ... ], "deleted_objects": []}
+#
+# THE READ AND THE WRITE ARE NOT THE SAME SHAPE, and this is the whole subtlety
+# of the resource. The site applies exactly ONE transformation on the way out,
+# in constructEducationObj:
+#
+#   obj.university = (obj.university && obj.university.resource_uri)
+#                      ? obj.university.resource_uri
+#                      : obj.university ? obj.university : null;
+#
+# So the GET returns `university` EXPANDED and the PATCH sends it as a resource
+# URI. Nothing else in that function changes a value that was read -- degree and
+# specialization are already URIs and are passed through, and `current_degree`
+# rides as an EXPANDED OBJECT beside the `degree` URI. Both spellings of the
+# degree therefore travel on the same row, which looks like a bug and is not:
+# it is what the wire showed, and it is reproduced rather than normalised.
+EDUCATION_PATCH_METHOD = "PATCH"
+
+#: The ten keys the captured row carried, in the order the page sent them.
+#: Recorded so a future read that returns FEWER can be recognised as a
+#: different world rather than absorbed silently.
+EDUCATION_ROW_KEYS = (
+    "resource_uri",
+    "candidate",
+    "university",
+    "degree",
+    "specialization",
+    "id",
+    "graduation_year",
+    "gpa",
+    "grading_scale",
+    "current_degree",
+)
+
+#: `gpa` and `grading_scale` appear in ZERO of the ten shipped bundles -- no
+#: assignment, no read, no form control, not even a string literal. The page
+#: cannot have invented them, and educationCallback assigns the server's row
+#: objects onto the scope wholesale (`$scope.educations = response.objects`),
+#: so they reached the wire because the GET returned them. That is the evidence
+#: that the READ carries all ten keys; it is DERIVED from the capture plus a
+#: bundle census, not measured against a live GET response body.
+EDUCATION_GPA_KEYS_ARE_SERVER_SUPPLIED = True
+
+#: The only value either key has ever been OBSERVED holding is null. No bundle
+#: names them, so there is no client-side validator to read a type or a range
+#: off, and the server's own acceptance is unmeasured. They are writable
+#: because the key demonstrably rides the row; the number that goes in one is
+#: checked for sanity here and then VERIFIED BY RE-READING, which is the only
+#: honest instrument available for a field with no published contract.
+EDUCATION_GPA_TYPE_IS_UNMEASURED = True
+
+#: A sanity ceiling chosen HERE, and it is important that it does not read as
+#: the platform's. No bundle publishes a limit for gpa or grading_scale, so
+#: there is nothing to quote. 100 covers every scale a user of this site
+#: plausibly enters -- 4.0, 10.0, and percentage -- and exists to catch a
+#: decimal point in the wrong place, not to describe a rule Instahyre enforces.
+EDUCATION_GPA_MAX = 100
+
+#: Sent as a STRING. The wire body carried "2021", not 2021, even though the
+#: page's own option list is built by getYears() as {value: <number>} -- the
+#: select writes the string back through ngModel on the way past. A CHANGED
+#: value therefore goes out as a string, matching the browser; an UNTOUCHED one
+#: is echoed in whatever type the server gave, which is the same rule
+#: JSP_STRING_TYPED_DECIMALS states for the jsp's decimals.
+EDUCATION_GRADUATION_YEAR_IS_STRING = True
+
+#: getYears() ships as `start = start ? start : 1980` and
+#: `stop = stop ? stop : new Date().getFullYear() + 3`. Both bounds are READ
+#: from the bundle rather than chosen here; the lookahead is what lets a
+#: current student record a future graduation.
+EDUCATION_MIN_GRADUATION_YEAR = 1980
+EDUCATION_GRADUATION_YEAR_LOOKAHEAD = 3
+
+#: Related-object ids. NOT writable through this server. Setting one means
+#: choosing a row out of a taxonomy the page had already loaded -- degrees,
+#: specializations and a universities autocomplete that can also CREATE a row
+#: (updateCustomUniversity exists precisely because a typed institute comes back
+#: with a new uri). That is a wider contract, with its own read side, and none
+#: of it has been measured. Each is refused BY NAME with this reason.
+EDUCATION_RELATED_FIELDS = {
+    "university": "the institute -- a universities row, and the page can create one",
+    "degree": "the degree -- a degrees taxonomy row",
+    "current_degree": "the degree again, in its expanded spelling",
+    "specialization": "the specialization -- a specializations taxonomy row",
+}
+
+#: Keys the SERVER owns. They ride every write because the row goes back whole,
+#: but a caller may never set one.
+EDUCATION_SERVER_OWNED_KEYS = frozenset({"resource_uri", "candidate", "id"})
+
+#: What this server will change on an education row.
+EDUCATION_WRITABLE_FIELDS = ("graduation_year", "gpa", "grading_scale")
+
+#: WHETHER AN OMITTED ROW IS A DELETION IS NOT KNOWN FOR THIS RESOURCE, and the
+#: payload is built so that the question never has to be answered. Two readings
+#: are live and they point opposite ways:
+#:
+#:   `multi_save` on the sibling resource candidate_skill_model IS a full
+#:   replacement set -- MEASURED, by omitting a row and watching it be deleted.
+#:   Same action name, same {objects: [...]} envelope.
+#:
+#:   But education's envelope carries a SECOND key, `deleted_objects`, which
+#:   skills has no equivalent of. A resource with an explicit removal channel
+#:   has less need of removal-by-omission, so the sibling's measurement does not
+#:   transfer cleanly.
+#:
+#: Sending every row the read returned is correct under BOTH readings, which is
+#: why it is the rule here rather than a preference.
+EDUCATION_OMISSION_SEMANTICS_MEASURED = False
+
+#: The removal channel, and the reason nothing is built on it. The shipped
+#: source is unambiguous about the SHAPE -- removeEmptyRow pushes
+#: `education.resource_uri` onto $scope.deleted_educations, so it is a list of
+#: resource URIs -- but the capture caught it EMPTY, so no removal has ever
+#: been serialized, let alone answered. This server sends [] and offers no way
+#: to fill it. An unmeasured branch is not a feature waiting for a caller.
+EDUCATION_DELETED_OBJECTS_KEY = "deleted_objects"
+EDUCATION_REMOVAL_IS_UNMEASURED = True
+
+#: One more deviation from the browser, in the safe direction and recorded
+#: rather than hidden. constructEducationObj stamps `removable: true` onto every
+#: row after the first, so a browser save of a two-row education list sends an
+#: eleventh key the server never returned. This server never sends it: the body
+#: is the read plus the university collapse, and the key guards would refuse it.
+#: Strictly fewer fields touched, the same call this package already made when
+#: it skipped the site's second request during a skills write.
+EDUCATION_BROWSER_SENDS_REMOVABLE_KEY = True
 
 # The sparse-PATCH route for scalar profile fields. VERIFIED as genuinely
 # sparse: four independent frontend call sites PATCH a single key and read the

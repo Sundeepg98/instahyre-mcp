@@ -490,6 +490,55 @@ def recipe_workex_save(page: Any) -> dict:
     return {"driven": False, "why": "no workex save control found"}
 
 
+def recipe_workex_put(page: Any) -> dict:
+    """Invoke the onboarding save handler DIRECTLY on the profile page's scope.
+
+    THE CONTROL DOES NOT EXIST, BUT THE HANDLER DOES, and the difference is the
+    whole reason this recipe can work where a click cannot.
+
+    Measured 2026-08-25: `/candidate/onboarding/` does not load the controller
+    bundle at all for an account whose onboarding is complete -- the page serves
+    a marketing variant whose only ng-clicks are the contact modal. So there is
+    no onboarding page to click through. But `/candidate/profile/` DOES load
+    that bundle, so `$scope.onBoardingProfileSave` is defined on a scope in the
+    live page while nothing in the DOM binds to it. A dead binding is a control
+    that does nothing when clicked; this is the inverse -- a live handler with
+    no control, which a census by ng-click can never see.
+
+    Calling it makes the page build its OWN request out of its OWN `$scope`.
+    That is the same evidence class as pressing a button: not a body this
+    package assembled, but a body Instahyre's code assembled. The router throws
+    it away before it leaves the machine.
+
+    The handler fires two requests -- educationService.multi_save and
+    candidateService.save_onboarding_workex -- and both are aborted and
+    recorded. Its scope mutations (defaulting current_company to '', remapping
+    industries and languages) are local to the page and die with the browser.
+    """
+    steps = []
+    outcome = page.evaluate(
+        """() => {
+             if (!window.angular) return 'no angular on this page';
+             const els = document.querySelectorAll('[ng-controller], .ng-scope');
+             for (const el of els) {
+               let sc = null;
+               try { sc = window.angular.element(el).scope(); } catch (e) { continue; }
+               while (sc) {
+                 if (typeof sc.onBoardingProfileSave === 'function') {
+                   try { sc.onBoardingProfileSave(); return 'INVOKED'; }
+                   catch (e) { return 'threw: ' + e.message; }
+                 }
+                 sc = sc.$parent;
+               }
+             }
+             return 'handler not found on any scope';
+           }"""
+    )
+    steps.append("scope walk for onBoardingProfileSave -> %s" % outcome)
+    page.wait_for_timeout(4000)
+    return {"driven": outcome == "INVOKED", "steps": steps, "scope_outcome": outcome}
+
+
 def recipe_job_preferences_save(page: Any) -> dict:
     """Open the job-preferences editor and press Save WITHOUT touching a field.
 
@@ -623,6 +672,7 @@ RECIPES = {
     "referral_send_invites": recipe_referral_send_invites,
     "workex_save": recipe_workex_save,
     "job_preferences_save": recipe_job_preferences_save,
+    "workex_put": recipe_workex_put,
     "saved_search_create": recipe_saved_search_create,
 }
 

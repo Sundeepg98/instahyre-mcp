@@ -1,0 +1,54 @@
+{
+  "_provenance": "WIRE. Recorded by scripts/capture_write_contracts.py on 2026-08-25 from the real signed-in browser and ABORTED at the router before it left the machine. Not a guess and not a reading of shipped source: this is the serialized request the page itself built, after $scope.onBoardingProfileSave was invoked on a scope that defines it while nothing in the DOM binds to it.",
+  "_never_sent": "The router aborts every non-GET. The abort is proven per run by _prove_the_router_aborts, which fires a POST from inside the page and requires that it was blocked.",
+  "_scrubbed": "Account-scoped identifiers replaced with the same invented values tests/fixtures/education.json already carries -- candidate, education and universities rows all name him. The degrees and specializations ids are shared taxonomy rows and are left real. The graduation year and the degree name are replaced for the same reason. Credential headers (cookie, x-csrftoken) were DROPPED, never recorded. What is NOT scrubbed is every key name, every key ORDER and every value TYPE, which is the whole content of this contract.",
+  "method": "PATCH",
+  "url": "https://www.instahyre.com/api/v1/candidate_misc/profile/education",
+  "content_type": "application/json",
+  "sends_csrf_header": true,
+  "body": {
+    "objects": [
+      {
+        "resource_uri": "/api/v1/candidate_misc/profile/education/7770002",
+        "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+        "university": "/api/v1/candidate_misc/profile/universities/41007",
+        "degree": "/api/v1/candidate_misc/profile/degrees/8",
+        "specialization": "/api/v1/candidate_misc/profile/specializations/21",
+        "id": 7770002,
+        "graduation_year": "2019",
+        "gpa": null,
+        "grading_scale": null,
+        "current_degree": {
+          "id": 8,
+          "name": "MTech / ME",
+          "resource_uri": "/api/v1/candidate_misc/profile/degrees/8"
+        }
+      }
+    ],
+    "deleted_objects": []
+  },
+  "body_keys": [
+    "deleted_objects",
+    "objects"
+  ],
+  "row_keys": [
+    "candidate",
+    "current_degree",
+    "degree",
+    "gpa",
+    "grading_scale",
+    "graduation_year",
+    "id",
+    "resource_uri",
+    "specialization",
+    "university"
+  ],
+  "_findings": [
+    "THE READ AND THE WRITE ARE DIFFERENT SHAPES. university is an EXPANDED OBJECT in the GET and a bare resource URI here. The site collapses it in constructEducationObj; nothing else that function does changes a value that was read.",
+    "BOTH SPELLINGS OF THE DEGREE RIDE THE SAME ROW: degree as a URI, current_degree as an expanded object. That is what was captured and it is reproduced rather than normalised.",
+    "graduation_year is a STRING while id is an integer, on the same row. The page's own year options are numbers -- the select writes the string back through ngModel on the way past.",
+    "gpa and grading_scale appear in NO shipped bundle: no assignment, no read, no form control, not even a string literal, across all ten. The page cannot have invented them, and educationCallback assigns the server's row objects onto the scope wholesale, so the GET must return them. That inference is DERIVED, not measured against a live GET body.",
+    "deleted_objects is the removal channel and it was EMPTY. Its SHAPE is known from source -- removeEmptyRow pushes resource URIs onto it -- but no removal has ever been serialized, so removal is UNMEASURED and no removal path is built on it.",
+    "constructEducationObj also stamps removable:true onto every row after the first, so a browser save of a two-row list sends an eleventh key the server never returned. This capture had one row, so it did not appear. This server never sends it."
+  ]
+}

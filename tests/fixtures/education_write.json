@@ -1,0 +1,52 @@
+{
+  "_note": "The education collection as the WRITE side must handle it, kept SEPARATE from education.json on purpose. education.json is the long-standing read fixture that nine test modules use to recover the candidate id; it carries eight keys and an integer graduation_year, and it is deliberately left alone. This one carries the TEN keys the 2026-08-25 wire capture proved ride the row, including gpa and grading_scale -- which appear in no shipped bundle at all, so the page cannot have invented them and the server must be returning them. That last step is DERIVED from the capture plus a bundle census, not measured against a live GET body, which is exactly why it lives in a new fixture rather than being edited into the shared one. Two rows, because 'every row the read returned rides the write' cannot be tested on a one-row fixture. Both rows name the same institute so that no undeclared universities id enters the repo.",
+  "objects": [
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/education/7770002",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "university": {
+        "resource_uri": "/api/v1/candidate_misc/profile/universities/41007",
+        "id": 41007,
+        "name": "Fairmount Institute Of Technology, Northbrook"
+      },
+      "degree": "/api/v1/candidate_misc/profile/degrees/8",
+      "specialization": "/api/v1/candidate_misc/profile/specializations/21",
+      "id": 7770002,
+      "graduation_year": 2019,
+      "gpa": null,
+      "grading_scale": null,
+      "current_degree": {
+        "id": 8,
+        "name": "MTech / ME",
+        "resource_uri": "/api/v1/candidate_misc/profile/degrees/8"
+      }
+    },
+    {
+      "resource_uri": "/api/v1/candidate_misc/profile/education/7770004",
+      "candidate": "/api/v1/candidate_misc/profile/candidate/9999999",
+      "university": {
+        "resource_uri": "/api/v1/candidate_misc/profile/universities/41007",
+        "id": 41007,
+        "name": "Fairmount Institute Of Technology, Northbrook"
+      },
+      "degree": "/api/v1/candidate_misc/profile/degrees/3",
+      "specialization": "/api/v1/candidate_misc/profile/specializations/21",
+      "id": 7770004,
+      "graduation_year": 2016,
+      "gpa": null,
+      "grading_scale": null,
+      "current_degree": {
+        "id": 3,
+        "name": "BTech / BE",
+        "resource_uri": "/api/v1/candidate_misc/profile/degrees/3"
+      }
+    }
+  ],
+  "meta": {
+    "offset": 0,
+    "limit": 200,
+    "total_count": 2,
+    "previous": null,
+    "next": null
+  }
+}

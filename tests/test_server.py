@@ -103,6 +103,13 @@ EXPECTED_TOOLS = {
     # job-search-profile fields were named as NOT writable, on the honest
     # ground that the whole-object PUT was unverified. It was verified.
     "instahyre_update_job_search_profile",
+    # Added 2026-08-25. Education was READ-ONLY until its PATCH was captured off
+    # the wire, and the capture is what changed -- not the appetite. It is the
+    # first write in this package whose READ and WRITE are different shapes, so
+    # the "echo the read back verbatim" rule that makes the two writes above
+    # safe does not transfer, and exactly one transformation is permitted and
+    # guarded. See tests/test_education_write.py.
+    "instahyre_update_education",
     "instahyre_restore_profile",
     "instahyre_list_profile_snapshots",
     "instahyre_verify_apply_target",
@@ -211,13 +218,15 @@ def test_handled_does_not_catch_unrelated_exceptions():
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_registers_exactly_fifty_two_tools(tools):
+def test_the_server_registers_exactly_fifty_three_tools(tools):
     """48 until 2026-08-25, when the three remaining measured inbox writes were
     built; then 52, when the bulk-apply ban was lifted by ruling and
-    instahyre_apply_bulk was built. The number is pinned rather than derived so
-    that a tool appearing on the MCP surface is an edit somebody made here on
-    purpose -- which is exactly what the fifty-second one was."""
-    assert len(tools) == len(EXPECTED_TOOLS) == 52
+    instahyre_apply_bulk was built; then 53, when the education PATCH was
+    captured off the wire and instahyre_update_education replaced a read-only
+    section. The number is pinned rather than derived so that a tool appearing
+    on the MCP surface is an edit somebody made here on purpose -- which is
+    exactly what the last two were."""
+    assert len(tools) == len(EXPECTED_TOOLS) == 53
 
 
 def test_every_tool_name_is_namespaced(tools):

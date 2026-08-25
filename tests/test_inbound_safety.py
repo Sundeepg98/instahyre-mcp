@@ -960,8 +960,14 @@ def test_every_patch_put_and_delete_target_is_a_profile_endpoint():
     write there -- it writes to ``candidate_skills/:id``. Both spellings sit
     under the same profile prefix, so this test would have accepted either; the
     reason the right one is used is recorded at constants.EP_JSP, not here.
+
+    EP_EDUCATION joined on 2026-08-25 with the education write, and it is the
+    one target here that was already in the package as a READ before it became
+    a write target -- the candidate id is recovered from that same collection.
+    It is listed anyway rather than exempted: a path this package already GETs
+    is exactly the kind that acquires a write verb without anybody noticing.
     """
-    allowed = {C.EP_SKILL_MODEL, C.EP_PROFILE_PATCH, C.EP_JSP}
+    allowed = {C.EP_SKILL_MODEL, C.EP_PROFILE_PATCH, C.EP_JSP, C.EP_EDUCATION}
     for path in allowed:
         assert path.startswith("/candidate_misc/profile/"), path
     assert not any(

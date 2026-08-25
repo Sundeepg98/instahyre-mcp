@@ -74,6 +74,16 @@ green tick with someone else's privacy.
     degree id is shared with millions and re-identifies nobody. The institute
     was the sharp one, because a small institute in one year is a small cohort.
 
+  * A PAIR TABLE WRITTEN AS A LIST OF DICTS. `_string_pairs` reads a
+    list/tuple OF TUPLES, and a dict of str -> str. It does NOT read
+    `[{"was": "...", "now": "..."}, ...]`, because each element is a Dict
+    inside a List rather than a Tuple. That is a real hole and it was found the
+    honest way: a legitimate fixture tripped the check, and the tempting repair
+    was to restructure it into dicts -- which would have "fixed" it by moving
+    it into this blind spot. The fixture was allowlisted by LOCATION instead
+    and the hole is written down here rather than quietly walked through.
+    Closing it means teaching `_string_pairs` to read a list of two-key dicts.
+
   * TOKENS SEPARATED FROM THEIR KEY BY A NEWLINE. Check 8 reads one line at a
     time, so a token whose account-ish key sits on a previous line is not
     seen. The fixtures here are pretty-printed one key per line, which is why
@@ -600,6 +610,32 @@ def _shape_of_real_value(text: str):
     return None
 
 
+#: Pair tables admitted BY LOCATION -- `(relpath, symbol)` -- and never by value.
+#:
+#: The distinction is the whole reason this exists. Widening by VALUE would
+#: write the mapping into this file, which is precisely the de-anonymisation key
+#: the check hunts; the assertion message says so and it is right. Naming a
+#: SYMBOL records no mapping at all: a reader learns that a table at that
+#: address was examined and found not to be a key, and learns nothing about what
+#: is in it.
+#:
+#: Each entry is a claim that someone READ the table and found both columns
+#: invented. Adding an entry is that claim; it is not a way to silence a hit.
+ALLOWED_PAIR_TABLES = frozenset(
+    {
+        # 15 invented employer/role pairs used to build a queue fixture long
+        # enough to test the bulk-apply cap, which cannot be exercised on a
+        # six-record fixture. Both columns are made up, and the mapping runs
+        # company -> job title: it reverses no redaction, because there is no
+        # redaction anywhere in it. The check fires because a left column of
+        # Titlecase words is exactly the shape of a real-name column, and it
+        # cannot tell an invented employer from a real one. That is the right
+        # trade for a guard of this kind -- it should over-report here.
+        ("tests/test_bulk_apply.py", "COMPANIES"),
+    }
+)
+
+
 def _string_pairs(node):
     """String (left, right) pairs from a list/tuple of tuples, or a dict."""
     pairs = []
@@ -683,6 +719,8 @@ def test_no_mapping_table_of_real_values():
                     and bool(SUSPICIOUS_TABLE_NAME.search(name))
                 )
                 if not (structural or by_name):
+                    continue
+                if (rel.replace("\\", "/"), name) in ALLOWED_PAIR_TABLES:
                     continue
                 sample = ", ".join(sorted({"<%s>" % shape for shape in shapes})[:3])
                 hits.append(

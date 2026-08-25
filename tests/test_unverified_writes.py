@@ -274,8 +274,21 @@ class TestTheCapturedContracts:
     made a guessed apply body look measured.
     """
 
-    def test_it_names_the_ten_that_were_captured(self):
+    def test_it_names_the_eleven_that_were_captured(self):
         assert set(C.CAPTURED_WRITE_CONTRACTS) == {
+            # Added 2026-08-25, and the entry with the cleanest evidence in the
+            # whole register: a real serialized body, from his own signed-in
+            # browser, aborted at the router. It is also the one whose capture
+            # CHANGED THE DESIGN rather than confirming it. Reading the shipped
+            # source alone would have produced a write that echoed the read back
+            # verbatim -- and the wire showed the page collapsing `university`
+            # from the expanded object the GET returns down to a resource URI on
+            # the way out. A verbatim echo would not have been the measured
+            # request. That gap between SHIPPED and WIRE is the reason the two
+            # classes are kept apart at all, and this is the first entry where
+            # it cost something concrete.
+            "education",
+
             # Added 2026-08-25, and the only entry here that retires a BAN
             # rather than an absence. Both its paths sat in
             # FORBIDDEN_ENDPOINTS, the one refusal in this package that said

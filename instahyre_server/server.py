@@ -1818,6 +1818,73 @@ def instahyre_update_job_search_profile(
 
 @mcp.tool()
 @handled
+def instahyre_update_education(
+    education_id: int,
+    graduation_year: Optional[int] = None,
+    gpa: Optional[float] = None,
+    grading_scale: Optional[float] = None,
+    confirm: bool = False,
+) -> dict:
+    """Update one education row: graduation year, GPA, grading scale.
+
+    DEGREE, UNIVERSITY AND SPECIALIZATION ARE FILTERS on a reverse marketplace,
+    which is why education is worth writing at all -- but they are NOT writable
+    here and are refused by name if asked for. Each is a related-object id, so
+    changing one means resolving a row out of a taxonomy the site's own page had
+    already loaded, and for the institute an autocomplete that can CREATE a row.
+    That is a wider contract than the one that was captured, and nobody has
+    measured it. Change those on the website; this tool moves the three fields
+    that are plain values on the row.
+
+    THE CONTRACT IS WIRE-CAPTURED, on 2026-08-25, from his own signed-in browser
+    and aborted at the router before it left the machine. Two things it settled
+    that no reading of the shipped code alone would have:
+
+      * The READ and the WRITE are different shapes. The GET returns the
+        university as an expanded object and the request sends it as a bare
+        resource URI. That single transformation is the site's own, and it is
+        the only value this server changes that it was not asked to change.
+      * graduation_year travels as a STRING. Passing 2021 here is fine -- it
+        goes out as "2021", which is what the browser sent.
+
+    EVERY EDUCATION ROW RIDES EVERY WRITE, not just the one being edited.
+    Whether a row omitted from the payload is deleted by this resource is not
+    measured: the sibling resource that shares its save action DOES delete
+    omitted rows, while education additionally has its own removal channel,
+    which argues the other way. Sending every row is correct either way, so that
+    is what happens. The removal channel itself is sent EMPTY and there is no
+    way to fill it -- no removal has ever been serialized, so none is offered.
+
+    With confirm=False nothing is sent and the whole payload is shown, including
+    the rows that ride along untouched. A snapshot is written before any write,
+    and instahyre_restore_profile with scope="education" puts every row back.
+    The result reports not only whether the requested fields took but ALSO
+    whether anything else moved -- on this resource that is a finding, not an
+    expected recomputation.
+
+    Args:
+        education_id: The id of the row to edit, from instahyre_get_profile or
+            from this tool's own preview. Rows are addressed by id, never by
+            position.
+        graduation_year: Four-digit year. The accepted range is the site's own
+            year list: 1980 to three years ahead of now.
+        gpa: Grade point average. Only ever OBSERVED as null on the wire and
+            named in no shipped bundle, so its accepted range is unmeasured --
+            the write verifies itself by re-reading.
+        grading_scale: The scale the gpa is out of, e.g. 10 or 4.
+        confirm: Must be True to actually write. False returns a preview.
+    """
+    return get_client().profile_writer.update_education(
+        education_id,
+        graduation_year=graduation_year,
+        gpa=gpa,
+        grading_scale=grading_scale,
+        confirm=confirm,
+    )
+
+
+@mcp.tool()
+@handled
 def instahyre_restore_profile(
     snapshot_id: Optional[str] = None,
     confirm: bool = False,
@@ -1853,20 +1920,30 @@ def instahyre_restore_profile(
     and different requests, and one flag that fired both would make a
     half-failure impossible to describe.
 
+    ``scope="education"`` restores every education row from a snapshot, by
+    PATCHing them all back. Only a snapshot taken by an education write holds
+    them -- no other path fetches that collection -- so a skills or jsp snapshot
+    is refused for this scope rather than half-applied. A row that has been
+    DELETED since the snapshot makes the whole restore refuse: sending a row
+    whose id the server no longer has is unmeasured on this resource, and
+    guessing could take the surviving rows with it.
+
     Args:
         snapshot_id: From instahyre_list_profile_snapshots. Defaults to the newest.
         confirm: Must be True to actually restore.
-        scope: "skills" (default) or "job_search_profile".
+        scope: "skills" (default), "job_search_profile" or "education".
     """
     writer = get_client().profile_writer
     if scope == "skills":
         return writer.restore_skills(snapshot_id, confirm=confirm)
     if scope == "job_search_profile":
         return writer.restore_job_search_profile(snapshot_id, confirm=confirm)
+    if scope == "education":
+        return writer.restore_education(snapshot_id, confirm=confirm)
     raise InvalidFilter(
-        'scope must be "skills" or "job_search_profile", not %r. The two are '
-        "different resources and different requests; there is deliberately no "
-        "value that restores both at once." % (scope,),
+        'scope must be "skills", "job_search_profile" or "education", not %r. '
+        "They are different resources and different requests; there is "
+        "deliberately no value that restores more than one at once." % (scope,),
         field="scope",
     )
 
@@ -1884,7 +1961,9 @@ def instahyre_list_profile_snapshots() -> dict:
             "has never written to the profile. Check jsp_captured before restoring "
             "with scope='job_search_profile': snapshots taken before 2026-08-24 hold "
             "skills and scalars only, and restoring a job-search profile from one is "
-            "refused rather than half-applied."
+            "refused rather than half-applied. Check education_captured the same way "
+            "before scope='education': ONLY an education write captures those rows, "
+            "because no other write path fetches that collection."
         ),
     }
 

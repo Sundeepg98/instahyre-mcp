@@ -65,6 +65,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -196,7 +197,9 @@ class ProfileWriter:
         """
         return self.take_snapshot(label=label)[1]
 
-    def take_snapshot(self, *, label: str = "auto") -> tuple[dict, dict]:
+    def take_snapshot(
+        self, *, label: str = "auto", education: Optional[list[dict]] = None
+    ) -> tuple[dict, dict]:
         """The snapshot, and its summary, as a pair.
 
         A jsp write needs the RECORD, not the summary: the object it is about to
@@ -204,6 +207,14 @@ class ProfileWriter:
         open a window between the restore point and the write in which the two
         could disagree. Building the body out of the snapshot closes that window
         by construction -- what is written is exactly what can be restored.
+
+        ``education`` is PASSED IN rather than read here, and that is deliberate
+        in both directions. It gives an education write the same closed window
+        the jsp write has -- the rows captured are the rows the body is built
+        from -- and it keeps this method's request count at TWO for every path
+        that does not write education. A snapshot that always fetched the
+        education collection would add a third request to every skills write and
+        every jsp write, for a section neither of them can touch.
         """
         skills = self.read_skills()
         raw = self.inbound.http.get(
@@ -226,13 +237,21 @@ class ProfileWriter:
             "skill_names": [s.get("name") for s in skills],
             "job_search_profile": jsp,
         }
+        # ABSENT rather than null when no rows were handed in, so a restore can
+        # tell "this snapshot predates education capture" apart from "this
+        # account has no education rows". The two need different answers: the
+        # first is refused, the second would be a request to delete his whole
+        # education section.
+        if education is not None:
+            record["education"] = education
         path = snapshots_dir() / f"{record['snapshot_id']}.json"
         path.write_text(json.dumps(record, indent=2), encoding="utf-8")
         log.info(
-            "profile snapshot written: %s (%d skills, jsp %s)",
+            "profile snapshot written: %s (%d skills, jsp %s, education %s)",
             path.name,
             len(skills),
             "captured" if jsp else "ABSENT",
+            len(education) if education is not None else "ABSENT",
         )
         summary = {
             "snapshot_id": record["snapshot_id"],
@@ -242,6 +261,8 @@ class ProfileWriter:
             "scalars_captured": sorted(scalars),
             "jsp_captured": bool(jsp),
             "jsp_keys_captured": len(jsp) if jsp else 0,
+            "education_captured": education is not None,
+            "education_rows_captured": len(education) if education is not None else 0,
         }
         return record, summary
 
@@ -252,12 +273,19 @@ class ProfileWriter:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            education = data.get("education")
             out.append(
                 {
                     "snapshot_id": data.get("snapshot_id", path.stem),
                     "taken_at": data.get("taken_at"),
                     "label": data.get("label"),
                     "skills": data.get("skill_names") or [],
+                    "jsp_captured": bool(data.get("job_search_profile")),
+                    # Reported so a caller can pick a snapshot that can actually
+                    # answer the scope they mean to restore, rather than
+                    # discovering the gap at the refusal.
+                    "education_captured": isinstance(education, list),
+                    "education_rows": len(education) if isinstance(education, list) else 0,
                 }
             )
         return out
@@ -1304,6 +1332,727 @@ class ProfileWriter:
             "still_differs": still_off or None,
             "verified_by": "re-read of the profile's jsp object after the restore",
             "reads_as_now": self._describe_jsp(after),
+        }
+
+    # -- education ---------------------------------------------------------
+    #
+    # THE READ AND THE WRITE ARE DIFFERENT SHAPES HERE, which is the one thing
+    # that makes this resource unlike the two above. The GET returns
+    # ``university`` as an EXPANDED OBJECT; the wire body carries it as a bare
+    # resource URI. That is not drift and not a choice made here -- the site
+    # applies exactly one transformation on the way out, in
+    # ``constructEducationObj``:
+    #
+    #     obj.university = (obj.university && obj.university.resource_uri)
+    #                        ? obj.university.resource_uri
+    #                        : obj.university ? obj.university : null;
+    #
+    # So a pure verbatim echo would NOT reproduce the measured request. The body
+    # is therefore "the read, with the university collapse, with the named
+    # fields replaced" -- one transformation, quoted from source, confirmed on
+    # the wire, and nothing else. ``_guard_education_untouched`` exists to prove
+    # that "nothing else" rather than assert it in a comment.
+    #
+    # EVERY ROW THE READ RETURNED RIDES THE WRITE, not just the edited one.
+    # ``{objects: [...]}`` is a MEASURED full replacement set on this platform's
+    # other multi_save resource (candidate_skill_model: a row omitted from the
+    # list was deleted), so on that reading an omitted ROW here is a deletion of
+    # an education entry. Education's envelope also carries ``deleted_objects``,
+    # which skills has no equivalent of, and a resource with an explicit removal
+    # channel has less need of removal-by-omission -- so the sibling's
+    # measurement does not transfer cleanly and the semantics are genuinely
+    # unknown. Sending every row is correct under BOTH readings, which is why it
+    # is the rule rather than a preference.
+
+    def read_education(self) -> list[dict]:
+        """The education rows exactly as the server returns them.
+
+        Verbatim and unshaped, for the same reason the skill rows are: these
+        rows are about to be sent back, and the only way to be certain of what
+        goes back is to never have reshaped it.
+        """
+        payload = self.http.get(C.EP_EDUCATION, params={"limit": 200, "offset": 0})
+        if not isinstance(payload, dict) or "objects" not in payload:
+            raise ApiError(
+                "The education resource answered without an 'objects' key; its "
+                "contract has changed and no write should be attempted against it.",
+                path=C.EP_EDUCATION,
+            )
+        rows = [o for o in payload.get("objects") or [] if isinstance(o, dict)]
+        if not rows:
+            raise ApiError(
+                "The education collection came back empty. There is no row to modify "
+                "and nothing to echo back, and a write built on an absent read would "
+                "invent the rows it claims to be updating. Add an education entry at "
+                + C.SITE_BASE
+                + "/candidate/profile/ first.",
+                path=C.EP_EDUCATION,
+            )
+        return rows
+
+    @staticmethod
+    def _collapse_university(value: Any) -> Any:
+        """The site's own university transformation, mirrored branch for branch.
+
+        The middle branch is the one worth not simplifying away: a dict with NO
+        ``resource_uri`` is passed through UNCHANGED rather than nulled. That is
+        the custom-institute case -- ``updateCustomUniversity`` exists precisely
+        because a typed university comes back with a uri it did not have -- and
+        collapsing it to null here would silently unset the institute on a row
+        this tool was never asked to touch.
+        """
+        if isinstance(value, dict):
+            uri = value.get("resource_uri")
+            return uri if uri else value
+        return value if value else None
+
+    def _validate_education_value(self, field: str, value: Any) -> Any:
+        """One field, checked against what the platform's own bundle publishes."""
+        if field == "graduation_year":
+            if isinstance(value, bool):
+                raise InvalidFilter(
+                    "graduation_year must be a year, not a boolean.", field=field
+                )
+            text = str(value).strip()
+            if not text or not text.lstrip("-").isdigit():
+                raise InvalidFilter(
+                    f"graduation_year must be a four-digit year, got {value!r}. The "
+                    "site's own form validates it with parseInt and offers a fixed "
+                    "list of years.",
+                    field=field,
+                )
+            year = int(text)
+            # datetime rather than the module-level ``time``, which several test
+            # modules monkeypatch with a hand-cranked clock that has no
+            # gmtime. A validator that raises AttributeError under an unrelated
+            # fixture is a validator that gets deleted.
+            latest = (
+                datetime.now(timezone.utc).year
+                + C.EDUCATION_GRADUATION_YEAR_LOOKAHEAD
+            )
+            if not (C.EDUCATION_MIN_GRADUATION_YEAR <= year <= latest):
+                raise InvalidFilter(
+                    f"graduation_year {year} is outside the range the platform's own "
+                    f"year list offers ({C.EDUCATION_MIN_GRADUATION_YEAR} to {latest}). "
+                    "Both bounds are read from the shipped getYears(); the upper one is "
+                    "this year plus "
+                    f"{C.EDUCATION_GRADUATION_YEAR_LOOKAHEAD}, which is what lets a "
+                    "current student record a graduation that has not happened yet.",
+                    field=field,
+                )
+            # A STRING, because that is what the wire carried -- "2021", not
+            # 2021, even though the page's own option values are numbers. Same
+            # rule as the jsp's decimals: a CHANGED value matches the browser, an
+            # UNTOUCHED one is echoed in the server's own type.
+            return str(year)
+
+        if field in ("gpa", "grading_scale"):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise InvalidFilter(
+                    f"{field} must be a number, got {type(value).__name__}.",
+                    field=field,
+                )
+            if value <= 0:
+                raise InvalidFilter(
+                    f"{field} must be greater than zero. Clearing it back to null is "
+                    "not expressible through this tool -- None means 'not supplied' "
+                    "here, exactly as it does on the job-search-profile write -- so a "
+                    "zero would be a value, not an erasure.",
+                    field=field,
+                )
+            if value > C.EDUCATION_GPA_MAX:
+                raise InvalidFilter(
+                    f"{field} of {value} is above {C.EDUCATION_GPA_MAX}, which covers "
+                    "every scale this platform's users plausibly use (4.0, 10.0 and "
+                    "percentage). No bundle publishes a limit for this field, so this "
+                    "bound is a sanity check chosen HERE and is not the platform's -- "
+                    "it exists to catch a decimal in the wrong place, not to describe "
+                    "a rule Instahyre enforces.",
+                    field=field,
+                )
+            return value
+
+        # Reachable only by calling this method directly: the public path
+        # refuses an unknown field by name first. This stays as the backstop for
+        # exactly that direct call -- a field with no validator must never
+        # become a value on the wire.
+        raise WriteRefused(
+            f"No validator for {field}; refusing to send an unchecked value."
+        )
+
+    def _guard_education_keys(self, read_row: dict, body_row: dict) -> None:
+        """Same law as _guard_no_key_dropped, on a row instead of an object.
+
+        Whether an omitted KEY is a deletion on this resource is not measured
+        (unlike the jsp's PUT, where it certainly is), and this guard is what
+        makes the question moot rather than answered: the body is built by
+        copying the read, so a missing key can only mean the copy is broken.
+        A key the read did NOT return is refused for the mirror reason -- a body
+        carrying a field the server never sent is a body the platform has never
+        been sent.
+        """
+        missing = sorted(set(read_row) - set(body_row))
+        if missing:
+            raise WriteRefused(
+                "Refusing to send an education row that omits "
+                + ", ".join(missing)
+                + ". Every key the read returned must ride the write: whether this "
+                "resource treats an omitted key as a deletion is NOT measured, and a "
+                "body that never omits one does not need the answer.",
+                fields=missing,
+            )
+        added = sorted(set(body_row) - set(read_row))
+        if added:
+            raise WriteRefused(
+                "Refusing to send "
+                + ", ".join(added)
+                + ": the read did not return "
+                + ("that key" if len(added) == 1 else "those keys")
+                + " on this education row, so this payload is not the row the server "
+                "holds. The site echoes the row back as it received it, and a body "
+                "with an extra field is a body the platform has never been sent.",
+                fields=added,
+            )
+
+    def _guard_education_untouched(
+        self, read_row: dict, body_row: dict, named: set
+    ) -> None:
+        """Exactly one transformation is permitted, and it is checked by name.
+
+        This is the guard that makes the university collapse safe to perform at
+        all. Without it, "the body is the read plus one measured transformation"
+        is a claim in a docstring; with it, any SECOND transformation -- a
+        normalised current_degree, a re-derived candidate uri, a stringified id
+        -- stops the write instead of reaching his profile.
+        """
+        expected_university = self._collapse_university(read_row.get("university"))
+        if "university" in read_row and body_row.get("university") != expected_university:
+            raise WriteRefused(
+                "The university field was transformed in a way this server does not "
+                "perform. Exactly one transformation is allowed on an education row: "
+                "the expanded object the GET returns is collapsed to its resource_uri, "
+                "which is what constructEducationObj does and what the captured request "
+                "carried. Anything else is unmeasured.",
+                fields=["university"],
+            )
+        moved = sorted(
+            key
+            for key in read_row
+            if key not in named
+            and key != "university"
+            and body_row.get(key) != read_row.get(key)
+        )
+        if moved:
+            raise WriteRefused(
+                "Refusing to send an education row whose "
+                + ", ".join(moved)
+                + " differs from the read without having been asked for. The body is "
+                "the row the server returned with only the named fields replaced; a "
+                "value that moved on its own is a bug in the copy, not a change worth "
+                "sending.",
+                fields=moved,
+            )
+
+    def _education_body_row(self, read_row: dict, supplied: dict) -> dict:
+        """Copy the row, collapse the university, replace only what was named."""
+        validated = {
+            k: self._validate_education_value(k, v) for k, v in supplied.items()
+        }
+        body_row = dict(read_row)
+        if "university" in body_row:
+            body_row["university"] = self._collapse_university(body_row["university"])
+        body_row.update(validated)
+        self._guard_education_keys(read_row, body_row)
+        self._guard_education_untouched(read_row, body_row, set(validated))
+        return body_row
+
+    @staticmethod
+    def _same_graduation_year(before: Any, after: Any) -> bool:
+        """2019 and "2019" are the same year, and one is not a change to make.
+
+        Without this the int the server returns and the string the wire wants
+        would never compare equal, "already at that value" could never fire, and
+        asking for the year already on the profile would send a live write that
+        changes nothing but the serialization.
+        """
+        if before is None or after is None:
+            return before is after
+        return str(before).strip() == str(after).strip()
+
+    def _find_education_row(self, rows: list[dict], education_id: Any) -> dict:
+        if isinstance(education_id, bool) or not isinstance(education_id, int):
+            raise InvalidFilter(
+                "education_id must be the integer id of an existing education row. "
+                "Read them from instahyre_get_profile or the preview of this tool.",
+                field="education_id",
+            )
+        for row in rows:
+            if row.get("id") == education_id:
+                return row
+        raise InvalidFilter(
+            f"No education row with id {education_id}. The rows on this profile are: "
+            + ", ".join(str(r.get("id")) for r in rows)
+            + ". A row is addressed by its own id, never by position -- an index would "
+            "silently move when a row is added.",
+            field="education_id",
+        )
+
+    def _describe_education(self, row: dict) -> dict:
+        """The fields a caller reasons about, resolved through both spellings."""
+        university = row.get("university")
+        if isinstance(university, dict):
+            institute = university.get("name") or university.get("resource_uri")
+        else:
+            institute = university
+        degree = row.get("current_degree")
+        return {
+            "id": row.get("id"),
+            "institute": institute,
+            "degree": degree.get("name") if isinstance(degree, dict) else degree,
+            "graduation_year": row.get("graduation_year"),
+            "gpa": row.get("gpa"),
+            "grading_scale": row.get("grading_scale"),
+        }
+
+    def plan_education(self, education_id: Any, **changes: Any) -> dict:
+        """What an education write would send, without sending it. Reads only."""
+        supplied = {k: v for k, v in changes.items() if v is not None}
+        if not supplied:
+            raise InvalidFilter(
+                "Nothing to update -- pass at least one of: "
+                + ", ".join(C.EDUCATION_WRITABLE_FIELDS),
+                field="fields",
+            )
+
+        related = sorted(k for k in supplied if k in C.EDUCATION_RELATED_FIELDS)
+        if related:
+            raise WriteRefused(
+                "Not writable through this server: "
+                + ", ".join(related)
+                + ". "
+                + "; ".join(
+                    "%s is %s" % (k, C.EDUCATION_RELATED_FIELDS[k]) for k in related
+                )
+                + ". Changing one of these means resolving a row out of a taxonomy the "
+                "page had already loaded -- and for the institute, an autocomplete that "
+                "can CREATE a row -- which is a wider contract than the one that was "
+                "captured and which nobody has measured. They are echoed back untouched "
+                "on every write. Change them at "
+                + C.SITE_BASE
+                + "/candidate/profile/ where the taxonomy is on screen.",
+                fields=related,
+            )
+
+        unknown = sorted(k for k in supplied if k not in C.EDUCATION_WRITABLE_FIELDS)
+        if unknown:
+            raise WriteRefused(
+                "Not writable through this server: "
+                + ", ".join(unknown)
+                + ". Writable education fields are: "
+                + ", ".join(C.EDUCATION_WRITABLE_FIELDS)
+                + ".",
+                fields=unknown,
+            )
+
+        rows = self.read_education()
+        return self._education_plan_from(rows, education_id, supplied)
+
+    def _education_plan_from(
+        self, rows: list[dict], education_id: Any, supplied: dict
+    ) -> dict:
+        target = self._find_education_row(rows, education_id)
+
+        absent = sorted(k for k in supplied if k not in target)
+        if absent:
+            raise WriteRefused(
+                "The education row the server returned does not carry "
+                + ", ".join(absent)
+                + ", so setting "
+                + ("it" if len(absent) == 1 else "them")
+                + " would mean adding a key the read did not return -- a body the "
+                "platform has never been sent. The captured row carried all ten keys "
+                "including gpa and grading_scale, and no shipped bundle names either "
+                "of them, so they are the server's to send. A row that arrives without "
+                "them is a different world from the one that was measured: report it "
+                "rather than writing into it.",
+                fields=absent,
+            )
+
+        objects = []
+        target_index = None
+        for index, row in enumerate(rows):
+            if row is target:
+                # ``is``, never ``==``, and never list.index -- two education
+                # rows that happen to hold equal values would make an
+                # equality-based lookup edit whichever came first.
+                target_index = index
+                objects.append(self._education_body_row(row, supplied))
+            else:
+                # UNTOUCHED rows still get the university collapse, because the
+                # transformation is what the resource is sent, not an edit. What
+                # they never get is a substitution.
+                objects.append(self._education_body_row(row, {}))
+
+        body_row = objects[target_index]
+        changed = {}
+        for key in supplied:
+            before, after = target.get(key), body_row[key]
+            if key == "graduation_year" and self._same_graduation_year(before, after):
+                continue
+            if before != after:
+                changed[key] = {"from": before, "to": after}
+        unchanged = sorted(k for k in supplied if k not in changed)
+
+        collapsed = sorted(
+            row.get("id")
+            for row in rows
+            if isinstance(row.get("university"), dict)
+        )
+        return {
+            "would_send": {
+                "method": C.EDUCATION_PATCH_METHOD,
+                "url": C.API_BASE + C.EP_EDUCATION,
+                "json_body": {
+                    "objects": objects,
+                    C.EDUCATION_DELETED_OBJECTS_KEY: [],
+                },
+                "headers": {
+                    "Content-Type": "application/json",
+                    C.APPLY_CSRF_HEADER: "<from the csrftoken cookie>",
+                },
+            },
+            "education_id": target.get("id"),
+            # Where the edited row sits in ``objects``. Published so the write
+            # can read its own payload back without re-finding the row by id --
+            # objects[0] is the edited row only when it happens to be first.
+            "target_row_index": target_index,
+            "would_change": changed,
+            "already_at_that_value": unchanged,
+            "rows_on_profile": len(rows),
+            "rows_in_body": len(objects),
+            "row_key_count": len(body_row),
+            "reads_as_now": self._describe_education(target),
+            "would_read_as": self._describe_education(body_row),
+            "other_rows_ride_unchanged": [
+                r.get("id") for r in rows if r is not target
+            ],
+            "university_collapsed_on_rows": collapsed,
+            "every_row_rides": (
+                "All %d rows the read returned are in this payload, not just the one "
+                "being edited. Whether an omitted ROW is deleted by this resource is "
+                "NOT measured -- the sibling multi_save resource does delete omitted "
+                "rows, and education additionally has its own deleted_objects channel, "
+                "so the two readings disagree. Sending every row is correct under both."
+                % len(rows)
+            ),
+            "one_transformation": (
+                "university is sent as a resource URI, collapsed from the expanded "
+                "object the GET returns. That is the site's own constructEducationObj, "
+                "and it is the ONLY value this server changes that it was not asked to "
+                "change. current_degree stays EXPANDED beside the degree URI, exactly "
+                "as the captured request carried it."
+            ),
+            "deleted_objects_is_empty": (
+                "Always. removeEmptyRow pushes resource URIs onto this list in the "
+                "site's own code, so the shape is known -- but the capture caught it "
+                "EMPTY, so no removal has ever been serialized and none is built here."
+            ),
+        }
+
+    def update_education(
+        self,
+        education_id: Any,
+        *,
+        graduation_year: Any = None,
+        gpa: Optional[float] = None,
+        grading_scale: Optional[float] = None,
+        confirm: bool = False,
+    ) -> dict:
+        """Write one education row. One PATCH, carrying every row.
+
+        On a reverse marketplace degree, institute and graduation year are
+        filters employers search on, so this is the same class of leverage as
+        the job-search profile rather than a cosmetic detail.
+        """
+        supplied_raw = {
+            "graduation_year": graduation_year,
+            "gpa": gpa,
+            "grading_scale": grading_scale,
+        }
+        plan = self.plan_education(education_id, **supplied_raw)
+        if not confirm:
+            plan["executed"] = False
+            plan["next_step"] = (
+                "Nothing has been sent. Call again with confirm=True to write. A "
+                "snapshot is taken automatically first, and instahyre_restore_profile "
+                "with scope='education' puts every row back."
+            )
+            return plan
+
+        if not plan["would_change"]:
+            raise WriteRefused(
+                "Nothing to write: every field supplied already holds that value. "
+                "Refusing to send a request that cannot change anything -- a no-op "
+                "write is indistinguishable from a broken one, and this one would "
+                "still send every education row to achieve it."
+            )
+
+        if not self.http.cookies.get("csrftoken"):
+            raise WriteRefused(
+                "Refusing to write without a CSRF token -- Django would reject the "
+                "request and the result would be ambiguous. Run instahyre_auth_status."
+            )
+
+        # The snapshot's rows ARE the rows the body is built from, so the restore
+        # point and the payload describe the same instant. Re-reading here would
+        # open a window in which the two could disagree.
+        rows = self.read_education()
+        record, snap = self.take_snapshot(label="pre-education-write", education=rows)
+        captured = record.get("education")
+        if not isinstance(captured, list) or not captured:
+            raise WriteRefused(
+                "The snapshot captured no education rows, so there would be no restore "
+                "point for a write that sends every row. Refusing to write without one."
+            )
+
+        supplied = {k: v for k, v in supplied_raw.items() if v is not None}
+        final = self._education_plan_from(captured, education_id, supplied)
+        if not final["would_change"]:
+            raise WriteRefused(
+                "Between the preview and the write the row already moved to the "
+                "requested values. Nothing was sent."
+            )
+        body = final["would_send"]["json_body"]
+        before_rows = {r.get("id"): r for r in captured}
+
+        log.warning(
+            "writing education row %s on the live profile: %s",
+            education_id,
+            sorted(final["would_change"]),
+        )
+        self.http.patch(C.EP_EDUCATION, json_body=body)
+
+        after_rows = self.read_education()
+        after = {r.get("id"): r for r in after_rows}
+        target_after = after.get(education_id) or {}
+        sent_row = body["objects"][final["target_row_index"]]
+        mismatched = {
+            key: {"wanted": sent_row.get(key), "got": target_after.get(key)}
+            for key in final["would_change"]
+            if not self._education_field_landed(key, final, target_after)
+        }
+        # The collateral report. Every row rides this write, so every row is a
+        # place the server could have moved something nobody named -- and a
+        # report that covered only the edited row would hide exactly that.
+        # Keys are stringified because these dicts are serialized to JSON on the
+        # way to a caller, where an integer key is not a key.
+        also_changed: dict = {}
+        for row_id, before in before_rows.items():
+            now = after.get(row_id)
+            if now is None:
+                also_changed[str(row_id)] = {"before": "present", "after": "GONE"}
+                continue
+            moved = {
+                key: {"before": before.get(key), "after": now.get(key)}
+                for key in sorted(set(before) | set(now))
+                if not (row_id == education_id and key in final["would_change"])
+                and not self._education_values_agree(key, before.get(key), now.get(key))
+            }
+            if moved:
+                also_changed[str(row_id)] = moved
+        appeared = sorted(str(k) for k in after if k not in before_rows)
+
+        result = {
+            "executed": True,
+            "education_id": education_id,
+            "updated": sorted(final["would_change"]),
+            "changed": final["would_change"],
+            "snapshot_id": snap["snapshot_id"],
+            "verified": not mismatched and not also_changed and not appeared,
+            "mismatched": mismatched or None,
+            "verified_by": "re-read of GET " + C.EP_EDUCATION + " after the write",
+            "reads_as_now": self._describe_education(target_after),
+            "rows_sent": len(body["objects"]),
+            "rows_now": len(after_rows),
+            "also_changed_by_the_server": also_changed or None,
+            "rows_that_appeared": appeared or None,
+        }
+        if also_changed or appeared:
+            result["collateral_note"] = (
+                "These rows or keys were not requested and moved anyway. On this "
+                "resource that is a FINDING rather than an expected recomputation: "
+                "unlike the job-search profile, no key here is known to be derived "
+                "from another. A row reported GONE means omission-is-deletion is real "
+                "on this resource after all, which would be the measurement nobody has "
+                "made -- record it. The snapshot above is how to put it back."
+            )
+        if mismatched:
+            result["warning"] = (
+                "THE WRITE DID NOT VERIFY. The request was accepted but the row does "
+                "not read back as intended. Nothing further has been attempted -- call "
+                "instahyre_restore_profile with scope='education' and the snapshot_id "
+                "above, and do not retry until the difference is understood."
+            )
+            log.error("education write did not verify: %s", sorted(mismatched))
+        return result
+
+    def _education_values_agree(self, key: str, wanted: Any, got: Any) -> bool:
+        """Equality, with the two representation differences this resource has.
+
+        Both are named rather than absorbed into a general "coerce both sides"
+        comparison, which would make a genuinely changed id look equal to its
+        own string -- the opposite of what a verify step is for.
+
+        ``graduation_year`` travels as a string and may be read back as an
+        integer. ``university`` travels as a resource URI and the GET returns it
+        EXPANDED, so the write's own payload and the read that verifies it are
+        in different representations BY DESIGN. Which spelling the server echoes
+        immediately after a PATCH is not measured, so both are treated as the
+        same value when they name the same row -- and a DIFFERENT institute
+        still compares unequal, which is the case this has to keep catching.
+        """
+        if key == "graduation_year":
+            return self._same_graduation_year(wanted, got)
+        if key == "university":
+            return self._collapse_university(wanted) == self._collapse_university(got)
+        return wanted == got
+
+    def _education_field_landed(self, key: str, plan: dict, after: dict) -> bool:
+        """Did the field actually take, allowing for the server's own typing.
+
+        graduation_year is sent as a string and may well be READ back as an
+        integer, which is exactly the difference this write does not consider a
+        failure. Comparing raw would report every successful year change as
+        unverified, which is the false alarm that gets a verify step deleted.
+        """
+        wanted = plan["would_change"][key]["to"]
+        return self._education_values_agree(key, wanted, after.get(key))
+
+    def restore_education(
+        self, snapshot_id: Optional[str] = None, *, confirm: bool = False
+    ) -> dict:
+        """Put every education row back to a snapshot. One PATCH does it.
+
+        Restoring is the same request as writing, with older contents -- the
+        snapshot's rows are a valid body once the university collapse is applied,
+        which is the same transformation the write performs.
+
+        A row that has been DELETED since the snapshot is a case this refuses
+        rather than guesses at. The snapshot's row would carry the id and
+        resource_uri of a row the server no longer has, and whether this resource
+        tolerates that, creates a new row, or rejects the whole payload is not
+        measured -- unlike skills, where the answer was learned by watching one
+        disappear. Guessing here could take the surviving rows down with it.
+        """
+        snap = self.load_snapshot(snapshot_id)
+        target = snap.get("education")
+        if not isinstance(target, list) or not target:
+            raise WriteRefused(
+                "That snapshot holds no education rows. Only a snapshot taken by an "
+                "education write captures them -- every other write path deliberately "
+                "does not fetch the collection, so a skills or job-search-profile "
+                "snapshot has nothing to restore here. Use "
+                "instahyre_list_profile_snapshots and pick one with education_captured "
+                "set.",
+                snapshot=str(snap.get("snapshot_id")),
+            )
+
+        current = self.read_education()
+        current_by_id = {r.get("id"): r for r in current}
+        snapshot_ids = [r.get("id") for r in target]
+        vanished = sorted(str(i) for i in snapshot_ids if i not in current_by_id)
+        if vanished:
+            raise WriteRefused(
+                "Education row(s) " + ", ".join(vanished) + " are in the snapshot but "
+                "not on the profile any more. Restoring would send a row whose id the "
+                "server no longer has, and whether this resource re-creates it, ignores "
+                "it or rejects the whole payload is NOT measured. Refusing rather than "
+                "risking the rows that are still there. Re-add the entry at "
+                + C.SITE_BASE
+                + "/candidate/profile/ and restore the values by hand.",
+                fields=vanished,
+            )
+        extra = sorted(str(i) for i in current_by_id if i not in snapshot_ids)
+
+        objects = [self._education_body_row(row, {}) for row in target]
+        differs: dict = {}
+        for row in target:
+            row_id = row.get("id")
+            now = current_by_id.get(row_id, {})
+            moved = {
+                key: {"now": now.get(key), "snapshot": row.get(key)}
+                for key in sorted(set(row) | set(now))
+                if not self._education_values_agree(key, row.get(key), now.get(key))
+            }
+            if moved:
+                differs[str(row_id)] = moved
+
+        preview = {
+            "snapshot_id": snap.get("snapshot_id"),
+            "taken_at": snap.get("taken_at"),
+            "would_send": {
+                "method": C.EDUCATION_PATCH_METHOD,
+                "url": C.API_BASE + C.EP_EDUCATION,
+                "json_body": {
+                    "objects": objects,
+                    C.EDUCATION_DELETED_OBJECTS_KEY: [],
+                },
+            },
+            "would_revert": differs,
+            "rows_in_snapshot": len(target),
+            "rows_on_profile": len(current),
+            "rows_added_since_the_snapshot": extra,
+            "reads_as_now": [self._describe_education(r) for r in current],
+            "would_read_as": [self._describe_education(r) for r in target],
+        }
+        if extra:
+            preview["rows_added_note"] = (
+                "These rows were added after the snapshot and are NOT in this payload. "
+                "Whether this resource deletes a row omitted from objects is not "
+                "measured, so they may survive or may not -- which is why they are "
+                "named here before anything is sent."
+            )
+        if not confirm:
+            preview["executed"] = False
+            preview["next_step"] = "Call again with confirm=True to restore."
+            return preview
+        if not differs:
+            raise WriteRefused(
+                "The live education rows already match that snapshot. Nothing to "
+                "restore, and nothing was sent."
+            )
+        if not self.http.cookies.get("csrftoken"):
+            raise WriteRefused(
+                "Refusing to write without a CSRF token. Run instahyre_auth_status."
+            )
+
+        self.take_snapshot(label="pre-education-restore", education=current)
+        log.warning("restoring education from %s", snap.get("snapshot_id"))
+        self.http.patch(
+            C.EP_EDUCATION,
+            json_body={"objects": objects, C.EDUCATION_DELETED_OBJECTS_KEY: []},
+        )
+
+        after = {r.get("id"): r for r in self.read_education()}
+        still_off: dict = {}
+        for row in target:
+            row_id = row.get("id")
+            now = after.get(row_id, {})
+            off = {
+                key: {"wanted": row.get(key), "got": now.get(key)}
+                for key in sorted(set(row) | set(now))
+                if not self._education_values_agree(key, row.get(key), now.get(key))
+            }
+            if off:
+                still_off[str(row_id)] = off
+        return {
+            "executed": True,
+            "snapshot_id": snap.get("snapshot_id"),
+            "reverted": sorted(differs),
+            "verified": not still_off,
+            "still_differs": still_off or None,
+            "verified_by": "re-read of GET " + C.EP_EDUCATION + " after the restore",
+            "reads_as_now": [self._describe_education(r) for r in after.values()],
         }
 
     def update_fields(self, *, confirm: bool = False, **fields: Any) -> dict:
