@@ -1126,3 +1126,328 @@ def test_no_high_entropy_token_beside_an_account_key():
         "that provably names no person, and name the class when you do.\n%s"
         % _report(hits)
     )
+
+
+# --------------------------------------------------------------------------
+# Check N -- this machine's filesystem layout, in a COMMITTED file
+#
+# ADDED 2026-08-31, AND THE REASON IT DID NOT EXIST IS THE FINDING. This
+# repository has had `tests/test_path_hygiene.py` for over a week, and that
+# file is thorough -- but its subject is a TOOL RESULT at runtime. It walks
+# payloads. It has never read a tracked file. The module you are reading
+# walks every tracked file and, until today, hunted email, phone, LinkedIn
+# handles, credentials and account ids: fifteen shapes, none of them a
+# filesystem path.
+#
+# So the two guards between them left an exact hole -- runtime payloads
+# checked for paths, committed files checked for everything BUT paths -- and
+# a sweep on 2026-08-31 found the operator's given name sitting in a
+# drive-rooted absolute path in tracked files here, in the sibling Instahyre
+# repository, and in Naukri. All three repositories are PUBLIC.
+#
+# Naukri is the instructive one. It ALONE had a committed-file path rule, and
+# that rule was green over its own four leaks, because it was written
+# `[\\/]` -- exactly ONE separator, with the captured segment starting on the
+# next character. On the DOUBLED spelling the next character is another
+# separator, so the rule did not match. A JSON config, a Python string
+# literal, a docstring quoting either, and repr() of any Windows path all
+# write the doubled form. Every leak found that day was the doubled form.
+#
+# Hence the two rules below this comment block: the separator run is `+`, and
+# a control asserts BOTH spellings on every rule, built from chr(92) so that
+# no quoting layer between this file and the regex engine can weaken it
+# without the control going red.
+# --------------------------------------------------------------------------
+
+#: ONE BACKSLASH, spelled rather than escaped. Every separator in the three
+#: rules below is built from this at import time, so the source of this file
+#: contains no literal doubled backslash inside a pattern at all. That is
+#: deliberate and it is the lesson of the defect: a heredoc, an editor or a
+#: patch tool that collapses a doubled backslash silently turns
+#: backslash-or-slash into slash-only, every test keeps passing, and the
+#: Windows half of the rule is dead. Building it here means the collapse has
+#: nothing to collapse.
+BACKSLASH = chr(92)
+
+#: One or more separators, either spelling. THE `+` IS THE WHOLE FIX -- see
+#: the comment block above, and
+#: :func:`test_every_path_rule_sees_the_doubled_separator_spelling`.
+_SEP_RUN = "[" + BACKSLASH + BACKSLASH + "/]+"
+
+#: A Windows per-user directory: the account name is the leaking value.
+WINDOWS_USER_PATH = re.compile(
+    "[A-Za-z]:" + _SEP_RUN + "Users" + _SEP_RUN + "([A-Za-z0-9._-]{2,})"
+)
+
+#: A drive rooted straight at a segment that is not generic -- the form a
+#: checkout under a person's own name takes, e.g. a drive root named after
+#: its owner. This is a SEPARATE rule from the one above because that one
+#: needs a literal `Users` segment and this form has none: the leak sits one
+#: segment to the LEFT of where a user-path rule looks. That gap is not
+#: hypothetical -- it is where every hit in this repository was found.
+#:
+#: The lookbehind is load-bearing: a drive letter is ONE character, and
+#: without it this matches the "s:/" inside "https://" and reports every
+#: correct URL in the repository as a leak.
+DRIVE_ROOT_PATH = re.compile(
+    "(?<![A-Za-z0-9_])[A-Za-z]:" + _SEP_RUN + "([A-Za-z0-9_.-]{2,})"
+)
+
+#: The POSIX home form. The lookbehind excludes ":" so a drive-letter path is
+#: counted once rather than twice, excludes word characters so the prose
+#: "anchored/home/tail" stops reading as a home directory, and excludes "/"
+#: so that widening the run to "/+" cannot let the rule start on the SECOND
+#: slash of "https://home/x" -- past the colon it was written to block.
+POSIX_HOME_PATH = re.compile(
+    "(?<![A-Za-z0-9_:/])/+(?:home|Users)/+([A-Za-z0-9._-]{2,})"
+)
+
+#: Drive roots that name a PLACE rather than a person. MEASURED before this
+#: allowlist was written: the whole tracked tree contains a handful of
+#: distinct drive-path roots and every one of them is already generic, so
+#: this set is small, auditable, and holds ONLY generic tokens. No real value
+#: is named here -- it is an allowlist of the synthetic, never a blocklist of
+#: the real, because a committed list of real values is itself the
+#: de-anonymising key this module exists to refuse.
+GENERIC_DRIVE_ROOTS = frozenset(
+    {
+        "users",            # handed to WINDOWS_USER_PATH, which reads the NEXT segment
+        "windows",
+        "programdata",
+        "program",          # "Program Files" truncates at the space
+        "workspace",
+        "claude-workspace",
+        "dev-cache",
+        "temp",
+        "tmp",
+        "repo",
+        "opt",              # a Z:/opt test-corpus literal
+        "leak",             # a D:/leak test-corpus literal -- names a defect, not a person
+        "out.csv",          # a test corpus literal
+    }
+)
+
+#: Account names in an absolute path that identify nobody. "runner" is the
+#: GitHub Actions account and appears in this repo's CI-path reasoning.
+PLACEHOLDER_ACCOUNTS = frozenset(
+    {
+        "you", "user", "username", "me", "someone", "somebody", "anonymous",
+        "test", "runner", "windows", "public", "default", "home", "root",
+    }
+)
+PLACEHOLDER_ACCOUNT_TOKENS = ("user", "test", "example", "placeholder", "runner")
+
+
+def _segment_is_documentation(segment: str) -> bool:
+    """An ellipsis or an angle-bracket names nobody -- it elides a name.
+
+    Both spellings appear in this repository's own prose, and neither is a
+    valid Windows account name or directory name, so admitting them costs no
+    coverage of anything real.
+    """
+    return "." * 3 in segment or "<" in segment
+
+
+def _account_allowed(segment: str) -> bool:
+    account = segment.lower().strip("._-")
+    if account in PLACEHOLDER_ACCOUNTS:
+        return True
+    if any(token in account for token in PLACEHOLDER_ACCOUNT_TOKENS):
+        return True
+    return _segment_is_documentation(segment)
+
+
+def _drive_root_allowed(segment: str) -> bool:
+    if segment.lower() in GENERIC_DRIVE_ROOTS:
+        return True
+    if any(token in segment.lower() for token in PLACEHOLDER_ACCOUNT_TOKENS):
+        return True
+    return _segment_is_documentation(segment)
+
+
+#: (name, rule, subject builder, the segment the subject names, predicate).
+#:
+#: EVERY RULE ABOVE, REGISTERED. The controls below iterate this tuple rather
+#: than a hand-written list, so a path rule added next year is covered by both
+#: of them the moment it is registered here -- rather than on the day somebody
+#: remembers to extend a test. The builder takes the Windows separator RUN and
+#: the POSIX separator RUN, so one subject serves both spellings and the two
+#: cannot drift apart. Every account named here is invented.
+PATH_SHAPES = (
+    (
+        "WINDOWS_USER_PATH",
+        WINDOWS_USER_PATH,
+        lambda w, p: "C:" + w + "Users" + w + "Jmorrissey" + w + "x.json",
+        "Jmorrissey",
+        _account_allowed,
+    ),
+    (
+        "DRIVE_ROOT_PATH",
+        DRIVE_ROOT_PATH,
+        lambda w, p: "D:" + w + "Given" + w + "projects",
+        "Given",
+        _drive_root_allowed,
+    ),
+    (
+        "POSIX_HOME_PATH",
+        POSIX_HOME_PATH,
+        lambda w, p: p + "home" + p + "jmorrissey" + p + ".config",
+        "jmorrissey",
+        _account_allowed,
+    ),
+)
+
+
+def test_no_tracked_file_publishes_this_machines_layout():
+    """No committed file may carry an absolute path naming a real person.
+
+    This is the check the repository did not have. See the comment block
+    above for what that cost.
+    """
+    hits = []
+    for rel, lineno, line in _iter_lines(skip=_is_pins_or_lock):
+        for name, rule, _subject, _expected, allowed in PATH_SHAPES:
+            for match in rule.finditer(line):
+                segment = match.group(1)
+                if allowed(segment):
+                    continue
+                hits.append(
+                    "%s:%d  %s  %s  (segment %s is not generic/synthetic)"
+                    % (rel, lineno, name, _redact(match.group(0)),
+                       _redact(segment))
+                )
+    assert not hits, (
+        "Absolute local paths naming a real account or a real given name are "
+        "tracked in this repo, which is public. Replace the DATA -- a "
+        "synthetic segment keeps every meaning a path example has, and a "
+        "hygiene fixture that proves itself by carrying the thing it forbids "
+        "is self-refuting. Do NOT add the real value to an allowlist here; "
+        "that rebuilds the key.\n%s" % _report(hits)
+    )
+
+
+def test_every_path_rule_sees_the_doubled_separator_spelling():
+    """THE DEFECT THAT LET THIS CLASS SHIP, PINNED SO IT CANNOT RETURN.
+
+    Asserting both separator CHARACTERS is not enough and that is exactly how
+    the sibling Naukri guard stayed green over its own leaks: it asserted
+    backslash and forward slash, never the separator COUNT. A rule reading
+    one separator cannot match the doubled spelling, and the doubled spelling
+    is the COMMON one in committed code -- a JSON config, a Python literal, a
+    docstring quoting either, repr() of any Windows path.
+
+    Built from chr(92), so no quoting layer can weaken the subject without
+    this test noticing.
+    """
+    for name, rule, subject, expected, _allowed in PATH_SHAPES:
+        single = subject(BACKSLASH, "/")
+        doubled = subject(BACKSLASH + BACKSLASH, "//")
+
+        assert single != doubled, name + ": the two spellings are identical"
+
+        got_single = rule.search(single)
+        assert got_single, name + " cannot see the SINGLE-separator spelling"
+        assert got_single.group(1) == expected, (
+            name + " matched the single form but captured "
+            + repr(got_single.group(1)) + " rather than the segment"
+        )
+
+        got_doubled = rule.search(doubled)
+        assert got_doubled, (
+            name + " IS BLIND TO THE DOUBLED-SEPARATOR SPELLING -- the exact "
+            "defect that let this class ship green across three public repos"
+        )
+        assert got_doubled.group(1) == expected, (
+            name + " matched the doubled form but captured "
+            + repr(got_doubled.group(1)) + " rather than the segment, so it "
+            "would report a separator as the leaking value"
+        )
+
+
+def test_the_doubled_separator_control_fails_on_the_narrow_rule__CONTROL():
+    """THE MUTATION, EXECUTED. A check never seen to fail certifies nothing.
+
+    The narrow rule is DERIVED from the shipped one by undoing exactly the
+    edit that fixed it, so this cannot drift from what it claims to test and
+    it reproduces the real historical defect rather than an imitation of it.
+    If a future rewrite makes this test fail, the widening has been undone.
+    """
+    for name, rule, subject, _expected, _allowed in PATH_SHAPES:
+        narrow = re.compile(rule.pattern.replace("]+", "]").replace("/+", "/"))
+        assert narrow.pattern != rule.pattern, (
+            name + ": the mutation changed nothing, so this control is inert "
+            "-- the separator run is no longer spelled the way it was fixed"
+        )
+        assert narrow.search(subject(BACKSLASH, "/")), (
+            name + ": the narrow rule cannot see the SINGLE form either, so "
+            "this control would pass for the wrong reason"
+        )
+        assert not narrow.search(subject(BACKSLASH + BACKSLASH, "//")), (
+            name + ": the narrow rule now sees the doubled spelling, so the "
+            "shipped rule's '+' is not what makes the difference and the "
+            "control above proves nothing"
+        )
+
+
+#: Shape-valid layout leaks, every one INVENTED, in BOTH separator spellings.
+#: A control that needs a real identifier has the same defect as the fixture
+#: it is guarding.
+_PLANTED_PATHS = (
+    "traceback from C:" + BACKSLASH + "Users" + BACKSLASH + "Jmorrissey"
+    + BACKSLASH + "AppData",
+    "traceback from C:" + BACKSLASH * 2 + "Users" + BACKSLASH * 2
+    + "Jmorrissey" + BACKSLASH * 2 + "AppData",
+    "traceback from C:/Users/Jmorrissey/AppData",
+    "the checkout is at D:" + BACKSLASH + "Given" + BACKSLASH + "projects",
+    "the checkout is at D:" + BACKSLASH * 2 + "Given" + BACKSLASH * 2
+    + "projects",
+    "wrote /home/jmorrissey/.config/state.json",
+    "wrote //home//jmorrissey//.config//state.json",
+)
+
+#: The allowlisted equivalent of each plant -- already synthetic, and it must
+#: stay QUIET. THE CONTROL FOR THE CONTROLS: without it every assertion above
+#: would also pass on a rule that simply refuses everything, which would make
+#: the allowlists meaningless and this module unmaintainable.
+_BENIGN_PATHS = (
+    "scrubbed to C:" + BACKSLASH + "Users" + BACKSLASH + "runner"
+    + BACKSLASH + "work",
+    "scrubbed to C:" + BACKSLASH * 2 + "Users" + BACKSLASH * 2 + "runner",
+    "could not append to C:" + BACKSLASH * 2 + "Users" + BACKSLASH * 2
+    + "..." + BACKSLASH * 2 + "history.jsonl",
+    "lock held under C:" + BACKSLASH * 2 + "Users" + BACKSLASH * 2 + "<name>",
+    "the tree is at D:" + BACKSLASH * 2 + "workspace" + BACKSLASH * 2
+    + "projects",
+    "mock returns /home/user/some/file",
+    "the anchored/home/tail form keeps its separator",
+    "the docs live at https://home/getting-started",
+    "the API route is https://platform.example.com/talent/x",
+)
+
+
+def _layout_hits(text):
+    found = []
+    for name, rule, _subject, _expected, allowed in PATH_SHAPES:
+        for match in rule.finditer(text):
+            if not allowed(match.group(1)):
+                found.append((name, match.group(1)))
+    return found
+
+
+def test_the_layout_check_fires_on_every_planted_path__CONTROL():
+    """Each plant, driven. An assertion of ABSENCE is only worth the
+    demonstration that the detector behind it can be made to fire."""
+    for planted in _PLANTED_PATHS:
+        assert _layout_hits(planted), (
+            "a planted absolute layout was NOT caught, so the corresponding "
+            "absence assertion certifies nothing: " + repr(planted)
+        )
+
+
+def test_the_layout_check_stays_quiet_on_synthetic_paths__CONTROL():
+    """And the reverse, or a rule that refuses everything would pass above."""
+    for benign in _BENIGN_PATHS:
+        assert not _layout_hits(benign), (
+            "an already-synthetic path was reported as a leak, which is how "
+            "a guard gets narrowed into uselessness: " + repr(benign)
+        )

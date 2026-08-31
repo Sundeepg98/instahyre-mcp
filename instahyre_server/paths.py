@@ -5,9 +5,9 @@ WHAT WAS MEASURED
 On 2026-08-21 a live call to ``instahyre_config()`` against the running server
 returned this machine's directory layout in three fields at once::
 
-    "source":        "D:\\Sundeep\\projects\\job-hunting\\config\\jobhunt.json"
-    "config_status": "loaded from D:\\Sundeep\\projects\\job-hunting\\config\\jobhunt.json"
-    "searched":      ["D:\\Sundeep\\projects\\job-hunting\\config\\jobhunt.json"]
+    "source":        "D:\\workspace\\projects\\job-hunting\\config\\jobhunt.json"
+    "config_status": "loaded from D:\\workspace\\projects\\job-hunting\\config\\jobhunt.json"
+    "searched":      ["D:\\workspace\\projects\\job-hunting\\config\\jobhunt.json"]
 
 That is wrong twice over: it publishes the operator's layout into any shared
 transcript or future public release, and it is paid for in tokens on every
@@ -95,8 +95,8 @@ def repr_spelling(raw: Any) -> str:
     CPython renders an ``OSError``'s ``filename`` through ``%R``, so a Windows
     path arrives in the message with every separator DOUBLED::
 
-        OSError(13, "Permission denied", r"C:\Users\Dell\config\jobhunt.json")
-        str(...) -> [Errno 13] Permission denied: 'C:\\Users\\Dell\\config\\jobhunt.json'
+        OSError(13, "Permission denied", r"C:\Users\user\config\jobhunt.json")
+        str(...) -> [Errno 13] Permission denied: 'C:\\Users\\user\\config\\jobhunt.json'
 
     That is the same path, spelled differently -- and an exact-substring
     scrubber looking for the single-separator form finds nothing in it and

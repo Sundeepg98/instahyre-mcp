@@ -336,7 +336,7 @@ class TestAConfiguredWeightMovesAnInstahyreScore:
         # which ASSERTED THE LEAK: it required the field to be this machine's
         # full absolute path, so the path-hygiene fix could not land while it
         # stood. A live sweep the day before had found exactly that value --
-        # "D:\\Sundeep\\projects\\job-hunting\\config\\jobhunt.json" -- inside
+        # "D:\\workspace\\projects\\job-hunting\\config\\jobhunt.json" -- inside
         # a real tool result.
         #
         # The assertion is kept, not deleted, because what it was FOR is still

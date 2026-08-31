@@ -161,7 +161,7 @@ def _prose(loaded: Loaded, text: Any) -> Any:
     nothing. Measured on 2026-08-22 on the production geometry::
 
         "error: cannot read ../../config/jobhunt.json: [Errno 13] Permission
-         denied: 'C:\\Users\\Dell\\...\\config\\jobhunt.json'"
+         denied: 'C:\\Users\\user\\...\\config\\jobhunt.json'"
 
     One sentence: the ``{path}`` half correctly relativised, the ``{exc}``
     half the same path untouched.

@@ -5,9 +5,9 @@ WHAT WAS MEASURED
 On 2026-08-21 a live call to ``instahyre_config()`` against the running server
 returned, verbatim::
 
-    "source": "D:\\\\Sundeep\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"
-    "config_status": "loaded from D:\\\\Sundeep\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"
-    "searched": ["D:\\\\Sundeep\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"]
+    "source": "D:\\\\workspace\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"
+    "config_status": "loaded from D:\\\\workspace\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"
+    "searched": ["D:\\\\workspace\\\\projects\\\\job-hunting\\\\config\\\\jobhunt.json"]
 
 That is wrong twice over: it publishes the operator's directory layout into any
 shared transcript or future public release, and it is paid for in tokens on
@@ -414,8 +414,8 @@ class TestNoToolResultCarriesAnAbsoluteLocalPath:
         Three placements, because a walker that only visited dict values would
         pass the first and miss the other two.
         """
-        assert absolute_paths_in({"source": r"D:\Sundeep\projects\jobhunt.json"})
-        assert absolute_paths_in({"searched": [r"C:\Users\Dell\.jobhunt\jobhunt.json"]})
+        assert absolute_paths_in({"source": r"D:\workspace\projects\jobhunt.json"})
+        assert absolute_paths_in({"searched": [r"C:\Users\user\.jobhunt\jobhunt.json"]})
         assert absolute_paths_in({r"D:\leak": "value"})
 
         assert not absolute_paths_in({"source": "../../config/jobhunt.json"})
@@ -459,7 +459,7 @@ class TestNoToolResultCarriesAnAbsoluteLocalPath:
         rendered = {"source": "../../config/jobhunt.json"}
 
         assert not payload_contains(rendered, "/tmp/x/config/jobhunt.json")
-        assert not payload_contains(rendered, r"D:\Sundeep\config\jobhunt.json")
+        assert not payload_contains(rendered, r"D:\workspace\config\jobhunt.json")
 
     def test_the_scanner_does_not_trip_on_a_url__CONTROL(self):
         """The false positive this scanner really produced, pinned as a case.
@@ -743,7 +743,7 @@ class TestTheErrorPathCarriesNoPathEither:
 #
 #     "config_status": "error: cannot read ../../config/jobhunt.json:
 #                       [Errno 13] Permission denied:
-#                       'C:\\Users\\Dell\\...\\config\\jobhunt.json'"
+#                       'C:\\Users\\user\\...\\config\\jobhunt.json'"
 #
 # ONE sentence, two halves, opposite verdicts. The ``{path}`` half is
 # correctly relativised -- the substitution machinery ran and worked. The
@@ -854,7 +854,7 @@ class TestTheReprSpellingIsTheSamePath:
         Literal strings and no fixture, so it measures the same thing on the
         ubuntu runner as it does here.
         """
-        single = r"C:\Users\Dell\config\jobhunt.json"
+        single = r"C:\Users\user\config\jobhunt.json"
         doubled = repr_spelling(single)
         payload = {
             "config_error": "cannot read ../../config/jobhunt.json: "
